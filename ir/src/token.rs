@@ -20,8 +20,8 @@ pub enum Kind {
     LeftSquareBracket,
     RightSquareBracket,
     Comma,
+    Colon,
     BinaryOperator(BinaryOperator),
-    Variant,
 }
 
 #[derive(Debug, Default)]

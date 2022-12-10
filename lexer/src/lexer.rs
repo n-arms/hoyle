@@ -37,6 +37,7 @@ pub fn scan_tokens(text: &str) -> (token::List, Errors) {
             '*' => Kind::BinaryOperator(BinaryOperator::Star),
             '/' => Kind::BinaryOperator(BinaryOperator::Slash),
             ',' => Kind::Comma,
+            ':' => Kind::Colon,
             w if w.is_whitespace() => continue,
             n if n.is_numeric() => {
                 let mut end = None;
@@ -66,8 +67,6 @@ pub fn scan_tokens(text: &str) -> (token::List, Errors) {
                 let span = source.span(start, end.unwrap_or(text.len()));
                 let kind = if span.data == "func" {
                     Kind::Func
-                } else if char.is_uppercase() {
-                    Kind::Variant
                 } else {
                     Kind::Identifier
                 };
@@ -97,7 +96,7 @@ mod test {
 
     #[test]
     fn tokens() {
-        let text = "123abc([{}])+-*/funca3_4 func Do Re mi";
+        let text = "123abc([{}])+- */funca3_4:,func";
         let (tokens, errors) = scan_tokens(text);
         assert!(errors.success());
 
@@ -115,10 +114,9 @@ mod test {
             Kind::BinaryOperator(BinaryOperator::Star),
             Kind::BinaryOperator(BinaryOperator::Slash),
             Kind::Identifier,
+            Kind::Colon,
+            Kind::Comma,
             Kind::Func,
-            Kind::Variant,
-            Kind::Variant,
-            Kind::Identifier,
         ];
 
         for (token, kind) in tokens.into_iter().zip(kinds) {
