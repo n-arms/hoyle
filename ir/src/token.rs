@@ -9,7 +9,7 @@ pub enum BinaryOperator {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum TokenKind {
+pub enum Kind {
     Number,
     Identifier,
     Func,
@@ -25,28 +25,28 @@ pub enum TokenKind {
 }
 
 #[derive(Debug, Default)]
-pub struct TokenList<'a> {
-    kinds: Vec<TokenKind>,
+pub struct List<'a> {
+    kinds: Vec<Kind>,
     spans: Vec<Span<'a>>,
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct Token<'a> {
-    kind: TokenKind,
+    kind: Kind,
     span: Span<'a>,
 }
 
-impl<'a> TokenList<'a> {
-    pub fn push(&mut self, kind: TokenKind, span: Span<'a>) {
+impl<'a> List<'a> {
+    pub fn push(&mut self, kind: Kind, span: Span<'a>) {
         assert_eq!(self.kinds.len(), self.spans.len());
         self.kinds.push(kind);
         self.spans.push(span);
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct Tokens<'a> {
-    tokens: &'a TokenList<'a>,
+    tokens: &'a List<'a>,
     offset: usize,
 }
 
