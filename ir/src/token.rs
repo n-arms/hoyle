@@ -1,6 +1,6 @@
 use crate::span::Span;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BinaryOperator {
     Cross,
     Dash,
@@ -8,7 +8,7 @@ pub enum BinaryOperator {
     Slash,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Kind {
     Number,
     Identifier,
@@ -32,8 +32,8 @@ pub struct List<'a> {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Token<'a> {
-    kind: Kind,
-    span: Span<'a>,
+    pub kind: Kind,
+    pub span: Span<'a>,
 }
 
 impl<'a> List<'a> {
@@ -62,5 +62,17 @@ impl<'a> Iterator for Tokens<'a> {
         self.offset += 1;
 
         Some(token)
+    }
+}
+
+impl<'a> IntoIterator for &'a List<'a> {
+    type Item = Token<'a>;
+    type IntoIter = Tokens<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Tokens {
+            tokens: self,
+            offset: 0,
+        }
     }
 }

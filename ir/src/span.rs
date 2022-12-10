@@ -1,7 +1,7 @@
 #[derive(Copy, Clone, Debug)]
 pub struct Span<'a> {
-    data: &'a str,
-    offset: usize,
+    pub data: &'a str,
+    pub offset: usize,
 }
 
 impl<'a> Span<'a> {
