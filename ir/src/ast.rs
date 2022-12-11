@@ -1,13 +1,13 @@
 use crate::token;
 use std::ops::Range;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct Program<'expr, ID> {
     pub definitions: &'expr [Definition<'expr, ID>],
 }
