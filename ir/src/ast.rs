@@ -8,77 +8,77 @@ pub struct Span {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Program<'ident, 'expr> {
-    pub definitions: &'expr [Definition<'ident, 'expr>],
+pub struct Program<'expr, ID> {
+    pub definitions: &'expr [Definition<'expr, ID>],
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Definition<'ident, 'expr> {
-    pub name: &'ident str,
-    pub generics: &'expr [Generic<'ident>],
-    pub arguments: &'expr [Argument<'ident, 'expr>],
-    pub return_type: Option<Type<'ident, 'expr>>,
-    pub body: Expr<'ident, 'expr>,
+pub struct Definition<'expr, ID> {
+    pub name: ID,
+    pub generics: &'expr [Generic<ID>],
+    pub arguments: &'expr [Argument<'expr, ID>],
+    pub return_type: Option<Type<'expr, ID>>,
+    pub body: Expr<'expr, ID>,
     pub span: Span,
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Argument<'ident, 'expr> {
-    pub pattern: Pattern<'ident, 'expr>,
-    pub type_annotation: Type<'ident, 'expr>,
+pub struct Argument<'expr, ID> {
+    pub pattern: Pattern<'expr, ID>,
+    pub type_annotation: Type<'expr, ID>,
     pub span: Span,
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Type<'ident, 'expr> {
-    Named(&'ident str, Span),
-    Tuple(&'expr [Type<'ident, 'expr>], Span),
+pub enum Type<'expr, ID> {
+    Named(ID, Span),
+    Tuple(&'expr [Type<'expr, ID>], Span),
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Generic<'ident> {
-    pub identifier: &'ident str,
+pub struct Generic<ID> {
+    pub identifier: ID,
     pub span: Span,
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Statement<'ident, 'expr> {
+pub enum Statement<'expr, ID> {
     Let {
-        left_side: Pattern<'ident, 'expr>,
-        right_side: Expr<'ident, 'expr>,
+        left_side: Pattern<'expr, ID>,
+        right_side: Expr<'expr, ID>,
         span: Span,
     },
-    Raw(Expr<'ident, 'expr>, Span),
+    Raw(Expr<'expr, ID>, Span),
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Pattern<'ident, 'expr> {
-    Variable(&'ident str, Span),
-    Tuple(&'expr [Pattern<'ident, 'expr>], Span),
+pub enum Pattern<'expr, ID> {
+    Variable(ID, Span),
+    Tuple(&'expr [Pattern<'expr, ID>], Span),
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Block<'ident, 'expr> {
-    pub statements: &'expr [Statement<'ident, 'expr>],
-    pub result: Option<&'expr Expr<'ident, 'expr>>,
+pub struct Block<'expr, ID> {
+    pub statements: &'expr [Statement<'expr, ID>],
+    pub result: Option<&'expr Expr<'expr, ID>>,
     pub span: Span,
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Expr<'ident, 'expr> {
-    Variable(&'ident str, Span),
+pub enum Expr<'expr, ID> {
+    Variable(ID, Span),
     Literal(Literal<'expr>, Span),
     Call {
-        function: &'expr Expr<'ident, 'expr>,
-        arguments: &'expr [Expr<'ident, 'expr>],
+        function: &'expr Expr<'expr, ID>,
+        arguments: &'expr [Expr<'expr, ID>],
         span: Span,
     },
     Operation {
         operator: Operator,
-        arguments: &'expr [Expr<'ident, 'expr>],
+        arguments: &'expr [Expr<'expr, ID>],
         span: Span,
     },
-    Block(Block<'ident, 'expr>),
+    Block(Block<'expr, ID>),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -124,7 +124,7 @@ impl Span {
     }
 }
 
-impl Expr<'_, '_> {
+impl<ID> Expr<'_, ID> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {
@@ -137,7 +137,7 @@ impl Expr<'_, '_> {
     }
 }
 
-impl Pattern<'_, '_> {
+impl<ID> Pattern<'_, ID> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {
@@ -146,7 +146,7 @@ impl Pattern<'_, '_> {
     }
 }
 
-impl Type<'_, '_> {
+impl<ID> Type<'_, ID> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {

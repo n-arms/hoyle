@@ -1,5 +1,5 @@
 [package]
-name = "parser"
+name = "type_checker"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 bumpalo = "3.11.1"
+im = "15.1.0"
 ir = { path = "../ir" }

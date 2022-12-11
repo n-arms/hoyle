@@ -4,5 +4,6 @@ members = [
   "ir",
   "cli",
   "lexer",
-  "parser"
+  "parser",
+  "type_checker"
 ]
