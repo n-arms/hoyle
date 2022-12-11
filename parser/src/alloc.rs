@@ -1,18 +1,16 @@
 use bumpalo::Bump;
-use std::cell::RefCell;
 use std::collections::HashSet;
-use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct Identifier<'ident> {
     bump: &'ident Bump,
-    interner: Rc<RefCell<HashSet<&'ident str>>>,
+    interner: HashSet<&'ident str>,
 }
 
 impl<'ident> Identifier<'ident> {
     #[must_use]
-    fn get_or_intern<'a>(&self, string: &'a str) -> &'ident str {
-        if let Some(interned) = self.interner.borrow().get(string) {
+    fn get_or_intern<'a>(&mut self, string: &'a str) -> &'ident str {
+        if let Some(interned) = self.interner.get(string) {
             interned
         } else {
             self.bump.alloc_str(string)
@@ -23,7 +21,7 @@ impl<'ident> Identifier<'ident> {
     fn new(bump: &'ident Bump) -> Self {
         Self {
             bump,
-            interner: Rc::new(RefCell::new(HashSet::default())),
+            interner: HashSet::default(),
         }
     }
 }
@@ -49,7 +47,7 @@ impl<'ident, 'expr> General<'ident, 'expr> {
     }
 
     #[must_use]
-    pub fn get_or_intern<'a>(&self, string: &'a str) -> &'ident str {
+    pub fn get_or_intern<'a>(&mut self, string: &'a str) -> &'ident str {
         self.identifier.get_or_intern(string)
     }
 

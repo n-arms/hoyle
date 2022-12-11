@@ -15,11 +15,11 @@ fn main() {
         }
         let ident = Bump::new();
         let ast = Bump::new();
-        let alloc = General::new(&ident, &ast);
+        let mut alloc = General::new(&ident, &ast);
 
         let mut text = tokens.into_iter().peekable();
 
-        let program = match program(&mut text, &alloc) {
+        let program = match program(&mut text, &mut alloc) {
             Ok(Ok(program)) => program,
             Err(e) => {
                 println!("{:?}", e);

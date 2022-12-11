@@ -81,7 +81,7 @@ pub fn token<'src>(
 
 pub fn identifier<'src, 'ident>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, '_>,
+    alloc: &mut General<'ident, '_>,
 ) -> Result<(&'ident str, Span)> {
     let span = propogate!(token(text, Kind::Identifier));
     Ok(Ok((alloc.get_or_intern(span.data), span.into())))
@@ -89,7 +89,7 @@ pub fn identifier<'src, 'ident>(
 
 pub fn literal<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Expr<'ident, 'expr>> {
     let span = propogate!(token(text, Kind::Number));
     Ok(Ok(Expr::Literal(
@@ -100,7 +100,7 @@ pub fn literal<'src, 'ident, 'expr>(
 
 pub fn variable<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Expr<'ident, 'expr>> {
     let (var, span) = propogate!(identifier(text, alloc));
     Ok(Ok(Expr::Variable(var, span)))
@@ -108,7 +108,7 @@ pub fn variable<'src, 'ident, 'expr>(
 
 pub fn parens<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Expr<'ident, 'expr>> {
     let _ = propogate!(token(text, Kind::LeftParen));
     let expr = expr(text, alloc)?.map_err(Irrecoverable::WhileParsingParens)?;
@@ -118,7 +118,7 @@ pub fn parens<'src, 'ident, 'expr>(
 
 pub fn not_application<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Expr<'ident, 'expr>> {
     or_try(
         variable(text, alloc),
@@ -131,7 +131,7 @@ pub fn not_application<'src, 'ident, 'expr>(
 
 pub fn expr<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Expr<'ident, 'expr>> {
     let func = propogate!(not_application(text, alloc));
     let mut args = Vec::new();
@@ -153,7 +153,7 @@ pub fn expr<'src, 'ident, 'expr>(
 
 pub fn pattern<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Pattern<'ident, 'expr>> {
     let (id, span) = propogate!(identifier(text, alloc));
     Ok(Ok(Pattern::Variable(id, span)))
@@ -161,7 +161,7 @@ pub fn pattern<'src, 'ident, 'expr>(
 
 pub fn r#let<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Statement<'ident, 'expr>> {
     let start = propogate!(token(text, Kind::Let));
     let left_side = pattern(text, alloc)?.map_err(Irrecoverable::WhileParsingLet)?;
@@ -177,7 +177,7 @@ pub fn r#let<'src, 'ident, 'expr>(
 
 pub fn raw<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Statement<'ident, 'expr>> {
     let expr = propogate!(expr(text, alloc));
 
@@ -186,7 +186,7 @@ pub fn raw<'src, 'ident, 'expr>(
 
 pub fn statement<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Statement<'ident, 'expr>> {
     or_try(r#let(text, alloc), r#raw(text, alloc))
 }
@@ -194,7 +194,7 @@ pub fn statement<'src, 'ident, 'expr>(
 #[allow(clippy::missing_panics_doc)]
 pub fn block<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Expr<'ident, 'expr>> {
     let start = propogate!(token(text, Kind::LeftBrace));
     if let Ok(end) = token(text, Kind::RightBrace)? {
@@ -235,7 +235,7 @@ pub fn block<'src, 'ident, 'expr>(
 
 pub fn generic<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Generic<'ident>> {
     let (identifier, span) = propogate!(identifier(text, alloc));
     Ok(Ok(Generic { identifier, span }))
@@ -243,7 +243,7 @@ pub fn generic<'src, 'ident, 'expr>(
 
 pub fn r#type<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Type<'ident, 'expr>> {
     let (name, span) = propogate!(identifier(text, alloc));
     Ok(Ok(Type::Named(name, span)))
@@ -251,7 +251,7 @@ pub fn r#type<'src, 'ident, 'expr>(
 
 pub fn argument<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Argument<'ident, 'expr>> {
     let pattern = propogate!(pattern(text, alloc));
     let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingArgument)?;
@@ -266,7 +266,7 @@ pub fn argument<'src, 'ident, 'expr>(
 
 pub fn generics<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<&'expr [Generic<'ident>]> {
     let _ = propogate!(token(text, Kind::LeftSquareBracket));
     if token(text, Kind::RightSquareBracket)?.is_ok() {
@@ -287,7 +287,7 @@ pub fn generics<'src, 'ident, 'expr>(
 
 pub fn arguments<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<&'expr [Argument<'ident, 'expr>]> {
     let _ = propogate!(token(text, Kind::LeftParen));
     if token(text, Kind::RightParen)?.is_ok() {
@@ -307,7 +307,7 @@ pub fn arguments<'src, 'ident, 'expr>(
 
 pub fn return_type<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Type<'ident, 'expr>> {
     let _ = propogate!(token(text, Kind::Colon));
     let r#type = r#type(text, alloc)?.map_err(Irrecoverable::WhileParsingReturnType)?;
@@ -316,7 +316,7 @@ pub fn return_type<'src, 'ident, 'expr>(
 
 pub fn definition<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Definition<'ident, 'expr>> {
     let start = propogate!(token(text, Kind::Func));
     let (name, _) = identifier(text, alloc)?.map_err(Irrecoverable::WhileParsingFunc)?;
@@ -338,7 +338,7 @@ pub fn definition<'src, 'ident, 'expr>(
 
 pub fn program<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'ident, 'expr>,
+    alloc: &mut General<'ident, 'expr>,
 ) -> Result<Program<'ident, 'expr>> {
     let mut defs = Vec::new();
 
