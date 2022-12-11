@@ -78,7 +78,7 @@ pub enum Expr<'ident, 'expr> {
         arguments: &'expr [Expr<'ident, 'expr>],
         span: Span,
     },
-    Block(Block<'ident, 'expr>, Span),
+    Block(Block<'ident, 'expr>),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -110,7 +110,8 @@ impl From<token::Span<'_>> for Span {
 }
 
 impl Span {
-    #[must_use] pub const fn new(start: usize, len: usize) -> Self {
+    #[must_use]
+    pub const fn new(start: usize, len: usize) -> Self {
         Self {
             start,
             end: start + len,
@@ -124,19 +125,21 @@ impl Span {
 }
 
 impl Expr<'_, '_> {
-    #[must_use] pub fn span(&self) -> Span {
+    #[must_use]
+    pub const fn span(&self) -> Span {
         match self {
             Expr::Variable(_, span)
             | Expr::Literal(_, span)
             | Expr::Call { span, .. }
             | Expr::Operation { span, .. }
-            | Expr::Block(_, span) => *span,
+            | Expr::Block(Block { span, .. }) => *span,
         }
     }
 }
 
 impl Pattern<'_, '_> {
-    #[must_use] pub fn span(&self) -> Span {
+    #[must_use]
+    pub const fn span(&self) -> Span {
         match self {
             Pattern::Variable(_, span) | Pattern::Tuple(_, span) => *span,
         }
@@ -144,7 +147,8 @@ impl Pattern<'_, '_> {
 }
 
 impl Type<'_, '_> {
-    #[must_use] pub fn span(&self) -> Span {
+    #[must_use]
+    pub const fn span(&self) -> Span {
         match self {
             Type::Named(_, span) | Type::Tuple(_, span) => *span,
         }

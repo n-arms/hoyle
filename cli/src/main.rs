@@ -19,7 +19,7 @@ fn main() {
 
         let mut text = tokens.into_iter().peekable();
 
-        let program = match program(&mut text, alloc) {
+        let program = match program(&mut text, &alloc) {
             Ok(Ok(program)) => program,
             Err(e) => {
                 println!("{:?}", e);

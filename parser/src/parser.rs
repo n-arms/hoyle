@@ -1,13 +1,3 @@
-macro_rules! try_unwrap {
-    ($e:expr) => {
-        if let Some(t) = $e {
-            t
-        } else {
-            return Ok(Err(Recoverable::UnexpectedEof));
-        }
-    };
-}
-
 macro_rules! propogate {
     ($e:expr) => {
         match $e? {
@@ -17,8 +7,10 @@ macro_rules! propogate {
     };
 }
 
-use crate::alloc::*;
-use ir::ast::*;
+use crate::alloc::General;
+use ir::ast::{
+    Argument, Block, Definition, Expr, Generic, Literal, Pattern, Program, Span, Statement, Type,
+};
 use ir::token::{self, Kind, Token};
 use std::iter::Peekable;
 use std::result;
@@ -26,11 +18,10 @@ use std::result;
 #[derive(Debug)]
 pub enum Recoverable {
     Expected(Vec<Kind>, Option<Kind>),
-    UnexpectedEof,
 }
 
 impl Recoverable {
-    fn combine(&self, other: Recoverable) -> Self {
+    fn combine(&self, other: Self) -> Self {
         match (self, other) {
             (Self::Expected(wants1, got1), Self::Expected(mut wants2, got2)) => {
                 assert_eq!(*got1, got2);
@@ -38,8 +29,6 @@ impl Recoverable {
                 wants2.extend(wants1);
                 Self::Expected(wants2, got2)
             }
-            (Self::UnexpectedEof, Self::UnexpectedEof) => Self::UnexpectedEof,
-            (e1, e2) => panic!("{:?} {:?}", e1, e2),
         }
     }
 }
@@ -55,6 +44,8 @@ pub enum Irrecoverable {
     WhileParsingArguments(Recoverable),
     WhileParsingReturnType(Recoverable),
     WhileParsingProgram(Recoverable),
+    WhileParsingBlock(Recoverable),
+    MissingSemicolon(Span),
 }
 
 pub type Result<T> = result::Result<result::Result<T, Recoverable>, Irrecoverable>;
@@ -71,11 +62,16 @@ pub fn or_try<T>(left: Result<T>, right: Result<T>) -> Result<T> {
     }
 }
 
+#[allow(clippy::missing_panics_doc)]
 pub fn token<'src>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
     kind: Kind,
 ) -> Result<token::Span<'src>> {
-    let token = try_unwrap!(text.peek());
+    let token = if let Some(token) = text.peek() {
+        token
+    } else {
+        return Ok(Err(Recoverable::Expected(vec![kind], None)));
+    };
     if token.kind == kind {
         Ok(Ok(text.next().unwrap().span))
     } else {
@@ -85,7 +81,7 @@ pub fn token<'src>(
 
 pub fn identifier<'src, 'ident>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, '_>,
+    alloc: &General<'ident, '_>,
 ) -> Result<(&'ident str, Span)> {
     let span = propogate!(token(text, Kind::Identifier));
     Ok(Ok((alloc.get_or_intern(span.data), span.into())))
@@ -93,7 +89,7 @@ pub fn identifier<'src, 'ident>(
 
 pub fn literal<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Expr<'ident, 'expr>> {
     let span = propogate!(token(text, Kind::Number));
     Ok(Ok(Expr::Literal(
@@ -104,7 +100,7 @@ pub fn literal<'src, 'ident, 'expr>(
 
 pub fn variable<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Expr<'ident, 'expr>> {
     let (var, span) = propogate!(identifier(text, alloc));
     Ok(Ok(Expr::Variable(var, span)))
@@ -112,7 +108,7 @@ pub fn variable<'src, 'ident, 'expr>(
 
 pub fn parens<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Expr<'ident, 'expr>> {
     let _ = propogate!(token(text, Kind::LeftParen));
     let expr = expr(text, alloc)?.map_err(Irrecoverable::WhileParsingParens)?;
@@ -122,81 +118,124 @@ pub fn parens<'src, 'ident, 'expr>(
 
 pub fn not_application<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Expr<'ident, 'expr>> {
     or_try(
-        variable(text, alloc.clone()),
-        or_try(literal(text, alloc.clone()), parens(text, alloc.clone())),
+        variable(text, alloc),
+        or_try(
+            literal(text, alloc),
+            or_try(parens(text, alloc), block(text, alloc)),
+        ),
     )
 }
 
 pub fn expr<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Expr<'ident, 'expr>> {
-    let func = propogate!(not_application(text, alloc.clone()));
+    let func = propogate!(not_application(text, alloc));
     let mut args = Vec::new();
 
-    while let Ok(next) = not_application(text, alloc.clone())? {
+    while let Ok(next) = not_application(text, alloc)? {
         args.push(next);
     }
 
-    if args.is_empty() {
-        Ok(Ok(func))
-    } else {
+    if let Some(last) = args.last() {
         Ok(Ok(Expr::Call {
             function: alloc.ast_alloc(func),
             arguments: alloc.ast_alloc_slice_copy(&args),
-            span: func.span().union(&args.last().unwrap().span()),
+            span: func.span().union(&last.span()),
         }))
+    } else {
+        Ok(Ok(func))
     }
 }
 
 pub fn pattern<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Pattern<'ident, 'expr>> {
     let (id, span) = propogate!(identifier(text, alloc));
-    Ok(Ok(Pattern::Variable(id, span.into())))
+    Ok(Ok(Pattern::Variable(id, span)))
 }
 
 pub fn r#let<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Statement<'ident, 'expr>> {
     let start = propogate!(token(text, Kind::Let));
-    let left_side = pattern(text, alloc.clone())?.map_err(Irrecoverable::WhileParsingLet)?;
+    let left_side = pattern(text, alloc)?.map_err(Irrecoverable::WhileParsingLet)?;
     let _ = token(text, Kind::SingleEquals)?.map_err(Irrecoverable::WhileParsingLet)?;
     let right_side = expr(text, alloc)?.map_err(Irrecoverable::WhileParsingLet)?;
-    let end = token(text, Kind::Semicolon)?.map_err(Irrecoverable::WhileParsingLet)?;
 
     Ok(Ok(Statement::Let {
         left_side,
         right_side,
-        span: Span::from(start).union(&end.into()),
+        span: right_side.span().union(&start.into()),
     }))
 }
 
 pub fn raw<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Statement<'ident, 'expr>> {
-    let expr = propogate!(expr(text, alloc.clone()));
-    let end = token(text, Kind::Semicolon)?.map_err(Irrecoverable::WhileParsingRaw)?;
+    let expr = propogate!(expr(text, alloc));
 
-    Ok(Ok(Statement::Raw(expr, expr.span().union(&end.into()))))
+    Ok(Ok(Statement::Raw(expr, expr.span())))
 }
 
 pub fn statement<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Statement<'ident, 'expr>> {
-    or_try(r#let(text, alloc.clone()), r#raw(text, alloc))
+    or_try(r#let(text, alloc), r#raw(text, alloc))
+}
+
+#[allow(clippy::missing_panics_doc)]
+pub fn block<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    alloc: &General<'ident, 'expr>,
+) -> Result<Expr<'ident, 'expr>> {
+    let start = propogate!(token(text, Kind::LeftBrace));
+    if let Ok(end) = token(text, Kind::RightBrace)? {
+        return Ok(Ok(Expr::Block(Block {
+            statements: &[],
+            result: None,
+            span: Span::from(start).union(&end.into()),
+        })));
+    }
+    let first = statement(text, alloc)?.map_err(Irrecoverable::WhileParsingBlock)?;
+    let mut rest = vec![first];
+
+    loop {
+        if token(text, Kind::Semicolon)?.is_err() {
+            let end = token(text, Kind::RightBrace)?.map_err(Irrecoverable::WhileParsingBlock)?;
+            let result = match rest.pop().unwrap() {
+                // will not crash because rest always has at least one element
+                Statement::Raw(result, ..) => result,
+                Statement::Let { .. } => return Err(Irrecoverable::MissingSemicolon(end.into())),
+            };
+            return Ok(Ok(Expr::Block(Block {
+                statements: alloc.ast_alloc_slice_copy(&rest),
+                result: Some(alloc.ast_alloc(result)),
+                span: Span::from(start).union(&end.into()),
+            })));
+        }
+        if let Ok(end) = token(text, Kind::RightBrace)? {
+            return Ok(Ok(Expr::Block(Block {
+                statements: alloc.ast_alloc_slice_copy(&rest),
+                result: None,
+                span: Span::from(start).union(&end.into()),
+            })));
+        }
+        let stmt = statement(text, alloc)?.map_err(Irrecoverable::WhileParsingBlock)?;
+        rest.push(stmt);
+    }
 }
 
 pub fn generic<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Generic<'ident>> {
     let (identifier, span) = propogate!(identifier(text, alloc));
     Ok(Ok(Generic { identifier, span }))
@@ -204,7 +243,7 @@ pub fn generic<'src, 'ident, 'expr>(
 
 pub fn r#type<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Type<'ident, 'expr>> {
     let (name, span) = propogate!(identifier(text, alloc));
     Ok(Ok(Type::Named(name, span)))
@@ -212,9 +251,9 @@ pub fn r#type<'src, 'ident, 'expr>(
 
 pub fn argument<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Argument<'ident, 'expr>> {
-    let pattern = propogate!(pattern(text, alloc.clone()));
+    let pattern = propogate!(pattern(text, alloc));
     let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingArgument)?;
     let type_annotation = r#type(text, alloc)?.map_err(Irrecoverable::WhileParsingArgument)?;
 
@@ -227,48 +266,48 @@ pub fn argument<'src, 'ident, 'expr>(
 
 pub fn generics<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<&'expr [Generic<'ident>]> {
     let _ = propogate!(token(text, Kind::LeftSquareBracket));
-    if let Ok(_) = token(text, Kind::RightSquareBracket)? {
+    if token(text, Kind::RightSquareBracket)?.is_ok() {
         return Ok(Ok(&[]));
     }
-    let first = generic(text, alloc.clone())?.map_err(Irrecoverable::WhileParsingGenerics)?;
+    let first = generic(text, alloc)?.map_err(Irrecoverable::WhileParsingGenerics)?;
     let mut rest = vec![first];
 
     loop {
-        if let Err(_) = token(text, Kind::Comma)? {
+        if token(text, Kind::Comma)?.is_err() {
             let _ = token(text, Kind::RightSquareBracket)?
                 .map_err(Irrecoverable::WhileParsingGenerics)?;
             return Ok(Ok(alloc.ast_alloc_slice_copy(&rest)));
         }
-        rest.push(generic(text, alloc.clone())?.map_err(Irrecoverable::WhileParsingGenerics)?);
+        rest.push(generic(text, alloc)?.map_err(Irrecoverable::WhileParsingGenerics)?);
     }
 }
 
 pub fn arguments<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<&'expr [Argument<'ident, 'expr>]> {
     let _ = propogate!(token(text, Kind::LeftParen));
-    if let Ok(_) = token(text, Kind::RightParen)? {
+    if token(text, Kind::RightParen)?.is_ok() {
         return Ok(Ok(&[]));
     }
-    let first = argument(text, alloc.clone())?.map_err(Irrecoverable::WhileParsingArguments)?;
+    let first = argument(text, alloc)?.map_err(Irrecoverable::WhileParsingArguments)?;
     let mut rest = vec![first];
 
     loop {
-        if let Err(_) = token(text, Kind::Comma)? {
+        if token(text, Kind::Comma)?.is_err() {
             let _ = token(text, Kind::RightParen)?.map_err(Irrecoverable::WhileParsingArguments)?;
             return Ok(Ok(alloc.ast_alloc_slice_copy(&rest)));
         }
-        rest.push(argument(text, alloc.clone())?.map_err(Irrecoverable::WhileParsingArguments)?);
+        rest.push(argument(text, alloc)?.map_err(Irrecoverable::WhileParsingArguments)?);
     }
 }
 
 pub fn return_type<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Type<'ident, 'expr>> {
     let _ = propogate!(token(text, Kind::Colon));
     let r#type = r#type(text, alloc)?.map_err(Irrecoverable::WhileParsingReturnType)?;
@@ -277,15 +316,15 @@ pub fn return_type<'src, 'ident, 'expr>(
 
 pub fn definition<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Definition<'ident, 'expr>> {
     let start = propogate!(token(text, Kind::Func));
-    let (name, _) = identifier(text, alloc.clone())?.map_err(Irrecoverable::WhileParsingFunc)?;
-    let generics = generics(text, alloc.clone())?.unwrap_or_default();
-    let arguments = arguments(text, alloc.clone())?.map_err(Irrecoverable::WhileParsingFunc)?;
-    let return_type = return_type(text, alloc.clone())?.ok();
+    let (name, _) = identifier(text, alloc)?.map_err(Irrecoverable::WhileParsingFunc)?;
+    let generics = generics(text, alloc)?.unwrap_or_default();
+    let arguments = arguments(text, alloc)?.map_err(Irrecoverable::WhileParsingFunc)?;
+    let return_type = return_type(text, alloc)?.ok();
     let _ = token(text, Kind::SingleEquals)?.map_err(Irrecoverable::WhileParsingFunc)?;
-    let body = expr(text, alloc.clone())?.map_err(Irrecoverable::WhileParsingFunc)?;
+    let body = expr(text, alloc)?.map_err(Irrecoverable::WhileParsingFunc)?;
 
     Ok(Ok(Definition {
         name,
@@ -299,12 +338,12 @@ pub fn definition<'src, 'ident, 'expr>(
 
 pub fn program<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: General<'ident, 'expr>,
+    alloc: &General<'ident, 'expr>,
 ) -> Result<Program<'ident, 'expr>> {
     let mut defs = Vec::new();
 
-    while let Some(_) = text.peek() {
-        let def = definition(text, alloc.clone())?.map_err(Irrecoverable::WhileParsingProgram)?;
+    while text.peek().is_some() {
+        let def = definition(text, alloc)?.map_err(Irrecoverable::WhileParsingProgram)?;
         defs.push(def);
     }
 
