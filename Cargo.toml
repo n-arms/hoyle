@@ -3,5 +3,6 @@
 members = [
   "ir",
   "cli",
-  "lexer"
+  "lexer",
+  "parser"
 ]

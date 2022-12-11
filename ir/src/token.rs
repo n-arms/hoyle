@@ -1,6 +1,17 @@
-use crate::span::Span;
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Span<'a> {
+    pub data: &'a str,
+    pub offset: usize,
+}
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+impl<'a> Span<'a> {
+    #[must_use]
+    pub const fn new(data: &'a str, offset: usize) -> Self {
+        Span { data, offset }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BinaryOperator {
     Cross,
     Dash,
@@ -8,11 +19,12 @@ pub enum BinaryOperator {
     Slash,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Kind {
     Number,
     Identifier,
     Func,
+    Let,
     LeftParen,
     RightParen,
     LeftBrace,
@@ -21,16 +33,18 @@ pub enum Kind {
     RightSquareBracket,
     Comma,
     Colon,
+    Semicolon,
+    SingleEquals,
     BinaryOperator(BinaryOperator),
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct List<'a> {
     kinds: Vec<Kind>,
     spans: Vec<Span<'a>>,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Token<'a> {
     pub kind: Kind,
     pub span: Span<'a>,

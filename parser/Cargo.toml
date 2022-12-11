@@ -1,5 +1,5 @@
 [package]
-name = "cli"
+name = "parser"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,6 +7,6 @@ edition = "2021"
 
 [dependencies]
 bumpalo = "3.11.1"
+chumsky = "0.8.0"
+fix-hidden-lifetime-bug = "0.2.5"
 ir = { path = "../ir" }
-lexer = { path = "../lexer" }
-parser = { path = "../parser" }

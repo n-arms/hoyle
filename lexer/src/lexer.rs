@@ -38,6 +38,8 @@ pub fn scan_tokens(text: &str) -> (token::List, Errors) {
             '/' => Kind::BinaryOperator(BinaryOperator::Slash),
             ',' => Kind::Comma,
             ':' => Kind::Colon,
+            ';' => Kind::Semicolon,
+            '=' => Kind::SingleEquals,
             w if w.is_whitespace() => continue,
             n if n.is_numeric() => {
                 let mut end = None;
@@ -67,6 +69,8 @@ pub fn scan_tokens(text: &str) -> (token::List, Errors) {
                 let span = source.span(start, end.unwrap_or(text.len()));
                 let kind = if span.data == "func" {
                     Kind::Func
+                } else if span.data == "let" {
+                    Kind::Let
                 } else {
                     Kind::Identifier
                 };
