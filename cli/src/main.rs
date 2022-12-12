@@ -1,8 +1,38 @@
 use bumpalo::Bump;
+use infinite_iterator::InfiniteIterator;
 use lexer::scan_tokens;
 use parser::{alloc::*, parser::program};
+use type_checker::{env::*, infer};
 
-use std::io::{self, BufRead};
+use std::{
+    io::{self, BufRead},
+    ops::RangeFrom,
+};
+
+struct IdSource<'a> {
+    counter: usize,
+    alloc: Alloc<'a>,
+}
+
+impl<'a> IdSource<'a> {
+    fn new(alloc: Alloc<'a>) -> Self {
+        Self { alloc, counter: 0 }
+    }
+}
+
+impl<'a> Iterator for IdSource<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(self.next_infinite())
+    }
+}
+impl<'a> InfiniteIterator for IdSource<'a> {
+    fn next_infinite(&mut self) -> <Self as Iterator>::Item {
+        self.counter += 1;
+        self.alloc.str(&self.counter.to_string())
+    }
+}
 
 fn main() {
     let stdin = io::stdin();
@@ -31,6 +61,15 @@ fn main() {
             }
         };
 
-        println!("{:#?}", program)
+        println!("{:?}", program);
+
+        let type_bump = Bump::new();
+        let type_alloc = Alloc::new(&type_bump);
+        let type_env = Env::default();
+        let mut fresh = Fresh::new(IdSource::new(type_alloc));
+
+        let typed_program = infer::program(&program, type_env, &mut fresh, type_alloc).unwrap();
+
+        println!("{:?}", typed_program)
     }
 }

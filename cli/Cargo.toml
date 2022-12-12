@@ -7,6 +7,8 @@ edition = "2021"
 
 [dependencies]
 bumpalo = "3.11.1"
+infinite-iterator = "0.1.0"
 ir = { path = "../ir" }
 lexer = { path = "../lexer" }
 parser = { path = "../parser" }
+type_checker = { path = "../type_checker" }

@@ -1,15 +1,20 @@
 use bumpalo::Bump;
 use im::{HashMap, HashSet};
 use infinite_iterator::InfiniteIterator;
-use ir::ast::*;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::mem::zeroed;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TypedId<'expr, ID> {
     pub id: ID,
     pub id_type: Type<'expr, ID>,
+}
+
+#[derive(Clone, Debug)]
+pub enum Type<'expr, ID> {
+    Named(ID),
+    Tuple(&'expr [Type<'expr, ID>]),
 }
 
 impl<'expr, ID: Hash> Hash for TypedId<'expr, ID> {
@@ -24,8 +29,8 @@ impl<'expr, ID: Eq> PartialEq for TypedId<'expr, ID> {
             return false;
         }
         match (&self.id_type, &other.id_type) {
-            (Type::Named(name1, _), Type::Named(name2, _)) => name1 == name2,
-            (Type::Tuple(_, _), Type::Tuple(_, _)) => todo!(),
+            (Type::Named(name1), Type::Named(name2)) => name1 == name2,
+            (Type::Tuple(..), Type::Tuple(..)) => todo!(),
             _ => false,
         }
     }

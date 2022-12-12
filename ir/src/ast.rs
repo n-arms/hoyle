@@ -1,84 +1,97 @@
 use crate::token;
 use std::ops::Range;
 
-#[derive(Copy, Clone, Debug, Default)]
+// change the types of identifiers (canonicalize import paths)
+// change the types of generics
+//    - Generic [ &str, Vec<Constraint<SourceType | CanonType | Type>> ]
+// change the types of identifiers
+//    - &str -> Qualified [ &str, ImportPath, CanonType | Type ]
+// change the types of types
+//    - SourceType -> CanonType -> Type
+
+#[derive(Copy, Clone, Debug)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
 }
 
 #[derive(Copy, Clone, Debug, Default)]
-pub struct Program<'expr, ID> {
-    pub definitions: &'expr [Definition<'expr, ID>],
+pub struct Program<'expr, 'ident, Id, Ty> {
+    pub definitions: &'expr [Definition<'expr, 'ident, Id, Ty>],
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Definition<'expr, ID> {
-    pub name: ID,
-    pub generics: &'expr [Generic<ID>],
-    pub arguments: &'expr [Argument<'expr, ID>],
-    pub return_type: Option<Type<'expr, ID>>,
-    pub body: Expr<'expr, ID>,
+pub struct Definition<'expr, 'ident, Id, Ty> {
+    pub name: &'ident str,
+    pub generics: &'expr [Generic<'ident>],
+    pub arguments: &'expr [Argument<'expr, Id, Ty>],
+    pub return_type: Option<Ty>,
+    pub body: Expr<'expr, Id, Ty>,
     pub span: Span,
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Argument<'expr, ID> {
-    pub pattern: Pattern<'expr, ID>,
-    pub type_annotation: Type<'expr, ID>,
+pub struct Argument<'expr, Id, Ty> {
+    pub pattern: Pattern<'expr, Id>,
+    pub type_annotation: Ty,
     pub span: Span,
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Type<'expr, ID> {
-    Named(ID, Span),
-    Tuple(&'expr [Type<'expr, ID>], Span),
+pub enum Type<'expr, 'ident> {
+    Named(&'ident str, Span),
+    Tuple(&'expr [Type<'expr, 'ident>], Span),
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Generic<ID> {
-    pub identifier: ID,
+pub struct Generic<'ident> {
+    pub identifier: &'ident str,
     pub span: Span,
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Statement<'expr, ID> {
+pub enum Statement<'expr, Id, Ty> {
     Let {
-        left_side: Pattern<'expr, ID>,
-        right_side: Expr<'expr, ID>,
+        left_side: Pattern<'expr, Id>,
+        right_side: Expr<'expr, Id, Ty>,
         span: Span,
     },
-    Raw(Expr<'expr, ID>, Span),
+    Raw(Expr<'expr, Id, Ty>, Span),
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Pattern<'expr, ID> {
-    Variable(ID, Span),
-    Tuple(&'expr [Pattern<'expr, ID>], Span),
+pub enum Pattern<'expr, Id> {
+    Variable(Id, Span),
+    Tuple(&'expr [Pattern<'expr, Id>], Span),
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Block<'expr, ID> {
-    pub statements: &'expr [Statement<'expr, ID>],
-    pub result: Option<&'expr Expr<'expr, ID>>,
+pub struct Block<'expr, Id, Ty> {
+    pub statements: &'expr [Statement<'expr, Id, Ty>],
+    pub result: Option<&'expr Expr<'expr, Id, Ty>>,
     pub span: Span,
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Expr<'expr, ID> {
-    Variable(ID, Span),
+pub enum Expr<'expr, Id, Ty> {
+    Variable(Id, Span),
     Literal(Literal<'expr>, Span),
     Call {
-        function: &'expr Expr<'expr, ID>,
-        arguments: &'expr [Expr<'expr, ID>],
+        function: &'expr Expr<'expr, Id, Ty>,
+        arguments: &'expr [Expr<'expr, Id, Ty>],
         span: Span,
     },
     Operation {
         operator: Operator,
-        arguments: &'expr [Expr<'expr, ID>],
+        arguments: &'expr [Expr<'expr, Id, Ty>],
         span: Span,
     },
-    Block(Block<'expr, ID>),
+    Block(Block<'expr, Id, Ty>),
+    Annotated {
+        expr: &'expr Expr<'expr, Id, Ty>,
+        annotation: Ty,
+        span: Span,
+    },
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -124,7 +137,7 @@ impl Span {
     }
 }
 
-impl<ID> Expr<'_, ID> {
+impl<Id, Ty> Expr<'_, Id, Ty> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {
@@ -132,12 +145,13 @@ impl<ID> Expr<'_, ID> {
             | Expr::Literal(_, span)
             | Expr::Call { span, .. }
             | Expr::Operation { span, .. }
+            | Expr::Annotated { span, .. }
             | Expr::Block(Block { span, .. }) => *span,
         }
     }
 }
 
-impl<ID> Pattern<'_, ID> {
+impl<Id> Pattern<'_, Id> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {
@@ -146,7 +160,7 @@ impl<ID> Pattern<'_, ID> {
     }
 }
 
-impl<ID> Type<'_, ID> {
+impl Type<'_, '_> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {

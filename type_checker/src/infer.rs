@@ -1,20 +1,22 @@
+/*
 use crate::env::*;
 use im::HashSet;
 use infinite_iterator::InfiniteIterator;
-use ir::ast::*;
+use ir::ast::{self, Argument, Definition, Expr, Generic, Literal, Pattern, Program, Statement};
 use std::hash::Hash;
 use std::result;
 
+#[derive(Debug)]
 pub enum Error {}
 
 type Result<T> = result::Result<T, Error>;
 
-pub fn program<'old, 'new, ID, S>(
-    to_infer: &Program<'old, ID>,
-    env: Env<'new, ID>,
-    fresh: &mut Fresh<ID, S>,
+pub fn program<'old, 'new, 'ident, S>(
+    to_infer: &Program<'old, 'ident>,
+    env: Env<'new, &'ident str>,
+    fresh: &mut Fresh<&'ident str, S>,
     alloc: Alloc<'new>,
-) -> Result<Program<'new, TypedId<'new, ID>>>
+) -> Result<Program<'new, TypedId<'new, ID>, Type<'new, ID>>>
 where
     ID: Hash + Eq + Clone,
     S: InfiniteIterator<Item = ID>,
@@ -29,12 +31,12 @@ where
     })
 }
 
-pub fn definition<'old, 'new, ID, S>(
-    to_infer: &Definition<'old, ID>,
-    env: Env<'new, ID>,
-    fresh: &mut Fresh<ID, S>,
+pub fn definition<'old, 'new, 'ident, S>(
+    to_infer: &Definition<'old, 'ident>,
+    env: Env<'new, &'ident str>,
+    fresh: &mut Fresh<&'ident str, S>,
     alloc: Alloc<'new>,
-) -> Result<Definition<'new, TypedId<'new, ID>>>
+) -> Result<Definition<'new, TypedId<'new, ID>, Type<'new, ID>>>
 where
     ID: Hash + Eq + Clone,
     S: InfiniteIterator<Item = ID>,
@@ -49,7 +51,7 @@ where
         to_infer
             .arguments
             .iter()
-            .map(|arg| argument(&arg, arg.type_annotation.clone(), env.clone(), fresh, alloc)),
+            .map(|arg| argument(arg, arg.type_annotation.clone(), env.clone(), fresh, alloc)),
     )?;
 
     let return_type = if let Some(return_type) = &to_infer.return_type {
@@ -83,12 +85,12 @@ where
     })
 }
 
-pub fn statement<'old, 'new, ID, S>(
+pub fn statement<'old, 'new, 'ident, S>(
     to_infer: &Statement<'old, ID>,
-    env: Env<'new, ID>,
-    fresh: &mut Fresh<ID, S>,
+    env: Env<'new, &'ident str>,
+    fresh: &mut Fresh<&'ident str, S>,
     alloc: Alloc<'new>,
-) -> Result<(Statement<'new, TypedId<'new, ID>>, Env<'new, ID>)>
+) -> Result<(Statement<'new, TypedId<'new, ID>>, Env<'new, &'ident str>)>
 where
     ID: Hash + Eq + Clone,
     S: InfiniteIterator<Item = ID>,
@@ -148,10 +150,10 @@ fn literal_type<'expr, ID>(literal: Literal, alloc: Alloc<'expr>) -> Type<'expr,
     }
 }
 
-pub fn expr<'old, 'new, ID, S>(
+pub fn expr<'old, 'new, 'ident, S>(
     to_infer: &Expr<'old, ID>,
-    env: Env<'new, ID>,
-    fresh: &mut Fresh<ID, S>,
+    env: Env<'new, &'ident str>,
+    fresh: &mut Fresh<&'ident str, S>,
     alloc: Alloc<'new>,
 ) -> Result<Expr<'new, TypedId<'new, ID>>>
 where
@@ -161,11 +163,11 @@ where
     todo!()
 }
 
-pub fn pattern<'old, 'new, ID, S>(
+pub fn pattern<'old, 'new, 'ident, S>(
     to_infer: &Pattern<'old, ID>,
     pattern_type: Type<'old, ID>,
-    env: Env<'new, ID>,
-    fresh: &mut Fresh<ID, S>,
+    env: Env<'new, &'ident str>,
+    fresh: &mut Fresh<&'ident str, S>,
     alloc: Alloc<'new>,
 ) -> Result<Pattern<'new, TypedId<'new, ID>>>
 where
@@ -185,13 +187,13 @@ where
     }
 }
 
-pub fn argument<'old, 'new, ID, S>(
-    to_infer: &Argument<'old, ID>,
-    pattern_type: Type<'old, ID>,
-    env: Env<'new, ID>,
-    fresh: &mut Fresh<ID, S>,
+pub fn argument<'old, 'new, 'ident, S>(
+    to_infer: &Argument<'old, 'ident>,
+    pattern_type: ast::Type<'old, ID>,
+    env: Env<'new, &'ident str>,
+    fresh: &mut Fresh<&'ident str, S>,
     alloc: Alloc<'new>,
-) -> Result<Argument<'new, TypedId<'new, ID>>>
+) -> Result<Argument<'new, TypedId<'new, ID>, Type<'new, ID>>>
 where
     ID: Hash + Eq + Clone,
     S: InfiniteIterator<Item = ID>,
@@ -199,12 +201,12 @@ where
     todo!()
 }
 
-pub fn r#type<'old, 'new, ID, S>(
-    to_infer: &Type<'old, ID>,
-    env: Env<'new, ID>,
-    fresh: &mut Fresh<ID, S>,
+pub fn r#type<'old, 'new, 'ident, S>(
+    to_infer: &ast::Type<'old, ID>,
+    env: Env<'new, &'ident str>,
+    fresh: &mut Fresh<&'ident str, S>,
     alloc: Alloc<'new>,
-) -> Result<Type<'new, TypedId<'new, ID>>>
+) -> Result<Type<'new, ID>>
 where
     ID: Hash + Eq + Clone,
     S: InfiniteIterator<Item = ID>,
@@ -214,13 +216,13 @@ where
 
 pub fn generic<'new, ID, S>(
     to_infer: &Generic<ID>,
-    env: Env<'new, ID>,
-    fresh: &mut Fresh<ID, S>,
+    env: Env<'new, &'ident str>,
+    fresh: &mut Fresh<&'ident str, S>,
     alloc: Alloc<'new>,
 ) -> Result<Generic<TypedId<'new, ID>>>
 where
     ID: Hash + Eq + Clone,
     S: InfiniteIterator<Item = ID>,
 {
-    todo!()
 }
+*/
