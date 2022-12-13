@@ -1,7 +1,8 @@
+use arena_alloc::*;
 use bumpalo::Bump;
 use infinite_iterator::InfiniteIterator;
 use lexer::scan_tokens;
-use parser::{alloc::*, parser::program};
+use parser::parser::program;
 use type_checker::{env::*, infer};
 
 use std::{
@@ -45,11 +46,12 @@ fn main() {
         }
         let ident = Bump::new();
         let ast = Bump::new();
-        let mut alloc = General::new(&ident, &ast);
+        let alloc = General::new(&ast);
+        let interner = Interning::new(&ident);
 
         let mut text = tokens.into_iter().peekable();
 
-        let program = match program(&mut text, &mut alloc) {
+        let program = match program(&mut text, &alloc, &interner) {
             Ok(Ok(program)) => program,
             Err(e) => {
                 println!("{:?}", e);
@@ -63,13 +65,14 @@ fn main() {
 
         println!("{:?}", program);
 
+        /*
         let type_bump = Bump::new();
         let type_alloc = Alloc::new(&type_bump);
         let type_env = Env::default();
         let mut fresh = Fresh::new(IdSource::new(type_alloc));
-
         let typed_program = infer::program(&program, type_env, &mut fresh, type_alloc).unwrap();
 
         println!("{:?}", typed_program)
+        */
     }
 }

@@ -26,7 +26,7 @@ pub enum Type<'expr, 'ident> {
         name: &'ident str,
         span: ast::Span,
     },
-    Tuple(&'expr [Type<'expr, 'ident>], Span),
+    Tuple(&'expr [Type<'expr, 'ident>], ast::Span),
 }
 
 pub type Program<'expr, 'ident> =

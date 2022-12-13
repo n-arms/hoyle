@@ -6,5 +6,6 @@ members = [
   "lexer",
   "parser",
   "type_checker",
-  "qualifier"
+  "qualifier",
+  "arena_alloc"
 ]
