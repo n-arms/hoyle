@@ -35,16 +35,23 @@ impl<'a> General<'a> {
     where
         I: IntoIterator<Item = Result<T, E>>,
         I::IntoIter: ExactSizeIterator,
+        T: Copy,
+        E: Copy,
     {
-        let mut iter = into_iter.into_iter();
+        let mut iter = into_iter.into_iter().peekable();
+        let default = match iter.peek() {
+            Some(&Ok(elem)) => elem,
+            Some(&Err(err)) => return Err(err),
+            None => unreachable!(),
+        };
         let mut result = Ok(());
         let mem = self
             .arena
             .alloc_slice_fill_with(iter.len(), |_| match iter.next() {
                 Some(Ok(elem)) => elem,
-                Some(Err(error)) => {
-                    result = Err(error);
-                    unsafe { std::mem::zeroed() }
+                Some(Err(err)) => {
+                    result = Err(err);
+                    default
                 }
                 None => unreachable!(),
             });
