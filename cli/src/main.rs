@@ -5,18 +5,15 @@ use lexer::scan_tokens;
 use parser::parser::program;
 use type_checker::{env::*, infer};
 
-use std::{
-    io::{self, BufRead},
-    ops::RangeFrom,
-};
+use std::io::{self, BufRead};
 
 struct IdSource<'a> {
     counter: usize,
-    alloc: Alloc<'a>,
+    alloc: General<'a>,
 }
 
 impl<'a> IdSource<'a> {
-    fn new(alloc: Alloc<'a>) -> Self {
+    fn new(alloc: General<'a>) -> Self {
         Self { alloc, counter: 0 }
     }
 }
@@ -31,7 +28,7 @@ impl<'a> Iterator for IdSource<'a> {
 impl<'a> InfiniteIterator for IdSource<'a> {
     fn next_infinite(&mut self) -> <Self as Iterator>::Item {
         self.counter += 1;
-        self.alloc.str(&self.counter.to_string())
+        self.alloc.alloc_str(&self.counter.to_string())
     }
 }
 

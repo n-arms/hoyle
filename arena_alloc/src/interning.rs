@@ -25,6 +25,7 @@ impl<'a, USE> Interning<'a, USE> {
         }
     }
 
+    #[must_use]
     pub fn get_or_intern<'b>(&self, string: &'b str) -> &'a str {
         let mut interned = self.interned.borrow_mut();
         if let Some(result) = interned.get(string) {

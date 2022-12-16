@@ -79,7 +79,6 @@ pub fn token<'src>(
 
 pub fn identifier<'src, 'ident>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'_>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<(&'ident str, Span)> {
     let span = propogate!(token(text, Kind::Identifier));
@@ -89,7 +88,6 @@ pub fn identifier<'src, 'ident>(
 pub fn literal<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, &'ident str, Type<'expr, 'ident>>> {
     let span = propogate!(token(text, Kind::Number));
     Ok(Ok(Expr::Literal(
@@ -100,10 +98,9 @@ pub fn literal<'src, 'ident, 'expr>(
 
 pub fn variable<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, &'ident str, Type<'expr, 'ident>>> {
-    let (var, span) = propogate!(identifier(text, &alloc, &interner));
+    let (var, span) = propogate!(identifier(text, interner));
     Ok(Ok(Expr::Variable(var, span)))
 }
 
@@ -113,7 +110,7 @@ pub fn parens<'src, 'ident, 'expr>(
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, &'ident str, Type<'expr, 'ident>>> {
     let _ = propogate!(token(text, Kind::LeftParen));
-    let expr = expr(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingParens)?;
+    let expr = expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingParens)?;
     let _ = token(text, Kind::RightParen)?.map_err(Irrecoverable::WhileParsingParens)?;
     Ok(Ok(expr))
 }
@@ -124,13 +121,10 @@ pub fn not_application<'src, 'ident, 'expr>(
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, &'ident str, Type<'expr, 'ident>>> {
     or_try(
-        variable(text, &alloc, &interner),
+        variable(text, interner),
         or_try(
-            literal(text, &alloc, &interner),
-            or_try(
-                parens(text, &alloc, &interner),
-                block(text, &alloc, &interner),
-            ),
+            literal(text, alloc),
+            or_try(parens(text, alloc, interner), block(text, alloc, interner)),
         ),
     )
 }
@@ -140,10 +134,10 @@ pub fn expr<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, &'ident str, Type<'expr, 'ident>>> {
-    let func = propogate!(not_application(text, &alloc, &interner));
+    let func = propogate!(not_application(text, alloc, interner));
     let mut args = Vec::new();
 
-    while let Ok(next) = not_application(text, &alloc, &interner)? {
+    while let Ok(next) = not_application(text, alloc, interner)? {
         args.push(next);
     }
 
@@ -161,10 +155,10 @@ pub fn expr<'src, 'ident, 'expr>(
 
 pub fn pattern<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'expr>,
+    _alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Pattern<'expr, &'ident str>> {
-    let (id, span) = propogate!(identifier(text, &alloc, &interner));
+    let (id, span) = propogate!(identifier(text, interner));
     Ok(Ok(Pattern::Variable(id, span)))
 }
 
@@ -174,9 +168,9 @@ pub fn r#let<'src, 'ident, 'expr>(
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Statement<'expr, &'ident str, Type<'expr, 'ident>>> {
     let start = propogate!(token(text, Kind::Let));
-    let left_side = pattern(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingLet)?;
+    let left_side = pattern(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingLet)?;
     let _ = token(text, Kind::SingleEquals)?.map_err(Irrecoverable::WhileParsingLet)?;
-    let right_side = expr(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingLet)?;
+    let right_side = expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingLet)?;
 
     Ok(Ok(Statement::Let {
         left_side,
@@ -190,7 +184,7 @@ pub fn raw<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Statement<'expr, &'ident str, Type<'expr, 'ident>>> {
-    let expr = propogate!(expr(text, &alloc, &interner));
+    let expr = propogate!(expr(text, alloc, interner));
 
     Ok(Ok(Statement::Raw(expr, expr.span())))
 }
@@ -200,10 +194,7 @@ pub fn statement<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Statement<'expr, &'ident str, Type<'expr, 'ident>>> {
-    or_try(
-        r#let(text, &alloc, &interner),
-        r#raw(text, &alloc, &interner),
-    )
+    or_try(r#let(text, alloc, interner), r#raw(text, alloc, interner))
 }
 
 #[allow(clippy::missing_panics_doc)]
@@ -220,7 +211,7 @@ pub fn block<'src, 'ident, 'expr>(
             span: Span::from(start).union(&end.into()),
         })));
     }
-    let first = statement(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingBlock)?;
+    let first = statement(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingBlock)?;
     let mut rest = vec![first];
 
     loop {
@@ -244,26 +235,26 @@ pub fn block<'src, 'ident, 'expr>(
                 span: Span::from(start).union(&end.into()),
             })));
         }
-        let stmt = statement(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingBlock)?;
+        let stmt = statement(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingBlock)?;
         rest.push(stmt);
     }
 }
 
 pub fn generic<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'expr>,
+    _alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Generic<'ident>> {
-    let (identifier, span) = propogate!(identifier(text, &alloc, &interner));
+    let (identifier, span) = propogate!(identifier(text, interner));
     Ok(Ok(Generic { identifier, span }))
 }
 
 pub fn r#type<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    alloc: &General<'expr>,
+    _alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
-    let (name, span) = propogate!(identifier(text, &alloc, &interner));
+    let (name, span) = propogate!(identifier(text, interner));
     Ok(Ok(Type::Named(name, span)))
 }
 
@@ -272,10 +263,10 @@ pub fn argument<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Argument<'expr, &'ident str, Type<'expr, 'ident>>> {
-    let pattern = propogate!(pattern(text, &alloc, &interner));
+    let pattern = propogate!(pattern(text, alloc, interner));
     let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingArgument)?;
     let type_annotation =
-        r#type(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingArgument)?;
+        r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingArgument)?;
 
     Ok(Ok(Argument {
         pattern,
@@ -293,7 +284,7 @@ pub fn generics<'src, 'ident, 'expr>(
     if token(text, Kind::RightSquareBracket)?.is_ok() {
         return Ok(Ok(&[]));
     }
-    let first = generic(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingGenerics)?;
+    let first = generic(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingGenerics)?;
     let mut rest = vec![first];
 
     loop {
@@ -302,7 +293,7 @@ pub fn generics<'src, 'ident, 'expr>(
                 .map_err(Irrecoverable::WhileParsingGenerics)?;
             return Ok(Ok(alloc.alloc_slice_fill_iter(rest)));
         }
-        rest.push(generic(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingGenerics)?);
+        rest.push(generic(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingGenerics)?);
     }
 }
 
@@ -315,7 +306,7 @@ pub fn arguments<'src, 'ident, 'expr>(
     if token(text, Kind::RightParen)?.is_ok() {
         return Ok(Ok(&[]));
     }
-    let first = argument(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingArguments)?;
+    let first = argument(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingArguments)?;
     let mut rest = vec![first];
 
     loop {
@@ -323,9 +314,7 @@ pub fn arguments<'src, 'ident, 'expr>(
             let _ = token(text, Kind::RightParen)?.map_err(Irrecoverable::WhileParsingArguments)?;
             return Ok(Ok(alloc.alloc_slice_fill_iter(rest)));
         }
-        rest.push(
-            argument(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingArguments)?,
-        );
+        rest.push(argument(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingArguments)?);
     }
 }
 
@@ -335,7 +324,7 @@ pub fn return_type<'src, 'ident, 'expr>(
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
     let _ = propogate!(token(text, Kind::Colon));
-    let r#type = r#type(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingReturnType)?;
+    let r#type = r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingReturnType)?;
     Ok(Ok(r#type))
 }
 
@@ -345,13 +334,12 @@ pub fn definition<'src, 'ident, 'expr>(
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Definition<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     let start = propogate!(token(text, Kind::Func));
-    let (name, _) =
-        identifier(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingFunc)?;
-    let generics = generics(text, &alloc, &interner)?.unwrap_or_default();
-    let arguments = arguments(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingFunc)?;
-    let return_type = return_type(text, &alloc, &interner)?.ok();
+    let (name, _) = identifier(text, interner)?.map_err(Irrecoverable::WhileParsingFunc)?;
+    let generics = generics(text, alloc, interner)?.unwrap_or_default();
+    let arguments = arguments(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingFunc)?;
+    let return_type = return_type(text, alloc, interner)?.ok();
     let _ = token(text, Kind::SingleEquals)?.map_err(Irrecoverable::WhileParsingFunc)?;
-    let body = expr(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingFunc)?;
+    let body = expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingFunc)?;
 
     Ok(Ok(Definition {
         name,
@@ -371,8 +359,7 @@ pub fn program<'src, 'ident, 'expr>(
     let mut defs = Vec::new();
 
     while text.peek().is_some() {
-        let def =
-            definition(text, &alloc, &interner)?.map_err(Irrecoverable::WhileParsingProgram)?;
+        let def = definition(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingProgram)?;
         defs.push(def);
     }
 

@@ -2,10 +2,10 @@ use crate::ast;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Identifier<'expr, 'ident> {
-    source: IdentifierSource,
-    name: &'ident str,
-    r#type: Type<'expr, 'ident>,
-    span: ast::Span,
+    pub source: IdentifierSource,
+    pub name: &'ident str,
+    pub r#type: Type<'expr, 'ident>,
+    pub span: ast::Span,
 }
 
 #[derive(Copy, Clone, Debug)]

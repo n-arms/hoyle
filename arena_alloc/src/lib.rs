@@ -1,6 +1,10 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::redundant_else)]
+#![allow(
+    clippy::missing_panics_doc,
+    clippy::missing_errors_doc,
+    clippy::redundant_else,
+    clippy::option_if_let_else
+)]
 
 pub mod general;
 pub mod interning;

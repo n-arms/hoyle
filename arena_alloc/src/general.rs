@@ -8,18 +8,21 @@ pub struct General<'a> {
 }
 
 impl<'a> General<'a> {
-    pub fn new(arena: &'a Bump) -> Self {
+    pub const fn new(arena: &'a Bump) -> Self {
         Self { arena }
     }
 
+    #[must_use]
     pub fn alloc<T>(&self, obj: T) -> &'a mut T {
         self.arena.alloc(obj)
     }
 
+    #[must_use]
     pub fn alloc_str<'b>(&self, string: &'b str) -> &'a mut str {
         self.arena.alloc_str(string)
     }
 
+    #[must_use]
     pub fn alloc_slice_fill_iter<I, T>(&self, iter: I) -> &'a [T]
     where
         I: IntoIterator<Item = T>,
