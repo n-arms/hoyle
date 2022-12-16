@@ -35,19 +35,35 @@ impl<'a> General<'a> {
     where
         I: IntoIterator<Item = Result<T, E>>,
         I::IntoIter: ExactSizeIterator,
+        T: Copy,
     {
         let mut iter = into_iter.into_iter();
+        let length = iter.len();
+        let mut first_element = iter.next();
+        let default = match first_element {
+            Some(Ok(elem)) => Some(elem),
+            Some(Err(err)) => return Err(err),
+            None => None,
+        };
         let mut result = Ok(());
-        let mem = self
-            .arena
-            .alloc_slice_fill_with(iter.len(), |_| match iter.next() {
+        let mem = self.arena.alloc_slice_fill_with(length, |_| {
+            match first_element {
+                Some(Ok(elem)) => {
+                    first_element = None;
+                    return elem;
+                }
+                Some(Err(_)) => unreachable!(),
+                None => (),
+            };
+            match iter.next() {
                 Some(Ok(elem)) => elem,
-                Some(Err(error)) => {
-                    result = Err(error);
-                    unsafe { std::mem::zeroed() }
+                Some(Err(err)) => {
+                    result = Err(err);
+                    default.unwrap()
                 }
                 None => unreachable!(),
-            });
+            }
+        });
         result.map(|_| mem)
     }
 }
