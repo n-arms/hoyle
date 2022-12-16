@@ -3,6 +3,7 @@ use bumpalo::Bump;
 use infinite_iterator::InfiniteIterator;
 use lexer::scan_tokens;
 use parser::parser::program;
+use qualifier::definitions::Definitions;
 use type_checker::{env::*, infer};
 
 use std::io::{self, BufRead};
@@ -48,7 +49,7 @@ fn main() {
 
         let mut text = tokens.into_iter().peekable();
 
-        let program = match program(&mut text, &alloc, &interner) {
+        let raw_program = match program(&mut text, &alloc, &interner) {
             Ok(Ok(program)) => program,
             Err(e) => {
                 println!("{:?}", e);
@@ -60,7 +61,26 @@ fn main() {
             }
         };
 
-        println!("{:?}", program);
+        println!("{:?}", raw_program);
+
+        let qualified_ast_bump = Bump::new();
+        let qualifying_alloc = General::new(&qualified_ast_bump);
+        let mut defs = Definitions::default();
+
+        let qualified_program = match qualifier::qualifier::program(
+            raw_program,
+            &mut defs,
+            &interner,
+            &qualifying_alloc,
+        ) {
+            Ok(qp) => qp,
+            Err(e) => {
+                println!("{:?}", e);
+                continue;
+            }
+        };
+
+        println!("{:?}", qualified_program);
 
         /*
         let type_bump = Bump::new();

@@ -5,7 +5,12 @@ pub struct Identifier<'expr, 'ident> {
     pub source: IdentifierSource,
     pub name: &'ident str,
     pub r#type: Type<'expr, 'ident>,
-    pub span: ast::Span,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct TypeName<'ident> {
+    pub source: IdentifierSource,
+    pub name: &'ident str,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -22,11 +27,11 @@ pub enum IdentifierSource {
 #[derive(Copy, Clone, Debug)]
 pub enum Type<'expr, 'ident> {
     Named {
-        source: IdentifierSource,
-        name: &'ident str,
+        name: TypeName<'ident>,
         span: ast::Span,
     },
     Tuple(&'expr [Type<'expr, 'ident>], ast::Span),
+    Wildcard,
 }
 
 pub type Program<'expr, 'ident> =

@@ -5,24 +5,22 @@ use ir::qualified::{self, Identifier};
 #[derive(Clone, Default)]
 pub struct Definitions<'expr, 'ident> {
     variables: HashMap<&'ident str, Identifier<'expr, 'ident>>,
-    types: HashMap<&'ident str, qualified::Type<'expr, 'ident>>,
+    types: HashMap<&'ident str, qualified::TypeName<'ident>>,
 }
 
 impl<'expr, 'ident> Definitions<'expr, 'ident> {
-    pub fn with_variables<I>(mut self, variables: I) -> Self
+    pub fn with_variables<I>(&mut self, variables: I)
     where
         I: IntoIterator<Item = (&'ident str, Identifier<'expr, 'ident>)>,
     {
         self.variables.extend(variables);
-        self
     }
 
-    pub fn with_types<I>(mut self, types: I) -> Self
+    pub fn with_types<I>(&mut self, types: I)
     where
-        I: IntoIterator<Item = (&'ident str, qualified::Type<'expr, 'ident>)>,
+        I: IntoIterator<Item = (&'ident str, qualified::TypeName<'ident>)>,
     {
         self.types.extend(types);
-        self
     }
 
     pub fn lookup_variable(
@@ -35,10 +33,7 @@ impl<'expr, 'ident> Definitions<'expr, 'ident> {
             .ok_or(Error::UndefinedVariable(variable))
     }
 
-    pub fn lookup_type(
-        &self,
-        r#type: &'ident str,
-    ) -> Result<'ident, qualified::Type<'expr, 'ident>> {
+    pub fn lookup_type(&self, r#type: &'ident str) -> Result<'ident, qualified::TypeName<'ident>> {
         self.types
             .get(r#type)
             .copied()

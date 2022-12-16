@@ -13,3 +13,4 @@ lexer = { path = "../lexer" }
 parser = { path = "../parser" }
 type_checker = { path = "../type_checker" }
 arena_alloc = { path = "../arena_alloc" }
+qualifier = { path = "../qualifier" }
