@@ -1,5 +1,4 @@
 [workspace]
-
 members = [
   "ir",
   "cli",
@@ -7,5 +6,8 @@ members = [
   "parser",
   "type_checker",
   "qualifier",
-  "arena_alloc"
+  "arena_alloc",
+  
+  # Internal
+  "tests-integration"
 ]

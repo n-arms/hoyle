@@ -1,0 +1,15 @@
+[package]
+name = "tests-integration"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ir = { path = "../ir" }
+lexer = { path = "../lexer" }
+parser = { path = "../parser" }
+qualifier = { path = "../qualifier" }
+arena_alloc = { path = "../arena_alloc" }
+bumpalo = "3.11.1"
