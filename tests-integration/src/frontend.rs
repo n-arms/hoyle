@@ -50,4 +50,23 @@ fn trivial_functions() {
 
     run_frontend("func f() = 0", &ident, &qual);
     run_frontend("func f[A](a: A): A = a", &ident, &qual);
+    run_frontend("func f[A](a: A): A = {let x = a; x}", &ident, &qual);
+}
+
+#[test]
+#[should_panic]
+fn unqualified_variable() {
+    let ident = Bump::new();
+    let qual = Bump::new();
+
+    run_frontend("func() = x", &ident, &qual);
+}
+
+#[test]
+#[should_panic]
+fn unqualified_type() {
+    let ident = Bump::new();
+    let qual = Bump::new();
+
+    run_frontend("func(x: A) = x", &ident, &qual);
 }

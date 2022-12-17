@@ -217,7 +217,10 @@ pub fn expr<'old, 'new, 'ident>(
             arguments,
             span,
         } => todo!(),
-        ast::Expr::Block(_) => todo!(),
+        ast::Expr::Block(statements) => {
+            let qualified_block = block(statements, definitions, interner, general)?;
+            Ok(Expr::Block(qualified_block))
+        }
         ast::Expr::Annotated {
             expr,
             annotation,
