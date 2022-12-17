@@ -88,7 +88,7 @@ pub fn identifier<'src, 'ident>(
 pub fn literal<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
     alloc: &General<'expr>,
-) -> Result<Expr<'expr, &'ident str, Type<'expr, 'ident>>> {
+) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     let span = propogate!(token(text, Kind::Number));
     Ok(Ok(Expr::Literal(
         Literal::Integer(alloc.alloc_str(span.data)),
@@ -99,7 +99,7 @@ pub fn literal<'src, 'ident, 'expr>(
 pub fn variable<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, &'ident str, Type<'expr, 'ident>>> {
+) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     let (var, span) = propogate!(identifier(text, interner));
     Ok(Ok(Expr::Variable(var, span)))
 }
@@ -108,7 +108,7 @@ pub fn parens<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, &'ident str, Type<'expr, 'ident>>> {
+) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     let _ = propogate!(token(text, Kind::LeftParen));
     let expr = expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingParens)?;
     let _ = token(text, Kind::RightParen)?.map_err(Irrecoverable::WhileParsingParens)?;
@@ -119,7 +119,7 @@ pub fn not_application<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, &'ident str, Type<'expr, 'ident>>> {
+) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     or_try(
         variable(text, interner),
         or_try(
@@ -129,11 +129,11 @@ pub fn not_application<'src, 'ident, 'expr>(
     )
 }
 
-pub fn expr<'src, 'ident, 'expr>(
+pub fn not_variant<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, &'ident str, Type<'expr, 'ident>>> {
+) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     let func = propogate!(not_application(text, alloc, interner));
     let mut args = Vec::new();
 
@@ -153,6 +153,61 @@ pub fn expr<'src, 'ident, 'expr>(
     }
 }
 
+pub fn variant_tag<'src, 'ident>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<(&'ident str, Span)> {
+    if let Some(token) = text.peek() {
+        assert!(token.span.data.len() > 0);
+        if token.kind == Kind::Identifier && token.span.data.chars().nth(0).unwrap().is_uppercase()
+        {
+            let token = text.next().unwrap();
+            return Ok(Ok((
+                interner.get_or_intern(token.span.data),
+                token.span.into(),
+            )));
+        }
+    }
+    Ok(Err(Recoverable::Expected(vec![Kind::Identifier], None)))
+}
+
+pub fn variant<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
+    let (variant, start) = propogate!(variant_tag(text, interner));
+
+    let mut args = Vec::new();
+
+    while let Ok(next) = not_application(text, alloc, interner)? {
+        args.push(next);
+    }
+
+    let end = if let Some(last) = args.last() {
+        last.span()
+    } else {
+        start
+    };
+    let span = start.union(&end);
+    Ok(Ok(Expr::Variant {
+        variant,
+        arguments: alloc.alloc_slice_fill_iter(args),
+        span,
+    }))
+}
+
+pub fn expr<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
+    or_try(
+        variant(text, alloc, interner),
+        not_variant(text, alloc, interner),
+    )
+}
+
 pub fn pattern<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
     _alloc: &General<'expr>,
@@ -166,7 +221,7 @@ pub fn r#let<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<Statement<'expr, &'ident str, Type<'expr, 'ident>>> {
+) -> Result<Statement<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     let start = propogate!(token(text, Kind::Let));
     let left_side = pattern(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingLet)?;
     let _ = token(text, Kind::SingleEquals)?.map_err(Irrecoverable::WhileParsingLet)?;
@@ -183,7 +238,7 @@ pub fn raw<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<Statement<'expr, &'ident str, Type<'expr, 'ident>>> {
+) -> Result<Statement<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     let expr = propogate!(expr(text, alloc, interner));
 
     Ok(Ok(Statement::Raw(expr, expr.span())))
@@ -193,7 +248,7 @@ pub fn statement<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<Statement<'expr, &'ident str, Type<'expr, 'ident>>> {
+) -> Result<Statement<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     or_try(r#let(text, alloc, interner), r#raw(text, alloc, interner))
 }
 
@@ -202,7 +257,7 @@ pub fn block<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, &'ident str, Type<'expr, 'ident>>> {
+) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     let start = propogate!(token(text, Kind::LeftBrace));
     if let Ok(end) = token(text, Kind::RightBrace)? {
         return Ok(Ok(Expr::Block(Block {

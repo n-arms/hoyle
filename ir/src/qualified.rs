@@ -44,10 +44,12 @@ pub type Argument<'expr, 'ident> =
     ast::Argument<'expr, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
 
 pub type Statement<'expr, 'ident> =
-    ast::Statement<'expr, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
+    ast::Statement<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
 
 pub type Pattern<'expr, 'ident> = ast::Pattern<'expr, Identifier<'expr, 'ident>>;
 
-pub type Block<'expr, 'ident> = ast::Block<'expr, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
+pub type Block<'expr, 'ident> =
+    ast::Block<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
 
-pub type Expr<'expr, 'ident> = ast::Expr<'expr, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
+pub type Expr<'expr, 'ident> =
+    ast::Expr<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;

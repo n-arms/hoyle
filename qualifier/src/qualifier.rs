@@ -89,7 +89,7 @@ pub fn argument<'old, 'new, 'ident>(
 }
 
 pub fn statement<'old, 'new, 'ident>(
-    to_qualify: ast::Statement<'old, &'ident str, ast::Type<'old, 'ident>>,
+    to_qualify: ast::Statement<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
     definitions: &mut Definitions<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
@@ -138,7 +138,7 @@ pub fn pattern<'old, 'new, 'ident>(
 }
 
 pub fn block<'old, 'new, 'ident>(
-    to_qualify: ast::Block<'old, &'ident str, ast::Type<'old, 'ident>>,
+    to_qualify: ast::Block<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
     definitions: &mut Definitions<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
@@ -193,7 +193,7 @@ pub fn literal<'old, 'new, 'ident>(
 }
 
 pub fn expr<'old, 'new, 'ident>(
-    to_qualify: ast::Expr<'old, &'ident str, ast::Type<'old, 'ident>>,
+    to_qualify: ast::Expr<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
     definitions: &mut Definitions<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
@@ -226,5 +226,21 @@ pub fn expr<'old, 'new, 'ident>(
             annotation,
             span,
         } => todo!(),
+        ast::Expr::Variant {
+            variant,
+            arguments,
+            span,
+        } => {
+            let qualified_arguments = general.alloc_slice_try_fill_iter(
+                arguments
+                    .into_iter()
+                    .map(|arg| expr(*arg, definitions, interner, general)),
+            )?;
+            Ok(Expr::Variant {
+                variant,
+                arguments: qualified_arguments,
+                span,
+            })
+        }
     }
 }

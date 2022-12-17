@@ -26,7 +26,7 @@ pub struct Definition<'expr, 'ident, Id, Ty> {
     pub generics: &'expr [Generic<'ident>],
     pub arguments: &'expr [Argument<'expr, Id, Ty>],
     pub return_type: Option<Ty>,
-    pub body: Expr<'expr, Id, Ty>,
+    pub body: Expr<'expr, 'ident, Id, Ty>,
     pub span: Span,
 }
 
@@ -50,13 +50,13 @@ pub struct Generic<'ident> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Statement<'expr, Id, Ty> {
+pub enum Statement<'expr, 'ident, Id, Ty> {
     Let {
         left_side: Pattern<'expr, Id>,
-        right_side: Expr<'expr, Id, Ty>,
+        right_side: Expr<'expr, 'ident, Id, Ty>,
         span: Span,
     },
-    Raw(Expr<'expr, Id, Ty>, Span),
+    Raw(Expr<'expr, 'ident, Id, Ty>, Span),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -66,29 +66,34 @@ pub enum Pattern<'expr, Id> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Block<'expr, Id, Ty> {
-    pub statements: &'expr [Statement<'expr, Id, Ty>],
-    pub result: Option<&'expr Expr<'expr, Id, Ty>>,
+pub struct Block<'expr, 'ident, Id, Ty> {
+    pub statements: &'expr [Statement<'expr, 'ident, Id, Ty>],
+    pub result: Option<&'expr Expr<'expr, 'ident, Id, Ty>>,
     pub span: Span,
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Expr<'expr, Id, Ty> {
+pub enum Expr<'expr, 'ident, Id, Ty> {
     Variable(Id, Span),
     Literal(Literal<'expr>, Span),
     Call {
-        function: &'expr Expr<'expr, Id, Ty>,
-        arguments: &'expr [Expr<'expr, Id, Ty>],
+        function: &'expr Expr<'expr, 'ident, Id, Ty>,
+        arguments: &'expr [Expr<'expr, 'ident, Id, Ty>],
         span: Span,
     },
     Operation {
         operator: Operator,
-        arguments: &'expr [Expr<'expr, Id, Ty>],
+        arguments: &'expr [Expr<'expr, 'ident, Id, Ty>],
         span: Span,
     },
-    Block(Block<'expr, Id, Ty>),
+    Variant {
+        variant: &'ident str,
+        arguments: &'expr [Expr<'expr, 'ident, Id, Ty>],
+        span: Span,
+    },
+    Block(Block<'expr, 'ident, Id, Ty>),
     Annotated {
-        expr: &'expr Expr<'expr, Id, Ty>,
+        expr: &'expr Expr<'expr, 'ident, Id, Ty>,
         annotation: Ty,
         span: Span,
     },
@@ -137,7 +142,7 @@ impl Span {
     }
 }
 
-impl<Id, Ty> Expr<'_, Id, Ty> {
+impl<Id, Ty> Expr<'_, '_, Id, Ty> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {
@@ -146,6 +151,7 @@ impl<Id, Ty> Expr<'_, Id, Ty> {
             | Expr::Call { span, .. }
             | Expr::Operation { span, .. }
             | Expr::Annotated { span, .. }
+            | Expr::Variant { span, .. }
             | Expr::Block(Block { span, .. }) => *span,
         }
     }
