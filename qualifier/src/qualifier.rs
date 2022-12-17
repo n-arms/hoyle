@@ -48,7 +48,7 @@ pub fn definition<'old, 'new, 'ident>(
 
     let return_type = to_qualify
         .return_type
-        .map(|result| r#type(result, definitions, interner, general))
+        .map(|result| r#type(result, &mut inner_defs, interner, general))
         .unwrap_or(Ok(Type::Wildcard))?;
 
     let arguments = general.alloc_slice_try_fill_iter(
