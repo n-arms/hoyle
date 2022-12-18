@@ -49,8 +49,9 @@ fn trivial_functions() {
     let qual = Bump::new();
 
     run_frontend("func f() = 0", &ident, &qual);
-    run_frontend("func f[A](a: A): A = a", &ident, &qual);
-    run_frontend("func f[A](a: A): A = {let x = a; x}", &ident, &qual);
+    run_frontend("func f[t](a: t): t = a", &ident, &qual);
+    run_frontend("func f[t](a: t): t = {let x = a; x}", &ident, &qual);
+    run_frontend("func f[]() = Ok 5", &ident, &qual);
 }
 
 #[test]

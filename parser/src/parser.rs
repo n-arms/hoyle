@@ -162,13 +162,19 @@ pub fn variant_tag<'src, 'ident>(
         if token.kind == Kind::Identifier && token.span.data.chars().nth(0).unwrap().is_uppercase()
         {
             let token = text.next().unwrap();
-            return Ok(Ok((
+            Ok(Ok((
                 interner.get_or_intern(token.span.data),
                 token.span.into(),
-            )));
+            )))
+        } else {
+            Ok(Err(Recoverable::Expected(
+                vec![Kind::Identifier],
+                Some(token.kind),
+            )))
         }
+    } else {
+        Ok(Err(Recoverable::Expected(vec![Kind::Identifier], None)))
     }
-    Ok(Err(Recoverable::Expected(vec![Kind::Identifier], None)))
 }
 
 pub fn variant<'src, 'ident, 'expr>(
