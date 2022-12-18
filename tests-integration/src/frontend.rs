@@ -67,6 +67,11 @@ fn trivial_functions() {
         &ident,
         &qual,
     );
+    run_frontend(
+        "func unwrap[a](value: V a | U a): a = case value of {V unwrapped => unwrapped, U unwrapped => unwrapped}", 
+        &ident, 
+        &qual
+    );
 }
 
 #[test]

@@ -25,15 +25,15 @@ pub struct Program<'expr, 'ident, Id, Ty> {
 pub struct Definition<'expr, 'ident, Id, Ty> {
     pub name: &'ident str,
     pub generics: &'expr [Generic<'ident>],
-    pub arguments: &'expr [Argument<'expr, Id, Ty>],
+    pub arguments: &'expr [Argument<'expr, 'ident, Id, Ty>],
     pub return_type: Option<Ty>,
     pub body: Expr<'expr, 'ident, Id, Ty>,
     pub span: Span,
 }
 
 #[derive(Copy, Clone)]
-pub struct Argument<'expr, Id, Ty> {
-    pub pattern: Pattern<'expr, Id>,
+pub struct Argument<'expr, 'ident, Id, Ty> {
+    pub pattern: Pattern<'expr, 'ident, Id>,
     pub type_annotation: Ty,
     pub span: Span,
 }
@@ -77,7 +77,7 @@ pub struct Generic<'ident> {
 #[derive(Copy, Clone)]
 pub enum Statement<'expr, 'ident, Id, Ty> {
     Let {
-        left_side: Pattern<'expr, Id>,
+        left_side: Pattern<'expr, 'ident, Id>,
         right_side: Expr<'expr, 'ident, Id, Ty>,
         span: Span,
     },
@@ -85,9 +85,13 @@ pub enum Statement<'expr, 'ident, Id, Ty> {
 }
 
 #[derive(Copy, Clone)]
-pub enum Pattern<'expr, Id> {
+pub enum Pattern<'expr, 'ident, Id> {
     Variable(Id, Span),
-    Tuple(&'expr [Pattern<'expr, Id>], Span),
+    Variant {
+        tag: &'ident str,
+        arguments: &'expr [Pattern<'expr, 'ident, Id>],
+        span: Span,
+    },
 }
 
 #[derive(Copy, Clone)]
@@ -101,6 +105,13 @@ pub struct Block<'expr, 'ident, Id, Ty> {
 pub struct Field<'expr, 'ident, Id, Ty> {
     pub name: &'ident str,
     pub value: Expr<'expr, 'ident, Id, Ty>,
+    pub span: Span,
+}
+
+#[derive(Copy, Clone)]
+pub struct Branch<'expr, 'ident, Id, Ty> {
+    pub pattern: Pattern<'expr, 'ident, Id>,
+    pub body: Expr<'expr, 'ident, Id, Ty>,
     pub span: Span,
 }
 
@@ -119,7 +130,7 @@ pub enum Expr<'expr, 'ident, Id, Ty> {
         span: Span,
     },
     Variant {
-        variant: &'ident str,
+        tag: &'ident str,
         arguments: &'expr [Expr<'expr, 'ident, Id, Ty>],
         span: Span,
     },
@@ -131,6 +142,11 @@ pub enum Expr<'expr, 'ident, Id, Ty> {
     Annotated {
         expr: &'expr Expr<'expr, 'ident, Id, Ty>,
         annotation: Ty,
+        span: Span,
+    },
+    Case {
+        predicate: &'expr Expr<'expr, 'ident, Id, Ty>,
+        branches: &'expr [Branch<'expr, 'ident, Id, Ty>],
         span: Span,
     },
 }
@@ -189,16 +205,17 @@ impl<Id, Ty> Expr<'_, '_, Id, Ty> {
             | Expr::Annotated { span, .. }
             | Expr::Variant { span, .. }
             | Expr::Record { span, .. }
+            | Expr::Case { span, .. }
             | Expr::Block(Block { span, .. }) => *span,
         }
     }
 }
 
-impl<Id> Pattern<'_, Id> {
+impl<Id> Pattern<'_, '_, Id> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {
-            Pattern::Variable(_, span) | Pattern::Tuple(_, span) => *span,
+            Pattern::Variable(_, span) | Pattern::Variant { span, .. } => *span,
         }
     }
 }
@@ -238,7 +255,7 @@ impl<Id: Debug, Ty: Debug> Debug for Definition<'_, '_, Id, Ty> {
     }
 }
 
-impl<Id: Debug, Ty: Debug> Debug for Argument<'_, Id, Ty> {
+impl<Id: Debug, Ty: Debug> Debug for Argument<'_, '_, Id, Ty> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}: {:?}", self.pattern, self.type_annotation)
     }
@@ -250,11 +267,19 @@ impl Debug for Generic<'_> {
     }
 }
 
-impl<Id: Debug> Debug for Pattern<'_, Id> {
+impl<Id: Debug> Debug for Pattern<'_, '_, Id> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Pattern::Variable(variable, _) => variable.fmt(f),
-            Pattern::Tuple(arguments, _) => f.debug_list().entries(*arguments).finish(),
+            Pattern::Variant { tag, arguments, .. } => {
+                let mut tuple = f.debug_tuple(tag);
+
+                for arg in *arguments {
+                    tuple.field(&arg);
+                }
+
+                tuple.finish()
+            }
         }
     }
 }
@@ -311,10 +336,8 @@ impl<Id: Debug, Ty: Debug> Debug for Expr<'_, '_, Id, Ty> {
                 }
                 tuple.finish()
             }
-            Expr::Variant {
-                variant, arguments, ..
-            } => {
-                let mut tuple = f.debug_tuple(variant);
+            Expr::Variant { tag, arguments, .. } => {
+                let mut tuple = f.debug_tuple(tag);
                 for arg in *arguments {
                     tuple.field(arg);
                 }
@@ -330,6 +353,15 @@ impl<Id: Debug, Ty: Debug> Debug for Expr<'_, '_, Id, Ty> {
             } => {
                 write!(f, "{:?}: {:?}", expr, annotation)
             }
+            Expr::Case {
+                predicate,
+                branches,
+                ..
+            } => f
+                .debug_tuple("case")
+                .field(predicate)
+                .field(branches)
+                .finish(),
         }
     }
 }
@@ -376,5 +408,13 @@ impl Debug for Type<'_, '_> {
 impl<Id: Debug, Ty: Debug> Debug for Field<'_, '_, Id, Ty> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {:?}", self.name, self.value)
+    }
+}
+
+impl<Id: Debug, Ty: Debug> Debug for Branch<'_, '_, Id, Ty> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.pattern.fmt(f)?;
+        write!(f, " => ")?;
+        self.body.fmt(f)
     }
 }

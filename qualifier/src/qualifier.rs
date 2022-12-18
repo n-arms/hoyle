@@ -3,8 +3,8 @@ use crate::error::Result;
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast;
 use ir::qualified::{
-    Argument, Block, Definition, Expr, Field, Identifier, IdentifierSource, Path, Pattern, Program,
-    Statement, Type, TypeField, TypeName,
+    Argument, Block, Branch, Definition, Expr, Field, Identifier, IdentifierSource, Path, Pattern,
+    Program, Statement, Type, TypeField, TypeName,
 };
 
 pub fn program<'old, 'new, 'ident>(
@@ -77,7 +77,7 @@ pub fn definition<'old, 'new, 'ident>(
 }
 
 pub fn argument<'old, 'new, 'ident>(
-    to_qualify: ast::Argument<'old, &'ident str, ast::Type<'old, 'ident>>,
+    to_qualify: ast::Argument<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
     definitions: &mut Definitions<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
@@ -122,10 +122,10 @@ pub fn statement<'old, 'new, 'ident>(
 }
 
 pub fn pattern<'old, 'new, 'ident>(
-    to_qualify: ast::Pattern<'old, &'ident str>,
+    to_qualify: ast::Pattern<'old, 'ident, &'ident str>,
     definitions: &mut Definitions<'new, 'ident>,
-    _interner: &Interning<'ident, Specialized>,
-    _general: &General<'new>,
+    interner: &Interning<'ident, Specialized>,
+    general: &General<'new>,
 ) -> Result<'ident, Pattern<'new, 'ident>> {
     match to_qualify {
         ast::Pattern::Variable(variable, span) => {
@@ -137,7 +137,22 @@ pub fn pattern<'old, 'new, 'ident>(
             definitions.with_variables([(variable, qualified)]);
             Ok(Pattern::Variable(qualified, span))
         }
-        ast::Pattern::Tuple(_, _) => todo!(),
+        ast::Pattern::Variant {
+            tag,
+            arguments,
+            span,
+        } => {
+            let qualified_arguments = general.alloc_slice_try_fill_iter(
+                arguments
+                    .iter()
+                    .map(|arg| pattern(*arg, definitions, interner, general)),
+            )?;
+            Ok(Pattern::Variant {
+                tag,
+                arguments: qualified_arguments,
+                span,
+            })
+        }
     }
 }
 
@@ -286,6 +301,22 @@ pub fn field<'old, 'new, 'ident>(
     })
 }
 
+pub fn branch<'old, 'new, 'ident>(
+    to_qualify: ast::Branch<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
+    definitions: &mut Definitions<'new, 'ident>,
+    interner: &Interning<'ident, Specialized>,
+    general: &General<'new>,
+) -> Result<'ident, Branch<'new, 'ident>> {
+    let qualified_pattern = pattern(to_qualify.pattern, definitions, interner, general)?;
+    let qualified_body = expr(to_qualify.body, definitions, interner, general)?;
+
+    Ok(Branch {
+        pattern: qualified_pattern,
+        body: qualified_body,
+        span: to_qualify.span,
+    })
+}
+
 pub fn expr<'old, 'new, 'ident>(
     to_qualify: ast::Expr<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
     definitions: &mut Definitions<'new, 'ident>,
@@ -338,7 +369,7 @@ pub fn expr<'old, 'new, 'ident>(
         }
         ast::Expr::Annotated { .. } => todo!(),
         ast::Expr::Variant {
-            variant,
+            tag,
             arguments,
             span,
         } => {
@@ -348,8 +379,28 @@ pub fn expr<'old, 'new, 'ident>(
                     .map(|arg| expr(*arg, definitions, interner, general)),
             )?;
             Ok(Expr::Variant {
-                variant,
+                tag,
                 arguments: qualified_arguments,
+                span,
+            })
+        }
+        ast::Expr::Case {
+            predicate,
+            branches,
+            span,
+        } => {
+            let qualified_predicate =
+                general.alloc(expr(*predicate, definitions, interner, general)?);
+
+            let qualified_branches = general.alloc_slice_try_fill_iter(
+                branches
+                    .iter()
+                    .map(|b| branch(*b, definitions, interner, general)),
+            )?;
+
+            Ok(Expr::Case {
+                predicate: qualified_predicate,
+                branches: qualified_branches,
                 span,
             })
         }

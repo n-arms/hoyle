@@ -39,6 +39,10 @@ pub fn scan_tokens(text: &str) -> (token::List, Errors) {
             ',' => Kind::Comma,
             ':' => Kind::Colon,
             ';' => Kind::Semicolon,
+            '=' if matches!(chars.peek(), Some((_, '>'))) => {
+                chars.next();
+                Kind::ThickArrow
+            }
             '=' => Kind::SingleEquals,
             '|' => Kind::SingleBar,
             w if w.is_whitespace() => continue,
@@ -68,12 +72,12 @@ pub fn scan_tokens(text: &str) -> (token::List, Errors) {
                     }
                 }
                 let span = source.span(start, end.unwrap_or(text.len()));
-                let kind = if span.data == "func" {
-                    Kind::Func
-                } else if span.data == "let" {
-                    Kind::Let
-                } else {
-                    Kind::Identifier
+                let kind = match span.data {
+                    "func" => Kind::Func,
+                    "let" => Kind::Let,
+                    "case" => Kind::Case,
+                    "of" => Kind::Of,
+                    _ => Kind::Identifier,
                 };
                 tokens.push(kind, span);
                 continue;

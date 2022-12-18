@@ -67,18 +67,21 @@ pub type Definition<'expr, 'ident> =
     ast::Definition<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
 
 pub type Argument<'expr, 'ident> =
-    ast::Argument<'expr, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
+    ast::Argument<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
 
 pub type Statement<'expr, 'ident> =
     ast::Statement<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
 
-pub type Pattern<'expr, 'ident> = ast::Pattern<'expr, Identifier<'expr, 'ident>>;
+pub type Pattern<'expr, 'ident> = ast::Pattern<'expr, 'ident, Identifier<'expr, 'ident>>;
 
 pub type Block<'expr, 'ident> =
     ast::Block<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
 
 pub type Field<'expr, 'ident> =
     ast::Field<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
+
+pub type Branch<'expr, 'ident> =
+    ast::Branch<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
 
 pub type Expr<'expr, 'ident> =
     ast::Expr<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;

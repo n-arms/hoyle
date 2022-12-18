@@ -9,8 +9,8 @@ macro_rules! propogate {
 
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::{
-    Argument, Block, Definition, Expr, Field, Generic, Literal, Pattern, Program, Span, Statement,
-    Type, TypeField,
+    Argument, Block, Branch, Definition, Expr, Field, Generic, Literal, Pattern, Program, Span,
+    Statement, Type, TypeField,
 };
 use ir::token::{self, Kind, Token};
 use std::iter::Peekable;
@@ -51,6 +51,8 @@ pub enum Irrecoverable {
     WhileParsingList(Recoverable),
     WhileParsingField(Recoverable),
     WhileParsingUnionType(Recoverable),
+    WhileParsingCase(Recoverable),
+    WhileParsingBranch(Recoverable),
 }
 
 pub type Result<T> = result::Result<result::Result<T, Recoverable>, Irrecoverable>;
@@ -259,7 +261,7 @@ pub fn variant<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
-    let (variant, start) = propogate!(variant_tag(text, interner));
+    let (tag, start) = propogate!(variant_tag(text, interner));
 
     let mut args = Vec::new();
 
@@ -274,7 +276,7 @@ pub fn variant<'src, 'ident, 'expr>(
     };
     let span = start.union(&end);
     Ok(Ok(Expr::Variant {
-        variant,
+        tag,
         arguments: alloc.alloc_slice_fill_iter(args),
         span,
     }))
@@ -316,6 +318,49 @@ pub fn record<'src, 'ident, 'expr>(
     Ok(Ok(Expr::Record { fields, span }))
 }
 
+pub fn branch<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Branch<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
+    let pattern = propogate!(pattern(text, alloc, interner));
+    let _ = token(text, Kind::ThickArrow)?.map_err(Irrecoverable::WhileParsingBranch)?;
+    let body = expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingBranch)?;
+
+    Ok(Ok(Branch {
+        pattern,
+        body,
+        span: pattern.span().union(&body.span()),
+    }))
+}
+
+pub fn case<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
+    let start = propogate!(token(text, Kind::Case));
+    let predicate =
+        alloc.alloc(expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingCase)?);
+    let _ = token(text, Kind::Of)?.map_err(Irrecoverable::WhileParsingCase)?;
+    let (branches, end) = list(
+        text,
+        alloc,
+        interner,
+        Kind::LeftBrace,
+        Kind::RightBrace,
+        &mut branch,
+        false,
+    )?
+    .map_err(Irrecoverable::WhileParsingCase)?;
+
+    Ok(Ok(Expr::Case {
+        predicate,
+        branches,
+        span: end.union(&start.into()),
+    }))
+}
+
 pub fn expr<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
@@ -323,17 +368,51 @@ pub fn expr<'src, 'ident, 'expr>(
 ) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     or_try(
         variant(text, alloc, interner),
-        not_variant(text, alloc, interner),
+        or_try(
+            not_variant(text, alloc, interner),
+            case(text, alloc, interner),
+        ),
     )
+}
+
+pub fn not_variant_pattern<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Pattern<'expr, 'ident, &'ident str>> {
+    let (id, span) = propogate!(identifier(text, interner));
+    Ok(Ok(Pattern::Variable(id, span)))
+}
+
+pub fn variant_pattern<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Pattern<'expr, 'ident, &'ident str>> {
+    let (tag, start) = propogate!(variant_tag(text, interner));
+    let mut end = start;
+    let mut args = Vec::new();
+
+    while let Ok(arg) = pattern(text, alloc, interner)? {
+        end = arg.span();
+        args.push(arg);
+    }
+
+    Ok(Ok(Pattern::Variant {
+        tag,
+        arguments: alloc.alloc_slice_fill_iter(args),
+        span: start.union(&end),
+    }))
 }
 
 pub fn pattern<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    _alloc: &General<'expr>,
+    alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<Pattern<'expr, &'ident str>> {
-    let (id, span) = propogate!(identifier(text, interner));
-    Ok(Ok(Pattern::Variable(id, span)))
+) -> Result<Pattern<'expr, 'ident, &'ident str>> {
+    or_try(
+        variant_pattern(text, alloc, interner),
+        not_variant_pattern(text, interner),
+    )
 }
 
 pub fn r#let<'src, 'ident, 'expr>(
@@ -549,10 +628,10 @@ pub fn r#type<'src, 'ident, 'expr>(
     let mut cases = vec![first];
 
     while token(text, Kind::SingleBar)?.is_ok() {
-        let next =
+        let case =
             not_union(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingUnionType)?;
-        end = next.span();
-        cases.push(next);
+        end = case.span();
+        cases.push(case);
     }
 
     if cases.len() == 1 {
@@ -569,7 +648,7 @@ pub fn argument<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<Argument<'expr, &'ident str, Type<'expr, 'ident>>> {
+) -> Result<Argument<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     let pattern = propogate!(pattern(text, alloc, interner));
     let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingArgument)?;
     let type_annotation =
@@ -603,7 +682,7 @@ pub fn arguments<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<&'expr [Argument<'expr, &'ident str, Type<'expr, 'ident>>]> {
+) -> Result<&'expr [Argument<'expr, 'ident, &'ident str, Type<'expr, 'ident>>]> {
     let (arguments, _) = propogate!(list(
         text,
         alloc,
