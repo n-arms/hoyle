@@ -195,6 +195,26 @@ pub fn r#type<'old, 'new, 'ident>(
             })
         }
         ast::Type::Tuple(_, _) => todo!(),
+        ast::Type::Arrow {
+            arguments,
+            return_type,
+            span,
+        } => {
+            let qualified_arguments = general.alloc_slice_try_fill_iter(
+                arguments
+                    .into_iter()
+                    .map(|arg| r#type(*arg, definitions, interner, general)),
+            )?;
+
+            let qualified_return_type =
+                general.alloc(r#type(*return_type, definitions, interner, general)?);
+
+            Ok(Type::Arrow {
+                arguments: qualified_arguments,
+                return_type: qualified_return_type,
+                span,
+            })
+        }
     }
 }
 
@@ -228,7 +248,21 @@ pub fn expr<'old, 'new, 'ident>(
             function,
             arguments,
             span,
-        } => todo!(),
+        } => {
+            let qualified_function =
+                general.alloc(expr(*function, definitions, interner, general)?);
+            let qualified_arguments = general.alloc_slice_try_fill_iter(
+                arguments
+                    .into_iter()
+                    .map(|arg| expr(*arg, definitions, interner, general)),
+            )?;
+
+            Ok(Expr::Call {
+                function: qualified_function,
+                arguments: qualified_arguments,
+                span,
+            })
+        }
         ast::Expr::Operation {
             operator,
             arguments,

@@ -46,6 +46,11 @@ pub enum Type<'expr, 'ident> {
         arguments: &'expr [Type<'expr, 'ident>],
         span: Span,
     },
+    Arrow {
+        arguments: &'expr [Type<'expr, 'ident>],
+        return_type: &'expr Type<'expr, 'ident>,
+        span: Span,
+    },
     Tuple(&'expr [Type<'expr, 'ident>], Span),
 }
 
@@ -176,7 +181,10 @@ impl Type<'_, '_> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {
-            Type::Named(_, span) | Type::Variant { span, .. } | Type::Tuple(_, span) => *span,
+            Type::Named(_, span)
+            | Type::Variant { span, .. }
+            | Type::Arrow { span, .. }
+            | Type::Tuple(_, span) => *span,
         }
     }
 }
@@ -308,6 +316,16 @@ impl Debug for Type<'_, '_> {
 
                 tuple.finish()
             }
+            Type::Arrow {
+                arguments,
+                return_type,
+                ..
+            } => f
+                .debug_tuple("func")
+                .field(arguments)
+                .field(return_type)
+                .finish(),
+
             Type::Tuple(_, _) => todo!(),
         }
     }

@@ -38,6 +38,11 @@ pub enum Type<'expr, 'ident> {
     },
     Tuple(&'expr [Type<'expr, 'ident>], ast::Span),
     Wildcard,
+    Arrow {
+        arguments: &'expr [Type<'expr, 'ident>],
+        return_type: &'expr Type<'expr, 'ident>,
+        span: ast::Span,
+    },
 }
 
 pub type Program<'expr, 'ident> =
@@ -102,6 +107,15 @@ impl Debug for Type<'_, '_> {
 
                 tuple.finish()
             }
+            Type::Arrow {
+                arguments,
+                return_type,
+                ..
+            } => f
+                .debug_tuple("func")
+                .field(arguments)
+                .field(return_type)
+                .finish(),
             Type::Wildcard => write!(f, "*"),
             Type::Tuple(_, _) => todo!(),
         }

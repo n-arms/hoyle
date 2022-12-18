@@ -53,6 +53,11 @@ fn trivial_functions() {
     run_frontend("func f[t](a: t): t = {let x = a; x}", &ident, &qual);
     run_frontend("func f[]() = Ok 5", &ident, &qual);
     run_frontend("func f[a](x: a): V a = V x", &ident, &qual);
+    run_frontend(
+        "func call[a, b](f: func(a): b, x: a): b = f x",
+        &ident,
+        &qual,
+    );
 }
 
 #[test]

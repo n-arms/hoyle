@@ -46,6 +46,7 @@ pub enum Irrecoverable {
     WhileParsingProgram(Recoverable),
     WhileParsingBlock(Recoverable),
     MissingSemicolon(Span),
+    WhileParsingArrowType(Recoverable),
 }
 
 pub type Result<T> = result::Result<result::Result<T, Recoverable>, Irrecoverable>;
@@ -318,6 +319,39 @@ pub fn named_type<'src, 'ident, 'expr>(
     Ok(Ok(Type::Named(name, span)))
 }
 
+pub fn arrow_type<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Type<'expr, 'ident>> {
+    let start = propogate!(token(text, Kind::Func));
+    let _ = token(text, Kind::LeftParen)?.map_err(Irrecoverable::WhileParsingArrowType)?;
+    let mut args = Vec::new();
+    if token(text, Kind::RightParen)?.is_err() {
+        args.push(r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingArrowType)?);
+        loop {
+            if token(text, Kind::Comma)?.is_err() {
+                let _ =
+                    token(text, Kind::RightParen)?.map_err(Irrecoverable::WhileParsingArrowType)?;
+                break;
+            }
+
+            args.push(
+                r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingArrowType)?,
+            );
+        }
+    }
+    let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingArrowType)?;
+    let return_type =
+        r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingArrowType)?;
+
+    Ok(Ok(Type::Arrow {
+        arguments: alloc.alloc_slice_fill_iter(args),
+        return_type: alloc.alloc(return_type),
+        span: return_type.span().union(&start.into()),
+    }))
+}
+
 pub fn variant_type<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
     alloc: &General<'expr>,
@@ -349,7 +383,10 @@ pub fn r#type<'src, 'ident, 'expr>(
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
     or_try(
-        variant_type(text, alloc, interner),
+        or_try(
+            arrow_type(text, alloc, interner),
+            variant_type(text, alloc, interner),
+        ),
         named_type(text, interner),
     )
 }
