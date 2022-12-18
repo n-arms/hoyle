@@ -30,6 +30,11 @@ pub enum Type<'expr, 'ident> {
         name: TypeName<'ident>,
         span: ast::Span,
     },
+    Variant {
+        tag: &'ident str,
+        arguments: &'expr [Type<'expr, 'ident>],
+        span: ast::Span,
+    },
     Tuple(&'expr [Type<'expr, 'ident>], ast::Span),
     Wildcard,
 }

@@ -177,6 +177,23 @@ pub fn r#type<'old, 'new, 'ident>(
                 span,
             })
         }
+        ast::Type::Variant {
+            tag,
+            arguments,
+            span,
+        } => {
+            let qualified_arguments = general.alloc_slice_try_fill_iter(
+                arguments
+                    .into_iter()
+                    .map(|arg| r#type(*arg, definitions, interner, general)),
+            )?;
+
+            Ok(Type::Variant {
+                tag,
+                arguments: qualified_arguments,
+                span,
+            })
+        }
         ast::Type::Tuple(_, _) => todo!(),
     }
 }

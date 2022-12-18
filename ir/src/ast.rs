@@ -40,6 +40,11 @@ pub struct Argument<'expr, Id, Ty> {
 #[derive(Copy, Clone, Debug)]
 pub enum Type<'expr, 'ident> {
     Named(&'ident str, Span),
+    Variant {
+        tag: &'ident str,
+        arguments: &'expr [Type<'expr, 'ident>],
+        span: Span,
+    },
     Tuple(&'expr [Type<'expr, 'ident>], Span),
 }
 
@@ -170,7 +175,7 @@ impl Type<'_, '_> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {
-            Type::Named(_, span) | Type::Tuple(_, span) => *span,
+            Type::Named(_, span) | Type::Variant { span, .. } | Type::Tuple(_, span) => *span,
         }
     }
 }

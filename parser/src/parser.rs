@@ -310,13 +310,48 @@ pub fn generic<'src, 'ident, 'expr>(
     Ok(Ok(Generic { identifier, span }))
 }
 
-pub fn r#type<'src, 'ident, 'expr>(
+pub fn named_type<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
-    _alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
     let (name, span) = propogate!(identifier(text, interner));
     Ok(Ok(Type::Named(name, span)))
+}
+
+pub fn variant_type<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Type<'expr, 'ident>> {
+    let (tag, start) = propogate!(variant_tag(text, interner));
+    let mut end = start;
+    let mut args = Vec::new();
+    loop {
+        match r#type(text, alloc, interner)? {
+            Ok(arg) => {
+                end = arg.span();
+                args.push(arg)
+            }
+            Err(_) => {
+                return Ok(Ok(Type::Variant {
+                    tag,
+                    arguments: alloc.alloc_slice_fill_iter(args),
+                    span: start.union(&end),
+                }));
+            }
+        }
+    }
+}
+
+pub fn r#type<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Type<'expr, 'ident>> {
+    or_try(
+        variant_type(text, alloc, interner),
+        named_type(text, interner),
+    )
 }
 
 pub fn argument<'src, 'ident, 'expr>(
