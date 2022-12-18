@@ -62,6 +62,9 @@ pub type Pattern<'expr, 'ident> = ast::Pattern<'expr, Identifier<'expr, 'ident>>
 pub type Block<'expr, 'ident> =
     ast::Block<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
 
+pub type Field<'expr, 'ident> =
+    ast::Field<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
+
 pub type Expr<'expr, 'ident> =
     ast::Expr<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
 

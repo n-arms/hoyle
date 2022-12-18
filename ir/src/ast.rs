@@ -84,6 +84,13 @@ pub struct Block<'expr, 'ident, Id, Ty> {
 }
 
 #[derive(Copy, Clone)]
+pub struct Field<'expr, 'ident, Id, Ty> {
+    pub name: &'ident str,
+    pub value: Expr<'expr, 'ident, Id, Ty>,
+    pub span: Span,
+}
+
+#[derive(Copy, Clone)]
 pub enum Expr<'expr, 'ident, Id, Ty> {
     Variable(Id, Span),
     Literal(Literal<'expr>, Span),
@@ -100,6 +107,10 @@ pub enum Expr<'expr, 'ident, Id, Ty> {
     Variant {
         variant: &'ident str,
         arguments: &'expr [Expr<'expr, 'ident, Id, Ty>],
+        span: Span,
+    },
+    Record {
+        fields: &'expr [Field<'expr, 'ident, Id, Ty>],
         span: Span,
     },
     Block(Block<'expr, 'ident, Id, Ty>),
@@ -163,6 +174,7 @@ impl<Id, Ty> Expr<'_, '_, Id, Ty> {
             | Expr::Operation { span, .. }
             | Expr::Annotated { span, .. }
             | Expr::Variant { span, .. }
+            | Expr::Record { span, .. }
             | Expr::Block(Block { span, .. }) => *span,
         }
     }
@@ -293,6 +305,7 @@ impl<Id: Debug, Ty: Debug> Debug for Expr<'_, '_, Id, Ty> {
                 }
                 tuple.finish()
             }
+            Expr::Record { fields, .. } => f.debug_list().entries(*fields).finish(),
             Expr::Block(block) => block.fmt(f),
             Expr::Annotated {
                 expr, annotation, ..
@@ -328,5 +341,11 @@ impl Debug for Type<'_, '_> {
 
             Type::Tuple(_, _) => todo!(),
         }
+    }
+}
+
+impl<Id: Debug, Ty: Debug> Debug for Field<'_, '_, Id, Ty> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {:?}", self.name, self.value)
     }
 }

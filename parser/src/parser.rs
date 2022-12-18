@@ -9,7 +9,8 @@ macro_rules! propogate {
 
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::{
-    Argument, Block, Definition, Expr, Generic, Literal, Pattern, Program, Span, Statement, Type,
+    Argument, Block, Definition, Expr, Field, Generic, Literal, Pattern, Program, Span, Statement,
+    Type,
 };
 use ir::token::{self, Kind, Token};
 use std::iter::Peekable;
@@ -47,6 +48,8 @@ pub enum Irrecoverable {
     WhileParsingBlock(Recoverable),
     MissingSemicolon(Span),
     WhileParsingArrowType(Recoverable),
+    WhileParsingList(Recoverable),
+    WhileParsingField(Recoverable),
 }
 
 pub type Result<T> = result::Result<result::Result<T, Recoverable>, Irrecoverable>;
@@ -61,9 +64,58 @@ pub fn or_try<T>(left: Result<T>, right: Result<T>) -> Result<T> {
     }
 }
 
+pub fn list<'src, 'ident, 'expr, T, I>(
+    text: &mut Peekable<I>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+    start_token: Kind,
+    end_token: Kind,
+    element: &mut impl FnMut(
+        &mut Peekable<I>,
+        &General<'expr>,
+        &Interning<'ident, Specialized>,
+    ) -> Result<T>,
+    require_trailing_comma: bool,
+) -> Result<(&'expr [T], Span)>
+where
+    I: Iterator<Item = Token<'src>> + Clone,
+{
+    let start = propogate!(token(text, start_token));
+    let mut elements = Vec::new();
+    let end;
+
+    loop {
+        if let Ok(end_span) = token(text, end_token)? {
+            end = end_span;
+            break;
+        }
+        let elem = element(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingList)?;
+        elements.push(elem);
+
+        if let Err(error) = token(text, Kind::Comma)? {
+            if require_trailing_comma {
+                return Err(Irrecoverable::WhileParsingList(error));
+            } else {
+                match token(text, end_token)? {
+                    Ok(end_span) => {
+                        end = end_span;
+                        break;
+                    }
+                    Err(error) => return Err(Irrecoverable::WhileParsingList(error)),
+                }
+            }
+        }
+    }
+
+    let span = Span::from(start).union(&end.into());
+    let element_slice = alloc.alloc_slice_fill_iter(elements);
+
+    Ok(Ok((element_slice, span)))
+}
+
 #[allow(clippy::missing_panics_doc)]
 pub fn token<'src>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     kind: Kind,
 ) -> Result<token::Span<'src>> {
     let token = if let Some(token) = text.peek() {
@@ -78,8 +130,19 @@ pub fn token<'src>(
     }
 }
 
+pub fn token_hint<'src>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    kind: Kind,
+) -> bool {
+    if let Some(token) = text.peek() {
+        token.kind == kind
+    } else {
+        false
+    }
+}
+
 pub fn identifier<'src, 'ident>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<(&'ident str, Span)> {
     let span = propogate!(token(text, Kind::Identifier));
@@ -87,7 +150,7 @@ pub fn identifier<'src, 'ident>(
 }
 
 pub fn literal<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
 ) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     let span = propogate!(token(text, Kind::Number));
@@ -98,7 +161,7 @@ pub fn literal<'src, 'ident, 'expr>(
 }
 
 pub fn variable<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
     let (var, span) = propogate!(identifier(text, interner));
@@ -106,7 +169,7 @@ pub fn variable<'src, 'ident, 'expr>(
 }
 
 pub fn parens<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
@@ -117,21 +180,32 @@ pub fn parens<'src, 'ident, 'expr>(
 }
 
 pub fn not_application<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
-    or_try(
-        variable(text, interner),
+    // this aspect of the grammar isn't LL(1), this will make error handling for records rather bad
+    if token_hint(text, Kind::LeftBrace) {
+        let mut text_copy = text.clone();
+
+        match record(&mut text_copy, alloc, interner) {
+            Ok(Ok(record)) => {
+                *text = text_copy;
+                Ok(Ok(record))
+            }
+            Ok(Err(_)) => unreachable!(),
+            Err(_) => block(text, alloc, interner),
+        }
+    } else {
         or_try(
-            literal(text, alloc),
-            or_try(parens(text, alloc, interner), block(text, alloc, interner)),
-        ),
-    )
+            variable(text, interner),
+            or_try(literal(text, alloc), parens(text, alloc, interner)),
+        )
+    }
 }
 
 pub fn not_variant<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
@@ -155,7 +229,7 @@ pub fn not_variant<'src, 'ident, 'expr>(
 }
 
 pub fn variant_tag<'src, 'ident>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<(&'ident str, Span)> {
     if let Some(token) = text.peek() {
@@ -179,7 +253,7 @@ pub fn variant_tag<'src, 'ident>(
 }
 
 pub fn variant<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
@@ -204,8 +278,44 @@ pub fn variant<'src, 'ident, 'expr>(
     }))
 }
 
+pub fn field<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Field<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
+    let (name, start) = propogate!(identifier(text, interner));
+
+    let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingField)?;
+
+    let value = expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingField)?;
+
+    Ok(Ok(Field {
+        name,
+        value,
+        span: start.union(&value.span()),
+    }))
+}
+
+pub fn record<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
+    let (fields, span) = propogate!(list(
+        text,
+        alloc,
+        interner,
+        Kind::LeftBrace,
+        Kind::RightBrace,
+        &mut field,
+        true,
+    ));
+
+    Ok(Ok(Expr::Record { fields, span }))
+}
+
 pub fn expr<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
@@ -216,7 +326,7 @@ pub fn expr<'src, 'ident, 'expr>(
 }
 
 pub fn pattern<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     _alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Pattern<'expr, &'ident str>> {
@@ -225,7 +335,7 @@ pub fn pattern<'src, 'ident, 'expr>(
 }
 
 pub fn r#let<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Statement<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
@@ -242,7 +352,7 @@ pub fn r#let<'src, 'ident, 'expr>(
 }
 
 pub fn raw<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Statement<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
@@ -252,7 +362,7 @@ pub fn raw<'src, 'ident, 'expr>(
 }
 
 pub fn statement<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Statement<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
@@ -261,7 +371,7 @@ pub fn statement<'src, 'ident, 'expr>(
 
 #[allow(clippy::missing_panics_doc)]
 pub fn block<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
@@ -303,7 +413,7 @@ pub fn block<'src, 'ident, 'expr>(
 }
 
 pub fn generic<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     _alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Generic<'ident>> {
@@ -312,7 +422,7 @@ pub fn generic<'src, 'ident, 'expr>(
 }
 
 pub fn named_type<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
     let (name, span) = propogate!(identifier(text, interner));
@@ -320,7 +430,7 @@ pub fn named_type<'src, 'ident, 'expr>(
 }
 
 pub fn arrow_type<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
@@ -353,7 +463,7 @@ pub fn arrow_type<'src, 'ident, 'expr>(
 }
 
 pub fn variant_type<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
@@ -378,7 +488,7 @@ pub fn variant_type<'src, 'ident, 'expr>(
 }
 
 pub fn r#type<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
@@ -392,7 +502,7 @@ pub fn r#type<'src, 'ident, 'expr>(
 }
 
 pub fn argument<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Argument<'expr, &'ident str, Type<'expr, 'ident>>> {
@@ -409,7 +519,7 @@ pub fn argument<'src, 'ident, 'expr>(
 }
 
 pub fn generics<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<&'expr [Generic<'ident>]> {
@@ -431,7 +541,7 @@ pub fn generics<'src, 'ident, 'expr>(
 }
 
 pub fn arguments<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<&'expr [Argument<'expr, &'ident str, Type<'expr, 'ident>>]> {
@@ -452,7 +562,7 @@ pub fn arguments<'src, 'ident, 'expr>(
 }
 
 pub fn return_type<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
@@ -462,7 +572,7 @@ pub fn return_type<'src, 'ident, 'expr>(
 }
 
 pub fn definition<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Definition<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
@@ -485,7 +595,7 @@ pub fn definition<'src, 'ident, 'expr>(
 }
 
 pub fn program<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>>>,
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Program<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {

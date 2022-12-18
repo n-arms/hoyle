@@ -229,6 +229,21 @@ pub fn literal<'old, 'new, 'ident>(
     }
 }
 
+pub fn field<'old, 'new, 'ident>(
+    to_qualify: ast::Field<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
+    definitions: &mut Definitions<'new, 'ident>,
+    interner: &Interning<'ident, Specialized>,
+    general: &General<'new>,
+) -> Result<'ident, Field<'new, 'ident>> {
+    let qualified_value = expr(to_qualify.value, definitions, interner, general)?;
+
+    Ok(Field {
+        name: to_qualify.name,
+        value: qualified_value,
+        span: to_qualify.span,
+    })
+}
+
 pub fn expr<'old, 'new, 'ident>(
     to_qualify: ast::Expr<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
     definitions: &mut Definitions<'new, 'ident>,
@@ -268,6 +283,17 @@ pub fn expr<'old, 'new, 'ident>(
             arguments,
             span,
         } => todo!(),
+        ast::Expr::Record { fields, span } => {
+            let qualified_fields = general.alloc_slice_try_fill_iter(
+                fields
+                    .into_iter()
+                    .map(|f| field(*f, definitions, interner, general)),
+            )?;
+            Ok(Expr::Record {
+                fields: qualified_fields,
+                span,
+            })
+        }
         ast::Expr::Block(statements) => {
             let qualified_block = block(statements, definitions, interner, general)?;
             Ok(Expr::Block(qualified_block))
