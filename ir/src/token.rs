@@ -35,6 +35,7 @@ pub enum Kind {
     Colon,
     Semicolon,
     SingleEquals,
+    SingleBar,
     BinaryOperator(BinaryOperator),
 }
 

@@ -40,6 +40,7 @@ pub fn scan_tokens(text: &str) -> (token::List, Errors) {
             ':' => Kind::Colon,
             ';' => Kind::Semicolon,
             '=' => Kind::SingleEquals,
+            '|' => Kind::SingleBar,
             w if w.is_whitespace() => continue,
             n if n.is_numeric() => {
                 let mut end = None;

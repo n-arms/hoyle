@@ -245,6 +245,18 @@ pub fn r#type<'old, 'new, 'ident>(
                 span,
             })
         }
+        ast::Type::Union { cases, span } => {
+            let qualified_cases = general.alloc_slice_try_fill_iter(
+                cases
+                    .iter()
+                    .map(|case| r#type(*case, definitions, interner, general)),
+            )?;
+
+            Ok(Type::Union {
+                cases: qualified_cases,
+                span,
+            })
+        }
     }
 }
 

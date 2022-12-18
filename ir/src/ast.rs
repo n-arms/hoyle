@@ -55,6 +55,10 @@ pub enum Type<'expr, 'ident> {
         fields: &'expr [TypeField<'expr, 'ident>],
         span: Span,
     },
+    Union {
+        cases: &'expr [Type<'expr, 'ident>],
+        span: Span,
+    },
 }
 
 #[derive(Copy, Clone)]
@@ -206,6 +210,7 @@ impl Type<'_, '_> {
             Type::Named(_, span)
             | Type::Variant { span, .. }
             | Type::Arrow { span, .. }
+            | Type::Union { span, .. }
             | Type::Record { span, .. } => *span,
         }
     }
@@ -351,11 +356,19 @@ impl Debug for Type<'_, '_> {
                 .field(arguments)
                 .field(return_type)
                 .finish(),
-
             Type::Record { fields, .. } => f
                 .debug_map()
                 .entries(fields.iter().map(|field| (field.name, &field.field_type)))
                 .finish(),
+            Type::Union { cases, .. } => {
+                let mut tuple = f.debug_tuple("union");
+
+                for case in *cases {
+                    tuple.field(case);
+                }
+
+                tuple.finish()
+            }
         }
     }
 }

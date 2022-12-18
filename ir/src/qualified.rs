@@ -46,6 +46,10 @@ pub enum Type<'expr, 'ident> {
         return_type: &'expr Type<'expr, 'ident>,
         span: ast::Span,
     },
+    Union {
+        cases: &'expr [Type<'expr, 'ident>],
+        span: ast::Span,
+    },
 }
 
 #[derive(Copy, Clone)]
@@ -134,6 +138,15 @@ impl Debug for Type<'_, '_> {
                 .debug_map()
                 .entries(fields.iter().map(|field| (field.name, field.field_type)))
                 .finish(),
+            Type::Union { cases, .. } => {
+                let mut tuple = f.debug_tuple("union");
+
+                for case in *cases {
+                    tuple.field(&case);
+                }
+
+                tuple.finish()
+            }
         }
     }
 }

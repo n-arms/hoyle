@@ -60,6 +60,7 @@ fn trivial_functions() {
     );
     run_frontend("func f() = {x: 5,}", &ident, &qual);
     run_frontend("func wrap[a](x: a): {x: a,} = {x: x,}", &ident, &qual);
+    run_frontend("func f[a](x: a): V a | U a = V x", &ident, &qual);
 }
 
 #[test]

@@ -50,6 +50,7 @@ pub enum Irrecoverable {
     WhileParsingArrowType(Recoverable),
     WhileParsingList(Recoverable),
     WhileParsingField(Recoverable),
+    WhileParsingUnionType(Recoverable),
 }
 
 pub type Result<T> = result::Result<result::Result<T, Recoverable>, Irrecoverable>;
@@ -468,7 +469,7 @@ pub fn variant_type<'src, 'ident, 'expr>(
     let mut end = start;
     let mut args = Vec::new();
     loop {
-        match r#type(text, alloc, interner)? {
+        match not_union(text, alloc, interner)? {
             Ok(arg) => {
                 end = arg.span();
                 args.push(arg);
@@ -520,7 +521,7 @@ pub fn record_type<'src, 'ident, 'expr>(
     Ok(Ok(Type::Record { fields, span }))
 }
 
-pub fn r#type<'src, 'ident, 'expr>(
+pub fn not_union<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -535,6 +536,33 @@ pub fn r#type<'src, 'ident, 'expr>(
         ),
         named_type(text, interner),
     )
+}
+
+pub fn r#type<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Type<'expr, 'ident>> {
+    let first = propogate!(not_union(text, alloc, interner));
+    let start = first.span();
+    let mut end = start;
+    let mut cases = vec![first];
+
+    while token(text, Kind::SingleBar)?.is_ok() {
+        let next =
+            not_union(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingUnionType)?;
+        end = next.span();
+        cases.push(next);
+    }
+
+    if cases.len() == 1 {
+        Ok(Ok(cases[0]))
+    } else {
+        Ok(Ok(Type::Union {
+            cases: alloc.alloc_slice_fill_iter(cases),
+            span: start.union(&end),
+        }))
+    }
 }
 
 pub fn argument<'src, 'ident, 'expr>(
