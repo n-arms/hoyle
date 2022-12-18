@@ -228,13 +228,14 @@ pub fn not_variant<'src, 'ident, 'expr>(
     }
 }
 
+#[allow(clippy::missing_panics_doc)]
 pub fn variant_tag<'src, 'ident>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<(&'ident str, Span)> {
     if let Some(token) = text.peek() {
-        assert!(token.span.data.len() > 0);
-        if token.kind == Kind::Identifier && token.span.data.chars().nth(0).unwrap().is_uppercase()
+        assert!(!token.span.data.is_empty());
+        if token.kind == Kind::Identifier && token.span.data.chars().next().unwrap().is_uppercase()
         {
             let token = text.next().unwrap();
             Ok(Ok((
@@ -474,7 +475,7 @@ pub fn variant_type<'src, 'ident, 'expr>(
         match r#type(text, alloc, interner)? {
             Ok(arg) => {
                 end = arg.span();
-                args.push(arg)
+                args.push(arg);
             }
             Err(_) => {
                 return Ok(Ok(Type::Variant {

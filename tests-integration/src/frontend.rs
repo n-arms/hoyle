@@ -58,6 +58,7 @@ fn trivial_functions() {
         &ident,
         &qual,
     );
+    run_frontend("func f() = {x: 5,}", &ident, &qual);
 }
 
 #[test]
@@ -94,4 +95,22 @@ fn inappropriate_type() {
     let qual = Bump::new();
 
     run_frontend("func[a](x: a): a = a", &ident, &qual);
+}
+
+#[test]
+#[should_panic]
+fn missing_trailing_record_comma() {
+    let ident = Bump::new();
+    let qual = Bump::new();
+
+    run_frontend("func() = {x: 5}", &ident, &qual);
+}
+
+#[test]
+#[should_panic]
+fn unqualified_record_variable() {
+    let ident = Bump::new();
+    let qual = Bump::new();
+
+    run_frontend("func() = {x: x,}", &ident, &qual);
 }

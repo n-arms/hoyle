@@ -83,8 +83,8 @@ impl Debug for TypeName<'_> {
 impl Debug for IdentifierSource {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            IdentifierSource::Local => write!(f, "local"),
-            IdentifierSource::Global(path) => path.fmt(f),
+            Self::Local => write!(f, "local"),
+            Self::Global(path) => path.fmt(f),
         }
     }
 }
@@ -92,7 +92,7 @@ impl Debug for IdentifierSource {
 impl Debug for Path {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Path::Current => write!(f, "current"),
+            Self::Current => write!(f, "current"),
         }
     }
 }

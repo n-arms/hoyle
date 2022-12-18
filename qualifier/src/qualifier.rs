@@ -2,7 +2,10 @@ use crate::definitions::Definitions;
 use crate::error::Result;
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast;
-use ir::qualified::*;
+use ir::qualified::{
+    Argument, Block, Definition, Expr, Field, Identifier, IdentifierSource, Path, Pattern, Program,
+    Statement, Type, TypeName,
+};
 
 pub fn program<'old, 'new, 'ident>(
     to_qualify: ast::Program<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
@@ -13,7 +16,7 @@ pub fn program<'old, 'new, 'ident>(
     let qualified_definitions = general.alloc_slice_try_fill_iter(
         to_qualify
             .definitions
-            .into_iter()
+            .iter()
             .map(|def| definition(*def, definitions, interner, general)),
     )?;
 
@@ -36,7 +39,7 @@ pub fn definition<'old, 'new, 'ident>(
     definitions.with_variables([(to_qualify.name, identifier)]);
 
     let mut inner_defs = definitions.clone();
-    inner_defs.with_types(to_qualify.generics.into_iter().map(|generic| {
+    inner_defs.with_types(to_qualify.generics.iter().map(|generic| {
         (
             generic.identifier,
             TypeName {
@@ -48,19 +51,20 @@ pub fn definition<'old, 'new, 'ident>(
 
     let return_type = to_qualify
         .return_type
-        .map(|result| r#type(result, &mut inner_defs, interner, general))
-        .unwrap_or(Ok(Type::Wildcard))?;
+        .map_or(Ok(Type::Wildcard), |result| {
+            r#type(result, &mut inner_defs, interner, general)
+        })?;
 
     let arguments = general.alloc_slice_try_fill_iter(
         to_qualify
             .arguments
-            .into_iter()
+            .iter()
             .map(|arg| argument(*arg, &mut inner_defs, interner, general)),
     )?;
 
     let body = expr(to_qualify.body, &mut inner_defs, interner, general)?;
 
-    let generics = general.alloc_slice_fill_iter(to_qualify.generics.into_iter().copied());
+    let generics = general.alloc_slice_fill_iter(to_qualify.generics.iter().copied());
 
     Ok(Definition {
         name: to_qualify.name,
@@ -120,8 +124,8 @@ pub fn statement<'old, 'new, 'ident>(
 pub fn pattern<'old, 'new, 'ident>(
     to_qualify: ast::Pattern<'old, &'ident str>,
     definitions: &mut Definitions<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
-    general: &General<'new>,
+    _interner: &Interning<'ident, Specialized>,
+    _general: &General<'new>,
 ) -> Result<'ident, Pattern<'new, 'ident>> {
     match to_qualify {
         ast::Pattern::Variable(variable, span) => {
@@ -146,7 +150,7 @@ pub fn block<'old, 'new, 'ident>(
     let statements = general.alloc_slice_try_fill_iter(
         to_qualify
             .statements
-            .into_iter()
+            .iter()
             .map(|stmt| statement(*stmt, definitions, interner, general)),
     )?;
     let result = if let Some(result) = to_qualify.result {
@@ -184,7 +188,7 @@ pub fn r#type<'old, 'new, 'ident>(
         } => {
             let qualified_arguments = general.alloc_slice_try_fill_iter(
                 arguments
-                    .into_iter()
+                    .iter()
                     .map(|arg| r#type(*arg, definitions, interner, general)),
             )?;
 
@@ -202,7 +206,7 @@ pub fn r#type<'old, 'new, 'ident>(
         } => {
             let qualified_arguments = general.alloc_slice_try_fill_iter(
                 arguments
-                    .into_iter()
+                    .iter()
                     .map(|arg| r#type(*arg, definitions, interner, general)),
             )?;
 
@@ -220,8 +224,8 @@ pub fn r#type<'old, 'new, 'ident>(
 
 pub fn literal<'old, 'new, 'ident>(
     to_qualify: ast::Literal<'old>,
-    definitions: &mut Definitions<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
+    _definitions: &mut Definitions<'new, 'ident>,
+    _interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'ident, ast::Literal<'new>> {
     match to_qualify {
@@ -268,7 +272,7 @@ pub fn expr<'old, 'new, 'ident>(
                 general.alloc(expr(*function, definitions, interner, general)?);
             let qualified_arguments = general.alloc_slice_try_fill_iter(
                 arguments
-                    .into_iter()
+                    .iter()
                     .map(|arg| expr(*arg, definitions, interner, general)),
             )?;
 
@@ -278,15 +282,11 @@ pub fn expr<'old, 'new, 'ident>(
                 span,
             })
         }
-        ast::Expr::Operation {
-            operator,
-            arguments,
-            span,
-        } => todo!(),
+        ast::Expr::Operation { .. } => todo!(),
         ast::Expr::Record { fields, span } => {
             let qualified_fields = general.alloc_slice_try_fill_iter(
                 fields
-                    .into_iter()
+                    .iter()
                     .map(|f| field(*f, definitions, interner, general)),
             )?;
             Ok(Expr::Record {
@@ -298,11 +298,7 @@ pub fn expr<'old, 'new, 'ident>(
             let qualified_block = block(statements, definitions, interner, general)?;
             Ok(Expr::Block(qualified_block))
         }
-        ast::Expr::Annotated {
-            expr,
-            annotation,
-            span,
-        } => todo!(),
+        ast::Expr::Annotated { .. } => todo!(),
         ast::Expr::Variant {
             variant,
             arguments,
@@ -310,7 +306,7 @@ pub fn expr<'old, 'new, 'ident>(
         } => {
             let qualified_arguments = general.alloc_slice_try_fill_iter(
                 arguments
-                    .into_iter()
+                    .iter()
                     .map(|arg| expr(*arg, definitions, interner, general)),
             )?;
             Ok(Expr::Variant {
