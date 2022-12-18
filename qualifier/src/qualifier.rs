@@ -4,7 +4,7 @@ use arena_alloc::{General, Interning, Specialized};
 use ir::ast;
 use ir::qualified::{
     Argument, Block, Definition, Expr, Field, Identifier, IdentifierSource, Path, Pattern, Program,
-    Statement, Type, TypeName,
+    Statement, Type, TypeField, TypeName,
 };
 
 pub fn program<'old, 'new, 'ident>(
@@ -166,6 +166,21 @@ pub fn block<'old, 'new, 'ident>(
     })
 }
 
+pub fn type_field<'old, 'new, 'ident>(
+    to_qualify: ast::TypeField<'old, 'ident>,
+    definitions: &mut Definitions<'new, 'ident>,
+    interner: &Interning<'ident, Specialized>,
+    general: &General<'new>,
+) -> Result<'ident, TypeField<'new, 'ident>> {
+    let qualified_field_type = r#type(to_qualify.field_type, definitions, interner, general)?;
+
+    Ok(TypeField {
+        name: to_qualify.name,
+        field_type: qualified_field_type,
+        span: to_qualify.span,
+    })
+}
+
 pub fn r#type<'old, 'new, 'ident>(
     to_qualify: ast::Type<'old, 'ident>,
     definitions: &mut Definitions<'new, 'ident>,
@@ -198,7 +213,18 @@ pub fn r#type<'old, 'new, 'ident>(
                 span,
             })
         }
-        ast::Type::Tuple(_, _) => todo!(),
+        ast::Type::Record { fields, span } => {
+            let qualified_fields = general.alloc_slice_try_fill_iter(
+                fields
+                    .iter()
+                    .map(|f| type_field(*f, definitions, interner, general)),
+            )?;
+
+            Ok(Type::Record {
+                fields: qualified_fields,
+                span,
+            })
+        }
         ast::Type::Arrow {
             arguments,
             return_type,

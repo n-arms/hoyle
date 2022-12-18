@@ -51,7 +51,17 @@ pub enum Type<'expr, 'ident> {
         return_type: &'expr Type<'expr, 'ident>,
         span: Span,
     },
-    Tuple(&'expr [Type<'expr, 'ident>], Span),
+    Record {
+        fields: &'expr [TypeField<'expr, 'ident>],
+        span: Span,
+    },
+}
+
+#[derive(Copy, Clone)]
+pub struct TypeField<'expr, 'ident> {
+    pub name: &'ident str,
+    pub field_type: Type<'expr, 'ident>,
+    pub span: Span,
 }
 
 #[derive(Copy, Clone)]
@@ -196,7 +206,7 @@ impl Type<'_, '_> {
             Type::Named(_, span)
             | Type::Variant { span, .. }
             | Type::Arrow { span, .. }
-            | Type::Tuple(_, span) => *span,
+            | Type::Record { span, .. } => *span,
         }
     }
 }
@@ -305,7 +315,10 @@ impl<Id: Debug, Ty: Debug> Debug for Expr<'_, '_, Id, Ty> {
                 }
                 tuple.finish()
             }
-            Expr::Record { fields, .. } => f.debug_list().entries(*fields).finish(),
+            Expr::Record { fields, .. } => f
+                .debug_map()
+                .entries(fields.iter().map(|field| (field.name, &field.value)))
+                .finish(),
             Expr::Block(block) => block.fmt(f),
             Expr::Annotated {
                 expr, annotation, ..
@@ -339,7 +352,10 @@ impl Debug for Type<'_, '_> {
                 .field(return_type)
                 .finish(),
 
-            Type::Tuple(_, _) => todo!(),
+            Type::Record { fields, .. } => f
+                .debug_map()
+                .entries(fields.iter().map(|field| (field.name, &field.field_type)))
+                .finish(),
         }
     }
 }

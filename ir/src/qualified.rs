@@ -36,13 +36,23 @@ pub enum Type<'expr, 'ident> {
         arguments: &'expr [Type<'expr, 'ident>],
         span: ast::Span,
     },
-    Tuple(&'expr [Type<'expr, 'ident>], ast::Span),
+    Record {
+        fields: &'expr [TypeField<'expr, 'ident>],
+        span: ast::Span,
+    },
     Wildcard,
     Arrow {
         arguments: &'expr [Type<'expr, 'ident>],
         return_type: &'expr Type<'expr, 'ident>,
         span: ast::Span,
     },
+}
+
+#[derive(Copy, Clone)]
+pub struct TypeField<'expr, 'ident> {
+    pub name: &'ident str,
+    pub field_type: Type<'expr, 'ident>,
+    pub span: ast::Span,
 }
 
 pub type Program<'expr, 'ident> =
@@ -120,7 +130,10 @@ impl Debug for Type<'_, '_> {
                 .field(return_type)
                 .finish(),
             Type::Wildcard => write!(f, "*"),
-            Type::Tuple(_, _) => todo!(),
+            Type::Record { fields, .. } => f
+                .debug_map()
+                .entries(fields.iter().map(|field| (field.name, field.field_type)))
+                .finish(),
         }
     }
 }

@@ -10,7 +10,7 @@ macro_rules! propogate {
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::{
     Argument, Block, Definition, Expr, Field, Generic, Literal, Pattern, Program, Span, Statement,
-    Type,
+    Type, TypeField,
 };
 use ir::token::{self, Kind, Token};
 use std::iter::Peekable;
@@ -484,6 +484,42 @@ pub fn variant_type<'src, 'ident, 'expr>(
     }
 }
 
+pub fn type_field<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<TypeField<'expr, 'ident>> {
+    let (name, start) = propogate!(identifier(text, interner));
+
+    let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingField)?;
+
+    let field_type = r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingField)?;
+
+    Ok(Ok(TypeField {
+        name,
+        field_type,
+        span: start.union(&field_type.span()),
+    }))
+}
+
+pub fn record_type<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Type<'expr, 'ident>> {
+    let (fields, span) = propogate!(list(
+        text,
+        alloc,
+        interner,
+        Kind::LeftBrace,
+        Kind::RightBrace,
+        &mut type_field,
+        true
+    ));
+
+    Ok(Ok(Type::Record { fields, span }))
+}
+
 pub fn r#type<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
@@ -491,7 +527,10 @@ pub fn r#type<'src, 'ident, 'expr>(
 ) -> Result<Type<'expr, 'ident>> {
     or_try(
         or_try(
-            arrow_type(text, alloc, interner),
+            or_try(
+                arrow_type(text, alloc, interner),
+                record_type(text, alloc, interner),
+            ),
             variant_type(text, alloc, interner),
         ),
         named_type(text, interner),
