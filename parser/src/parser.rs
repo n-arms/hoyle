@@ -436,28 +436,24 @@ pub fn arrow_type<'src, 'ident, 'expr>(
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
     let start = propogate!(token(text, Kind::Func));
-    let _ = token(text, Kind::LeftParen)?.map_err(Irrecoverable::WhileParsingArrowType)?;
-    let mut args = Vec::new();
-    if token(text, Kind::RightParen)?.is_err() {
-        args.push(r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingArrowType)?);
-        loop {
-            if token(text, Kind::Comma)?.is_err() {
-                let _ =
-                    token(text, Kind::RightParen)?.map_err(Irrecoverable::WhileParsingArrowType)?;
-                break;
-            }
 
-            args.push(
-                r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingArrowType)?,
-            );
-        }
-    }
+    let (arguments, _) = list(
+        text,
+        alloc,
+        interner,
+        Kind::LeftParen,
+        Kind::RightParen,
+        &mut r#type,
+        false,
+    )?
+    .map_err(Irrecoverable::WhileParsingArrowType)?;
+
     let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingArrowType)?;
     let return_type =
         r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingArrowType)?;
 
     Ok(Ok(Type::Arrow {
-        arguments: alloc.alloc_slice_fill_iter(args),
+        arguments,
         return_type: alloc.alloc(return_type),
         span: return_type.span().union(&start.into()),
     }))
@@ -524,21 +520,16 @@ pub fn generics<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<&'expr [Generic<'ident>]> {
-    let _ = propogate!(token(text, Kind::LeftSquareBracket));
-    if token(text, Kind::RightSquareBracket)?.is_ok() {
-        return Ok(Ok(&[]));
-    }
-    let first = generic(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingGenerics)?;
-    let mut rest = vec![first];
-
-    loop {
-        if token(text, Kind::Comma)?.is_err() {
-            let _ = token(text, Kind::RightSquareBracket)?
-                .map_err(Irrecoverable::WhileParsingGenerics)?;
-            return Ok(Ok(alloc.alloc_slice_fill_iter(rest)));
-        }
-        rest.push(generic(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingGenerics)?);
-    }
+    let (generics, _) = propogate!(list(
+        text,
+        alloc,
+        interner,
+        Kind::LeftSquareBracket,
+        Kind::RightSquareBracket,
+        &mut generic,
+        false
+    ));
+    Ok(Ok(generics))
 }
 
 pub fn arguments<'src, 'ident, 'expr>(
@@ -546,20 +537,16 @@ pub fn arguments<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<&'expr [Argument<'expr, &'ident str, Type<'expr, 'ident>>]> {
-    let _ = propogate!(token(text, Kind::LeftParen));
-    if token(text, Kind::RightParen)?.is_ok() {
-        return Ok(Ok(&[]));
-    }
-    let first = argument(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingArguments)?;
-    let mut rest = vec![first];
-
-    loop {
-        if token(text, Kind::Comma)?.is_err() {
-            let _ = token(text, Kind::RightParen)?.map_err(Irrecoverable::WhileParsingArguments)?;
-            return Ok(Ok(alloc.alloc_slice_fill_iter(rest)));
-        }
-        rest.push(argument(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingArguments)?);
-    }
+    let (arguments, _) = propogate!(list(
+        text,
+        alloc,
+        interner,
+        Kind::LeftParen,
+        Kind::RightParen,
+        &mut argument,
+        false
+    ));
+    Ok(Ok(arguments))
 }
 
 pub fn return_type<'src, 'ident, 'expr>(
