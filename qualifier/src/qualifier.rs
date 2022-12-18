@@ -4,7 +4,7 @@ use arena_alloc::{General, Interning, Specialized};
 use ir::ast;
 use ir::qualified::{
     Argument, Block, Branch, Definition, Expr, Field, Identifier, IdentifierSource, Path, Pattern,
-    Program, Statement, Type, TypeField, TypeName,
+    PatternField, Program, Statement, Type, TypeField, TypeName,
 };
 
 pub fn program<'old, 'new, 'ident>(
@@ -121,6 +121,21 @@ pub fn statement<'old, 'new, 'ident>(
     }
 }
 
+pub fn pattern_field<'old, 'new, 'ident>(
+    to_qualify: ast::PatternField<'old, 'ident, &'ident str>,
+    definitions: &mut Definitions<'new, 'ident>,
+    interner: &Interning<'ident, Specialized>,
+    general: &General<'new>,
+) -> Result<'ident, PatternField<'new, 'ident>> {
+    let qualified_value = pattern(to_qualify.pattern, definitions, interner, general)?;
+
+    Ok(PatternField {
+        name: to_qualify.name,
+        pattern: qualified_value,
+        span: to_qualify.span,
+    })
+}
+
 pub fn pattern<'old, 'new, 'ident>(
     to_qualify: ast::Pattern<'old, 'ident, &'ident str>,
     definitions: &mut Definitions<'new, 'ident>,
@@ -150,6 +165,17 @@ pub fn pattern<'old, 'new, 'ident>(
             Ok(Pattern::Variant {
                 tag,
                 arguments: qualified_arguments,
+                span,
+            })
+        }
+        ast::Pattern::Record { fields, span } => {
+            let qualified_fields = general.alloc_slice_try_fill_iter(
+                fields
+                    .iter()
+                    .map(|f| pattern_field(*f, definitions, interner, general)),
+            )?;
+            Ok(Pattern::Record {
+                fields: qualified_fields,
                 span,
             })
         }

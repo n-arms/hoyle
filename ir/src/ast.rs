@@ -85,11 +85,22 @@ pub enum Statement<'expr, 'ident, Id, Ty> {
 }
 
 #[derive(Copy, Clone)]
+pub struct PatternField<'expr, 'ident, Id> {
+    pub name: &'ident str,
+    pub pattern: Pattern<'expr, 'ident, Id>,
+    pub span: Span,
+}
+
+#[derive(Copy, Clone)]
 pub enum Pattern<'expr, 'ident, Id> {
     Variable(Id, Span),
     Variant {
         tag: &'ident str,
         arguments: &'expr [Pattern<'expr, 'ident, Id>],
+        span: Span,
+    },
+    Record {
+        fields: &'expr [PatternField<'expr, 'ident, Id>],
         span: Span,
     },
 }
@@ -215,7 +226,9 @@ impl<Id> Pattern<'_, '_, Id> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {
-            Pattern::Variable(_, span) | Pattern::Variant { span, .. } => *span,
+            Pattern::Variable(_, span)
+            | Pattern::Record { span, .. }
+            | Pattern::Variant { span, .. } => *span,
         }
     }
 }
@@ -280,7 +293,19 @@ impl<Id: Debug> Debug for Pattern<'_, '_, Id> {
 
                 tuple.finish()
             }
+            Pattern::Record { fields, .. } => f
+                .debug_map()
+                .entries(fields.iter().map(|f| (f.name, &f.pattern)))
+                .finish(),
         }
+    }
+}
+
+impl<Id: Debug> Debug for PatternField<'_, '_, Id> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.name.fmt(f)?;
+        write!(f, ": ")?;
+        self.pattern.fmt(f)
     }
 }
 

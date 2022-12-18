@@ -72,6 +72,11 @@ fn trivial_functions() {
         &ident, 
         &qual
     );
+    run_frontend(
+        "func unbox[a]({inner: boxed,}: {inner: a,}): a = boxed",
+        &ident,
+        &qual
+    );
 }
 
 #[test]

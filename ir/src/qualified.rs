@@ -86,6 +86,8 @@ pub type Branch<'expr, 'ident> =
 pub type Expr<'expr, 'ident> =
     ast::Expr<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
 
+pub type PatternField<'expr, 'ident> = ast::PatternField<'expr, 'ident, Identifier<'expr, 'ident>>;
+
 impl Debug for Identifier<'_, '_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}::{} : {:?}", self.source, self.name, self.r#type)

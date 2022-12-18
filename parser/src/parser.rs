@@ -9,8 +9,8 @@ macro_rules! propogate {
 
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::{
-    Argument, Block, Branch, Definition, Expr, Field, Generic, Literal, Pattern, Program, Span,
-    Statement, Type, TypeField,
+    Argument, Block, Branch, Definition, Expr, Field, Generic, Literal, Pattern, PatternField,
+    Program, Span, Statement, Type, TypeField,
 };
 use ir::token::{self, Kind, Token};
 use std::iter::Peekable;
@@ -53,6 +53,7 @@ pub enum Irrecoverable {
     WhileParsingUnionType(Recoverable),
     WhileParsingCase(Recoverable),
     WhileParsingBranch(Recoverable),
+    WhileParsingPatternField(Recoverable),
 }
 
 pub type Result<T> = result::Result<result::Result<T, Recoverable>, Irrecoverable>;
@@ -375,12 +376,57 @@ pub fn expr<'src, 'ident, 'expr>(
     )
 }
 
-pub fn not_variant_pattern<'src, 'ident, 'expr>(
+pub fn variable_pattern<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Pattern<'expr, 'ident, &'ident str>> {
     let (id, span) = propogate!(identifier(text, interner));
     Ok(Ok(Pattern::Variable(id, span)))
+}
+
+pub fn pattern_field<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<PatternField<'expr, 'ident, &'ident str>> {
+    let (name, start) = propogate!(identifier(text, interner));
+    let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingPatternField)?;
+    let pattern =
+        pattern(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingPatternField)?;
+    Ok(Ok(PatternField {
+        name,
+        pattern,
+        span: start.union(&pattern.span()),
+    }))
+}
+
+pub fn record_pattern<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Pattern<'expr, 'ident, &'ident str>> {
+    let (fields, span) = propogate!(list(
+        text,
+        alloc,
+        interner,
+        Kind::LeftBrace,
+        Kind::RightBrace,
+        &mut pattern_field,
+        true,
+    ));
+
+    Ok(Ok(Pattern::Record { fields, span }))
+}
+
+pub fn not_variant_pattern<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Pattern<'expr, 'ident, &'ident str>> {
+    or_try(
+        record_pattern(text, alloc, interner),
+        variable_pattern(text, interner),
+    )
 }
 
 pub fn variant_pattern<'src, 'ident, 'expr>(
@@ -411,7 +457,7 @@ pub fn pattern<'src, 'ident, 'expr>(
 ) -> Result<Pattern<'expr, 'ident, &'ident str>> {
     or_try(
         variant_pattern(text, alloc, interner),
-        not_variant_pattern(text, interner),
+        not_variant_pattern(text, alloc, interner),
     )
 }
 
