@@ -17,6 +17,7 @@ pub struct TypeName<'ident> {
 #[derive(Copy, Clone)]
 pub enum Path {
     Current,
+    Builtin,
 }
 
 #[derive(Copy, Clone)]
@@ -107,6 +108,7 @@ impl Debug for Path {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Current => write!(f, "current"),
+            Self::Builtin => write!(f, "builtin"),
         }
     }
 }

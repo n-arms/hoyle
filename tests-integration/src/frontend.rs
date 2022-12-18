@@ -61,6 +61,12 @@ fn trivial_functions() {
     run_frontend("func f() = {x: 5,}", &ident, &qual);
     run_frontend("func wrap[a](x: a): {x: a,} = {x: x,}", &ident, &qual);
     run_frontend("func f[a](x: a): V a | U a = V x", &ident, &qual);
+    run_frontend("func add(x: int, y: int): int = 5", &ident, &qual);
+    run_frontend(
+        "func if[a](predicate: bool, branch_if: a, branch_else: a): a = branch_if",
+        &ident,
+        &qual,
+    );
 }
 
 #[test]

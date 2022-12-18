@@ -1,11 +1,23 @@
 use crate::error::{Error, Result};
-use im::HashMap;
+use im::{hashmap, HashMap};
 use ir::qualified::{self, Identifier};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Definitions<'expr, 'ident> {
     variables: HashMap<&'ident str, Identifier<'expr, 'ident>>,
     types: HashMap<&'ident str, qualified::TypeName<'ident>>,
+}
+
+impl<'expr, 'ident> Default for Definitions<'expr, 'ident> {
+    fn default() -> Self {
+        Self {
+            variables: HashMap::default(),
+            types: hashmap![
+                "int" => qualified::TypeName { source: qualified::IdentifierSource::Global(qualified::Path::Builtin), name: "int" },
+                "bool" => qualified::TypeName { source: qualified::IdentifierSource::Global(qualified::Path::Builtin), name: "bool" }
+            ],
+        }
+    }
 }
 
 impl<'expr, 'ident> Definitions<'expr, 'ident> {
