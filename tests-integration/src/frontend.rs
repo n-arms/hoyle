@@ -52,6 +52,7 @@ fn trivial_functions() {
     run_frontend("func f[t](a: t): t = a", &ident, &qual);
     run_frontend("func f[t](a: t): t = {let x = a; x}", &ident, &qual);
     run_frontend("func f[]() = Ok 5", &ident, &qual);
+    run_frontend("func f[a](x: a): V a = V x", &ident, &qual);
 }
 
 #[test]
@@ -70,4 +71,22 @@ fn unqualified_type() {
     let qual = Bump::new();
 
     run_frontend("func(x: A) = x", &ident, &qual);
+}
+
+#[test]
+#[should_panic]
+fn inappropriate_variable() {
+    let ident = Bump::new();
+    let qual = Bump::new();
+
+    run_frontend("func[a](x: a): x = x", &ident, &qual);
+}
+
+#[test]
+#[should_panic]
+fn inappropriate_type() {
+    let ident = Bump::new();
+    let qual = Bump::new();
+
+    run_frontend("func[a](x: a): a = a", &ident, &qual);
 }

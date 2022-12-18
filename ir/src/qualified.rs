@@ -1,30 +1,31 @@
 use crate::ast;
+use std::fmt::{Debug, Formatter};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct Identifier<'expr, 'ident> {
     pub source: IdentifierSource,
     pub name: &'ident str,
     pub r#type: Type<'expr, 'ident>,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct TypeName<'ident> {
     pub source: IdentifierSource,
     pub name: &'ident str,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub enum Path {
     Current,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub enum IdentifierSource {
     Local,
     Global(Path),
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub enum Type<'expr, 'ident> {
     Named {
         name: TypeName<'ident>,
@@ -58,3 +59,51 @@ pub type Block<'expr, 'ident> =
 
 pub type Expr<'expr, 'ident> =
     ast::Expr<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
+
+impl Debug for Identifier<'_, '_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}::{} : {:?}", self.source, self.name, self.r#type)
+    }
+}
+
+impl Debug for TypeName<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}::{}", self.source, self.name)
+    }
+}
+
+impl Debug for IdentifierSource {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IdentifierSource::Local => write!(f, "local"),
+            IdentifierSource::Global(path) => path.fmt(f),
+        }
+    }
+}
+
+impl Debug for Path {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Path::Current => write!(f, "current"),
+        }
+    }
+}
+
+impl Debug for Type<'_, '_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Named { name, .. } => name.fmt(f),
+            Type::Variant { tag, arguments, .. } => {
+                let mut tuple = f.debug_tuple(tag);
+
+                for arg in *arguments {
+                    tuple.field(arg);
+                }
+
+                tuple.finish()
+            }
+            Type::Wildcard => write!(f, "*"),
+            Type::Tuple(_, _) => todo!(),
+        }
+    }
+}
