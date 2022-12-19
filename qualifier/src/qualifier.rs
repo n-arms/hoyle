@@ -34,7 +34,7 @@ pub fn definition<'old, 'new, 'ident>(
     let identifier = Identifier {
         source: IdentifierSource::Global(Path::Current),
         name: to_qualify.name,
-        r#type: Type::Wildcard,
+        r#type: None,
     };
     definitions.with_variables([(to_qualify.name, identifier)]);
 
@@ -49,11 +49,9 @@ pub fn definition<'old, 'new, 'ident>(
         )
     }));
 
-    let return_type = to_qualify
-        .return_type
-        .map_or(Ok(Type::Wildcard), |result| {
-            r#type(result, &mut inner_defs, interner, general)
-        })?;
+    let return_type = to_qualify.return_type.map_or(Ok(None), |result| {
+        r#type(result, &mut inner_defs, interner, general).map(Some)
+    })?;
 
     let arguments = general.alloc_slice_try_fill_iter(
         to_qualify
@@ -70,7 +68,7 @@ pub fn definition<'old, 'new, 'ident>(
         name: to_qualify.name,
         generics,
         arguments,
-        return_type: Some(return_type),
+        return_type,
         body,
         span: to_qualify.span,
     })
@@ -147,7 +145,7 @@ pub fn pattern<'old, 'new, 'ident>(
             let qualified = Identifier {
                 source: IdentifierSource::Local,
                 name: variable,
-                r#type: Type::Wildcard,
+                r#type: None,
             };
             definitions.with_variables([(variable, qualified)]);
             Ok(Pattern::Variable(qualified, span))

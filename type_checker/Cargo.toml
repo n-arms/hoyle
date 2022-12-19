@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 im = "15.1.0"
-infinite-iterator = "0.1.0"
 ir = { path = "../ir" }
+arena_alloc = { path = "../arena_alloc" }

@@ -5,7 +5,7 @@ use std::fmt::{Debug, Formatter};
 pub struct Identifier<'expr, 'ident> {
     pub source: IdentifierSource,
     pub name: &'ident str,
-    pub r#type: Type<'expr, 'ident>,
+    pub r#type: Option<Type<'expr, 'ident>>,
 }
 
 #[derive(Copy, Clone)]
@@ -14,13 +14,13 @@ pub struct TypeName<'ident> {
     pub name: &'ident str,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Path {
     Current,
     Builtin,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub enum IdentifierSource {
     Local,
     Global(Path),
@@ -41,7 +41,6 @@ pub enum Type<'expr, 'ident> {
         fields: &'expr [TypeField<'expr, 'ident>],
         span: ast::Span,
     },
-    Wildcard,
     Arrow {
         arguments: &'expr [Type<'expr, 'ident>],
         return_type: &'expr Type<'expr, 'ident>,
@@ -140,7 +139,6 @@ impl Debug for Type<'_, '_> {
                 .field(arguments)
                 .field(return_type)
                 .finish(),
-            Type::Wildcard => write!(f, "*"),
             Type::Record { fields, .. } => f
                 .debug_map()
                 .entries(fields.iter().map(|field| (field.name, field.field_type)))
