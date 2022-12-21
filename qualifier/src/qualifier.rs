@@ -210,7 +210,7 @@ pub fn type_field<'old, 'new, 'ident>(
     definitions: &mut Definitions<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<'ident, TypeField<'new, 'ident>> {
+) -> Result<'ident, TypeField<'new, 'ident, ast::Span>> {
     let qualified_field_type = r#type(to_qualify.field_type, definitions, interner, general)?;
 
     Ok(TypeField {
@@ -225,7 +225,7 @@ pub fn r#type<'old, 'new, 'ident>(
     definitions: &mut Definitions<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<'ident, Type<'new, 'ident>> {
+) -> Result<'ident, Type<'new, 'ident, ast::Span>> {
     match to_qualify {
         ast::Type::Named(type_name, span) => {
             let qualified_type_name = definitions.lookup_type(type_name)?;

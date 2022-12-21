@@ -60,7 +60,8 @@ fn main() {
         let type_bump = Bump::new();
         let type_alloc = General::new(&type_bump);
         let mut type_env = Env::default();
-        let typed_program = infer::program(qualified_program, &mut type_env, type_alloc).unwrap();
+        let typed_program =
+            infer::program(qualified_program, &mut type_env, &interner, &type_alloc).unwrap();
 
         println!("{:?}", typed_program)
     }

@@ -1,5 +1,5 @@
 use im::HashMap;
-use ir::qualified::Type;
+use ir::qualified;
 use ir::typed::*;
 
 #[derive(Clone, Default)]

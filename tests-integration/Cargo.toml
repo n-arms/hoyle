@@ -12,4 +12,5 @@ lexer = { path = "../lexer" }
 parser = { path = "../parser" }
 qualifier = { path = "../qualifier" }
 arena_alloc = { path = "../arena_alloc" }
+type_checker = { path = "../type_checker" }
 bumpalo = "3.11.1"

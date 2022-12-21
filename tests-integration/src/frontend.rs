@@ -1,14 +1,15 @@
 use arena_alloc::*;
 use bumpalo::Bump;
-use ir::qualified::Program;
+use ir::typed::Program;
 use lexer::scan_tokens;
 use parser::parser;
 use qualifier::definitions::Definitions;
+use type_checker::{infer, env::Env};
 
 fn run_frontend<'src, 'ident, 'qual>(
     text: &'src str,
     ident: &'ident Bump,
-    qualified_tree: &'qual Bump,
+    typed_tree: &'qual Bump,
 ) -> Program<'qual, 'ident> {
     let (tokens, errors) = scan_tokens(text);
     if !errors.success() {
@@ -28,19 +29,30 @@ fn run_frontend<'src, 'ident, 'qual>(
             panic!("{:?}\n{:?}", tokens, error);
         }
     };
+    let qualified_tree = Bump::new();
     let mut defs = Definitions::default();
     let qualified_program = match qualifier::qualifier::program(
         ast_program,
         &mut defs,
         &Interning::new(ident),
-        &General::new(qualified_tree),
+        &General::new(&qualified_tree),
     ) {
         Ok(prog) => prog,
         Err(error) => {
             panic!("{:?}\n{:?}\n{:?}", tokens, ast_program, error);
         }
     };
-    qualified_program
+    drop(parse_tree);
+    
+    let mut env = Env::default();
+    let typed_program = match infer::program(qualified_program, &mut env, &Interning::new(ident), &General::new(typed_tree)) {
+        Ok(prog) => prog,
+        Err(error) => {
+            panic!("{:?}\n{:?}\n{:?}", tokens, qualified_program, error)
+        }
+    };
+        
+    typed_program
 }
 
 #[test]

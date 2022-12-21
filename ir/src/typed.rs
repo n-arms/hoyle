@@ -1,6 +1,9 @@
 use crate::ast;
-use crate::qualified::{self, IdentifierSource, Type};
+use crate::qualified::{self, IdentifierSource, Path, TypeName};
+use arena_alloc::{General, Interning, Specialized};
 use std::fmt::{Debug, Formatter};
+
+pub type Type<'expr, 'ident> = qualified::Type<'expr, 'ident, Option<ast::Span>>;
 
 #[derive(Copy, Clone)]
 pub struct Identifier<'expr, 'ident> {
@@ -58,6 +61,69 @@ impl<'ident> From<qualified::Identifier<'_, 'ident>> for UntypedIdentifier<'iden
         Self {
             source: id.source,
             name: id.name,
+        }
+    }
+}
+
+impl<'expr, 'ident> Identifier<'expr, 'ident> {
+    pub fn new(id: impl Into<UntypedIdentifier<'ident>>, id_type: Type<'expr, 'ident>) -> Self {
+        let untyped_id = id.into();
+        Self {
+            source: untyped_id.source,
+            name: untyped_id.name,
+            r#type: id_type,
+        }
+    }
+}
+
+impl<'expr, 'ident> ast::Literal<'expr> {
+    pub fn r#type(self, interner: &Interning<'ident, Specialized>) -> Type<'expr, 'ident> {
+        Type::Named {
+            name: TypeName {
+                name: interner.get_or_intern("int"),
+                source: IdentifierSource::Global(Path::Builtin),
+            },
+            span: None,
+        }
+    }
+}
+
+impl<'expr, 'ident> Expr<'expr, 'ident> {
+    pub fn r#type(
+        self,
+        interner: &Interning<'ident, Specialized>,
+        general: &General<'expr>,
+    ) -> Type<'expr, 'ident> {
+        match self {
+            ast::Expr::Variable(id, _) => id.r#type,
+            ast::Expr::Literal(literal, _) => literal.r#type(interner),
+            ast::Expr::Call {
+                function,
+                arguments,
+                span,
+            } => todo!(),
+            ast::Expr::Operation {
+                operator,
+                arguments,
+                span,
+            } => todo!(),
+            ast::Expr::Variant {
+                tag,
+                arguments,
+                span,
+            } => todo!(),
+            ast::Expr::Record { fields, span } => todo!(),
+            ast::Expr::Block(_) => todo!(),
+            ast::Expr::Annotated {
+                expr,
+                annotation,
+                span,
+            } => todo!(),
+            ast::Expr::Case {
+                predicate,
+                branches,
+                span,
+            } => todo!(),
         }
     }
 }
