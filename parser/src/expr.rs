@@ -1,10 +1,11 @@
+use crate::pattern::*;
 use crate::util::*;
 use arena_alloc::{General, Interning, Specialized};
-use ir::ast::{Block, Branch, Expr, Field, Literal, Pattern, PatternField, Span, Statement, Type};
+use ir::ast::{Block, Branch, Expr, Field, Literal, Span, Statement, Type};
 use ir::token::{Kind, Token};
 use std::iter::Peekable;
 
-pub fn literal<'src, 'ident, 'expr>(
+fn literal<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
 ) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
@@ -15,7 +16,7 @@ pub fn literal<'src, 'ident, 'expr>(
     )))
 }
 
-pub fn variable<'src, 'ident, 'expr>(
+fn variable<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
@@ -23,7 +24,7 @@ pub fn variable<'src, 'ident, 'expr>(
     Ok(Ok(Expr::Variable(var, span)))
 }
 
-pub fn parens<'src, 'ident, 'expr>(
+fn parens<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -34,7 +35,7 @@ pub fn parens<'src, 'ident, 'expr>(
     Ok(Ok(expr))
 }
 
-pub fn not_application<'src, 'ident, 'expr>(
+fn not_application<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -54,62 +55,15 @@ pub fn not_application<'src, 'ident, 'expr>(
     } else {
         or_try(
             variable(text, interner),
-            or_try(literal(text, alloc), parens(text, alloc, interner)),
+            or_try(
+                literal(text, alloc),
+                or_try(case(text, alloc, interner), parens(text, alloc, interner)),
+            ),
         )
     }
 }
 
-pub fn not_variant<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
-    let func = propogate!(not_application(text, alloc, interner));
-    let mut args = Vec::new();
-
-    while let Ok(next) = not_application(text, alloc, interner)? {
-        args.push(next);
-    }
-
-    if let Some(last) = args.last() {
-        let span = func.span().union(&last.span());
-        Ok(Ok(Expr::Call {
-            function: alloc.alloc(func),
-            arguments: alloc.alloc_slice_fill_iter(args),
-            span,
-        }))
-    } else {
-        Ok(Ok(func))
-    }
-}
-
-pub fn variant<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
-    let (tag, start) = propogate!(variant_tag(text, interner));
-
-    let mut args = Vec::new();
-
-    while let Ok(next) = not_application(text, alloc, interner)? {
-        args.push(next);
-    }
-
-    let end = if let Some(last) = args.last() {
-        last.span()
-    } else {
-        start
-    };
-    let span = start.union(&end);
-    Ok(Ok(Expr::Variant {
-        tag,
-        arguments: alloc.alloc_slice_fill_iter(args),
-        span,
-    }))
-}
-
-pub fn field<'src, 'ident, 'expr>(
+fn field<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -127,7 +81,7 @@ pub fn field<'src, 'ident, 'expr>(
     }))
 }
 
-pub fn record<'src, 'ident, 'expr>(
+fn record<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -145,7 +99,7 @@ pub fn record<'src, 'ident, 'expr>(
     Ok(Ok(Expr::Record { fields, span }))
 }
 
-pub fn branch<'src, 'ident, 'expr>(
+fn branch<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -161,7 +115,7 @@ pub fn branch<'src, 'ident, 'expr>(
     }))
 }
 
-pub fn case<'src, 'ident, 'expr>(
+fn case<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -188,106 +142,7 @@ pub fn case<'src, 'ident, 'expr>(
     }))
 }
 
-pub fn expr<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
-    or_try(
-        variant(text, alloc, interner),
-        or_try(
-            not_variant(text, alloc, interner),
-            case(text, alloc, interner),
-        ),
-    )
-}
-
-pub fn variable_pattern<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Pattern<'expr, 'ident, &'ident str>> {
-    let (id, span) = propogate!(identifier(text, interner));
-    Ok(Ok(Pattern::Variable(id, span)))
-}
-
-pub fn pattern_field<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<PatternField<'expr, 'ident, &'ident str>> {
-    let (name, start) = propogate!(identifier(text, interner));
-    let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingPatternField)?;
-    let pattern =
-        pattern(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingPatternField)?;
-    Ok(Ok(PatternField {
-        name,
-        pattern,
-        span: start.union(&pattern.span()),
-    }))
-}
-
-pub fn record_pattern<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Pattern<'expr, 'ident, &'ident str>> {
-    let (fields, span) = propogate!(list(
-        text,
-        alloc,
-        interner,
-        Kind::LeftBrace,
-        Kind::RightBrace,
-        &mut pattern_field,
-        true,
-    ));
-
-    Ok(Ok(Pattern::Record { fields, span }))
-}
-
-pub fn not_variant_pattern<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Pattern<'expr, 'ident, &'ident str>> {
-    or_try(
-        record_pattern(text, alloc, interner),
-        variable_pattern(text, interner),
-    )
-}
-
-pub fn variant_pattern<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Pattern<'expr, 'ident, &'ident str>> {
-    let (tag, start) = propogate!(variant_tag(text, interner));
-    let mut end = start;
-    let mut args = Vec::new();
-
-    while let Ok(arg) = pattern(text, alloc, interner)? {
-        end = arg.span();
-        args.push(arg);
-    }
-
-    Ok(Ok(Pattern::Variant {
-        tag,
-        arguments: alloc.alloc_slice_fill_iter(args),
-        span: start.union(&end),
-    }))
-}
-
-pub fn pattern<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Pattern<'expr, 'ident, &'ident str>> {
-    or_try(
-        variant_pattern(text, alloc, interner),
-        not_variant_pattern(text, alloc, interner),
-    )
-}
-
-pub fn r#let<'src, 'ident, 'expr>(
+fn r#let<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -304,7 +159,7 @@ pub fn r#let<'src, 'ident, 'expr>(
     }))
 }
 
-pub fn raw<'src, 'ident, 'expr>(
+fn raw<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -314,7 +169,7 @@ pub fn raw<'src, 'ident, 'expr>(
     Ok(Ok(Statement::Raw(expr, expr.span())))
 }
 
-pub fn statement<'src, 'ident, 'expr>(
+fn statement<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -323,7 +178,7 @@ pub fn statement<'src, 'ident, 'expr>(
 }
 
 #[allow(clippy::missing_panics_doc)]
-pub fn block<'src, 'ident, 'expr>(
+fn block<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -362,5 +217,29 @@ pub fn block<'src, 'ident, 'expr>(
         }
         let stmt = statement(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingBlock)?;
         rest.push(stmt);
+    }
+}
+
+pub fn expr<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
+    let func = propogate!(not_application(text, alloc, interner));
+    let mut args = Vec::new();
+
+    while let Ok(next) = not_application(text, alloc, interner)? {
+        args.push(next);
+    }
+
+    if let Some(last) = args.last() {
+        let span = func.span().union(&last.span());
+        Ok(Ok(Expr::Call {
+            function: alloc.alloc(func),
+            arguments: alloc.alloc_slice_fill_iter(args),
+            span,
+        }))
+    } else {
+        Ok(Ok(func))
     }
 }

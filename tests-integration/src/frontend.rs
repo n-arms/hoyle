@@ -3,8 +3,9 @@ use bumpalo::Bump;
 use ir::typed::Program;
 use lexer::scan_tokens;
 use qualifier::definitions::Definitions;
-use type_checker::{infer, env::Env};
+use type_checker::{env::Env, infer};
 
+#[allow(dead_code)]
 fn run_frontend<'src, 'ident, 'qual>(
     text: &'src str,
     ident: &'ident Bump,
@@ -42,15 +43,20 @@ fn run_frontend<'src, 'ident, 'qual>(
         }
     };
     drop(parse_tree);
-    
+
     let mut env = Env::default();
-    let typed_program = match infer::program(qualified_program, &mut env, &Interning::new(ident), &General::new(typed_tree)) {
+    let typed_program = match infer::program(
+        qualified_program,
+        &mut env,
+        &Interning::new(ident),
+        &General::new(typed_tree),
+    ) {
         Ok(prog) => prog,
         Err(error) => {
             panic!("{:?}\n{:?}\n{:?}", tokens, qualified_program, error)
         }
     };
-        
+
     typed_program
 }
 
@@ -62,8 +68,6 @@ fn trivial_functions() {
     run_frontend("func f() = 0", &ident, &qual);
     run_frontend("func f[t](a: t): t = a", &ident, &qual);
     run_frontend("func f[t](a: t): t = {let x = a; x}", &ident, &qual);
-    run_frontend("func f[]() = Ok 5", &ident, &qual);
-    run_frontend("func f[a](x: a): V a = V x", &ident, &qual);
     run_frontend(
         "func call[a, b](f: func(a): b, x: a): b = f x",
         &ident,
@@ -71,7 +75,6 @@ fn trivial_functions() {
     );
     run_frontend("func f() = {x: 5,}", &ident, &qual);
     run_frontend("func wrap[a](x: a): {x: a,} = {x: x,}", &ident, &qual);
-    run_frontend("func f[a](x: a): V a | U a = V x", &ident, &qual);
     run_frontend("func add(x: int, y: int): int = 5", &ident, &qual);
     run_frontend(
         "func if[a](predicate: bool, branch_if: a, branch_else: a): a = branch_if",
@@ -79,14 +82,9 @@ fn trivial_functions() {
         &qual,
     );
     run_frontend(
-        "func unwrap[a](value: V a | U a): a = case value of {V unwrapped => unwrapped, U unwrapped => unwrapped}", 
-        &ident, 
-        &qual
-    );
-    run_frontend(
         "func unbox[a]({inner: boxed,}: {inner: a,}): a = boxed",
         &ident,
-        &qual
+        &qual,
     );
 }
 

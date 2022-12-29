@@ -6,6 +6,7 @@
 )]
 
 pub mod expr;
+pub mod pattern;
 pub mod program;
 pub mod types;
 pub mod util;

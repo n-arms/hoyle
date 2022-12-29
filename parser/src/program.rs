@@ -1,4 +1,5 @@
 use crate::expr::*;
+use crate::pattern::*;
 use crate::types::*;
 use crate::util::*;
 use arena_alloc::{General, Interning, Specialized};
@@ -6,7 +7,7 @@ use ir::ast::{Argument, Definition, Generic, Program, Type};
 use ir::token::{Kind, Token};
 use std::iter::Peekable;
 
-pub fn generic<'src, 'ident, 'expr>(
+fn generic<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     _alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -14,7 +15,8 @@ pub fn generic<'src, 'ident, 'expr>(
     let (identifier, span) = propogate!(identifier(text, interner));
     Ok(Ok(Generic { identifier, span }))
 }
-pub fn argument<'src, 'ident, 'expr>(
+
+fn argument<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -31,7 +33,7 @@ pub fn argument<'src, 'ident, 'expr>(
     }))
 }
 
-pub fn generics<'src, 'ident, 'expr>(
+fn generics<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -48,7 +50,7 @@ pub fn generics<'src, 'ident, 'expr>(
     Ok(Ok(generics))
 }
 
-pub fn arguments<'src, 'ident, 'expr>(
+fn arguments<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -65,7 +67,7 @@ pub fn arguments<'src, 'ident, 'expr>(
     Ok(Ok(arguments))
 }
 
-pub fn return_type<'src, 'ident, 'expr>(
+fn return_type<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -75,7 +77,7 @@ pub fn return_type<'src, 'ident, 'expr>(
     Ok(Ok(r#type))
 }
 
-pub fn definition<'src, 'ident, 'expr>(
+fn definition<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,

@@ -4,7 +4,7 @@ use ir::ast::{Type, TypeField};
 use ir::token::{Kind, Token};
 use std::iter::Peekable;
 
-pub fn named_type<'src, 'ident, 'expr>(
+fn named<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
@@ -12,7 +12,7 @@ pub fn named_type<'src, 'ident, 'expr>(
     Ok(Ok(Type::Named(name, span)))
 }
 
-pub fn arrow_type<'src, 'ident, 'expr>(
+fn arrow<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -41,32 +41,7 @@ pub fn arrow_type<'src, 'ident, 'expr>(
     }))
 }
 
-pub fn variant_type<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Type<'expr, 'ident>> {
-    let (tag, start) = propogate!(variant_tag(text, interner));
-    let mut end = start;
-    let mut args = Vec::new();
-    loop {
-        match not_union(text, alloc, interner)? {
-            Ok(arg) => {
-                end = arg.span();
-                args.push(arg);
-            }
-            Err(_) => {
-                return Ok(Ok(Type::Variant {
-                    tag,
-                    arguments: alloc.alloc_slice_fill_iter(args),
-                    span: start.union(&end),
-                }));
-            }
-        }
-    }
-}
-
-pub fn type_field<'src, 'ident, 'expr>(
+fn field<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -84,7 +59,7 @@ pub fn type_field<'src, 'ident, 'expr>(
     }))
 }
 
-pub fn record_type<'src, 'ident, 'expr>(
+fn record<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -95,28 +70,11 @@ pub fn record_type<'src, 'ident, 'expr>(
         interner,
         Kind::LeftBrace,
         Kind::RightBrace,
-        &mut type_field,
+        &mut field,
         true
     ));
 
     Ok(Ok(Type::Record { fields, span }))
-}
-
-pub fn not_union<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Type<'expr, 'ident>> {
-    or_try(
-        or_try(
-            or_try(
-                arrow_type(text, alloc, interner),
-                record_type(text, alloc, interner),
-            ),
-            variant_type(text, alloc, interner),
-        ),
-        named_type(text, interner),
-    )
 }
 
 pub fn r#type<'src, 'ident, 'expr>(
@@ -124,24 +82,8 @@ pub fn r#type<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
-    let first = propogate!(not_union(text, alloc, interner));
-    let start = first.span();
-    let mut end = start;
-    let mut cases = vec![first];
-
-    while token(text, Kind::SingleBar)?.is_ok() {
-        let case =
-            not_union(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingUnionType)?;
-        end = case.span();
-        cases.push(case);
-    }
-
-    if cases.len() == 1 {
-        Ok(Ok(cases[0]))
-    } else {
-        Ok(Ok(Type::Union {
-            cases: alloc.alloc_slice_fill_iter(cases),
-            span: start.union(&end),
-        }))
-    }
+    or_try(
+        or_try(arrow(text, alloc, interner), record(text, alloc, interner)),
+        named(text, interner),
+    )
 }
