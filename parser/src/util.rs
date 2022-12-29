@@ -7,6 +7,23 @@ macro_rules! propogate {
     };
 }
 
+macro_rules! or_try {
+    ($e:expr) => {
+        $e
+    };
+
+    ($e:expr, $($es:expr),+) => {{
+        match $e? {
+            Ok(result) => Ok(Ok(result)),
+            Err(error) => match or_try!($($es),+)? {
+                Ok(result) => Ok(Ok(result)),
+                Err(error2) => Ok(Err(error.combine(error2)))
+            }
+        }
+    }};
+}
+
+pub(crate) use or_try;
 pub(crate) use propogate;
 
 use arena_alloc::{General, Interning, Specialized};
@@ -21,7 +38,7 @@ pub enum Recoverable {
 }
 
 impl Recoverable {
-    fn combine(&self, other: Self) -> Self {
+    pub(crate) fn combine(&self, other: Self) -> Self {
         match (self, other) {
             (Self::Expected(wants1, got1), Self::Expected(mut wants2, got2)) => {
                 assert_eq!(*got1, got2);
@@ -53,19 +70,10 @@ pub enum Irrecoverable {
     WhileParsingCase(Recoverable),
     WhileParsingBranch(Recoverable),
     WhileParsingPatternField(Recoverable),
+    WhileParsingUfc(Recoverable),
 }
 
 pub type Result<T> = result::Result<result::Result<T, Recoverable>, Irrecoverable>;
-
-pub fn or_try<T>(left: Result<T>, right: Result<T>) -> Result<T> {
-    match left? {
-        Ok(result) => Ok(Ok(result)),
-        Err(error) => match right? {
-            Ok(result) => Ok(Ok(result)),
-            Err(error2) => Ok(Err(error.combine(error2))),
-        },
-    }
-}
 
 pub fn list<'src, 'ident, 'expr, T, I>(
     text: &mut Peekable<I>,

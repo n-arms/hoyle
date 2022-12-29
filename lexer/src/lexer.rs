@@ -39,6 +39,7 @@ pub fn scan_tokens(text: &str) -> (token::List, Errors) {
             ',' => Kind::Comma,
             ':' => Kind::Colon,
             ';' => Kind::Semicolon,
+            '.' => Kind::Dot,
             '=' if matches!(chars.peek(), Some((_, '>'))) => {
                 chars.next();
                 Kind::ThickArrow

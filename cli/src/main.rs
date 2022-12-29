@@ -6,6 +6,24 @@ use qualifier::definitions::Definitions;
 use type_checker::{env::*, infer};
 
 use std::io::{self, BufRead};
+/*
+fn main() {
+    let (tokens, _) = scan_tokens("x(");
+
+    let mut text = tokens.into_iter().peekable();
+
+    let bump = Bump::new();
+    let alloc = General::new(&bump);
+    let interner = Interning::new(&bump);
+
+    let not_app = parser::expr::not_application(&mut text, &alloc, &interner)
+        .unwrap()
+        .unwrap();
+
+    println!("{:?}", not_app);
+    println!("{:?}", text.collect::<Vec<_>>());
+}
+*/
 
 fn main() {
     let stdin = io::stdin();
@@ -21,11 +39,13 @@ fn main() {
         let alloc = General::new(&ast);
         let interner = Interning::new(&ident);
 
-        let mut text = tokens.into_iter().peekable();
+        let token_iter = tokens.into_iter();
+        let mut text = token_iter.clone().peekable();
 
         let raw_program = match program(&mut text, &alloc, &interner) {
             Ok(Ok(program)) => program,
             Err(e) => {
+                println!("{:?}", token_iter.collect::<Vec<_>>());
                 println!("{:?}", e);
                 continue;
             }

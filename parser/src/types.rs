@@ -82,8 +82,9 @@ pub fn r#type<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
-    or_try(
-        or_try(arrow(text, alloc, interner), record(text, alloc, interner)),
-        named(text, interner),
+    or_try!(
+        arrow(text, alloc, interner),
+        record(text, alloc, interner),
+        named(text, interner)
     )
 }

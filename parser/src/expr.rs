@@ -35,7 +35,8 @@ fn parens<'src, 'ident, 'expr>(
     Ok(Ok(expr))
 }
 
-fn not_application<'src, 'ident, 'expr>(
+// fn expr
+pub fn not_application<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -53,13 +54,66 @@ fn not_application<'src, 'ident, 'expr>(
             Err(_) => block(text, alloc, interner),
         }
     } else {
-        or_try(
+        or_try!(
             variable(text, interner),
-            or_try(
-                literal(text, alloc),
-                or_try(case(text, alloc, interner), parens(text, alloc, interner)),
-            ),
+            literal(text, alloc),
+            case(text, alloc, interner),
+            parens(text, alloc, interner)
         )
+    }
+}
+
+pub fn expr<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
+    let first = propogate!(not_application(text, alloc, interner));
+    let argument_list = list(
+        text,
+        alloc,
+        interner,
+        Kind::LeftParen,
+        Kind::RightParen,
+        &mut expr,
+        false,
+    )?;
+    if let Ok((arguments, end)) = argument_list {
+        let span = first.span().union(&end);
+        let call = Expr::Call {
+            function: alloc.alloc(first),
+            arguments,
+            span,
+        };
+        Ok(Ok(call))
+    } else if let Ok(_) = token(text, Kind::Dot)? {
+        let func =
+            not_application(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingUfc)?;
+        let (arguments, end) = list(
+            text,
+            alloc,
+            interner,
+            Kind::LeftParen,
+            Kind::RightParen,
+            &mut expr,
+            false,
+        )?
+        .map_err(Irrecoverable::WhileParsingUfc)?;
+
+        let mut all_arguments = Vec::with_capacity(1 + arguments.len());
+        all_arguments.push(first);
+        all_arguments.extend(arguments);
+
+        let span = first.span().union(&end);
+
+        let call = Expr::Call {
+            function: alloc.alloc(func),
+            arguments: alloc.alloc_slice_fill_iter(all_arguments),
+            span,
+        };
+        Ok(Ok(call))
+    } else {
+        Ok(Ok(first))
     }
 }
 
@@ -174,7 +228,7 @@ fn statement<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Statement<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
-    or_try(r#let(text, alloc, interner), r#raw(text, alloc, interner))
+    or_try!(r#let(text, alloc, interner), r#raw(text, alloc, interner))
 }
 
 #[allow(clippy::missing_panics_doc)]
@@ -217,29 +271,5 @@ fn block<'src, 'ident, 'expr>(
         }
         let stmt = statement(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingBlock)?;
         rest.push(stmt);
-    }
-}
-
-pub fn expr<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
-    let func = propogate!(not_application(text, alloc, interner));
-    let mut args = Vec::new();
-
-    while let Ok(next) = not_application(text, alloc, interner)? {
-        args.push(next);
-    }
-
-    if let Some(last) = args.last() {
-        let span = func.span().union(&last.span());
-        Ok(Ok(Expr::Call {
-            function: alloc.alloc(func),
-            arguments: alloc.alloc_slice_fill_iter(args),
-            span,
-        }))
-    } else {
-        Ok(Ok(func))
     }
 }

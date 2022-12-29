@@ -39,6 +39,7 @@ pub enum Kind {
     Semicolon,
     SingleEquals,
     SingleBar,
+    Dot,
     BinaryOperator(BinaryOperator),
 }
 

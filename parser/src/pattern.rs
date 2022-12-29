@@ -51,8 +51,8 @@ pub fn pattern<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Pattern<'expr, 'ident, &'ident str>> {
-    or_try(
+    or_try!(
         record_pattern(text, alloc, interner),
-        variable_pattern(text, interner),
+        variable_pattern(text, interner)
     )
 }
