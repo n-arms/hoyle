@@ -203,6 +203,7 @@ fn illegal_functions_semantics() {
             "func f[a](x: a): x = x",
             "func f[a](x: a): a = a",
             "func f() = x_wrapper {x: x}",
+            "func f() = unknown {x: 5}",
         ],
     )
 }

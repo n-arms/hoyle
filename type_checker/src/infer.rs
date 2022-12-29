@@ -28,6 +28,19 @@ pub fn program<'old, 'new, 'ident>(
     })
 }
 
+pub fn field_definition<'old, 'new, 'ident>(
+    to_infer: qualified::FieldDefinition<'old, 'ident>,
+    general: &General<'new>,
+) -> Result<FieldDefinition<'new, 'ident>> {
+    let typed_field_type = r#type(to_infer.field_type, general);
+
+    Ok(FieldDefinition {
+        name: to_infer.name,
+        field_type: typed_field_type,
+        span: to_infer.span,
+    })
+}
+
 pub fn definition<'old, 'new, 'ident>(
     to_infer: qualified::Definition<'old, 'ident>,
     env: &mut Env<'new, 'ident>,
@@ -67,8 +80,18 @@ pub fn definition<'old, 'new, 'ident>(
             })
         }
         ir::ast::Definition::Struct { name, fields, span } => {
-            env.bind_struct();
-            todo!()
+            let typed_fields = general.alloc_slice_try_fill_iter(
+                fields
+                    .into_iter()
+                    .map(|field| field_definition(*field, general)),
+            )?;
+            env.bind_struct(name, typed_fields);
+
+            Ok(Definition::Struct {
+                name,
+                fields: typed_fields,
+                span,
+            })
         }
     }
 }

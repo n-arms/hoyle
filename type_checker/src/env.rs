@@ -4,7 +4,8 @@ use ir::typed::*;
 
 #[derive(Clone, Default)]
 pub struct Env<'expr, 'ident> {
-    typed_variables: HashMap<UntypedIdentifier<'ident>, Identifier<'expr, 'ident>>,
+    variables: HashMap<UntypedIdentifier<'ident>, Identifier<'expr, 'ident>>,
+    structs: HashMap<&'ident str, &'expr [FieldDefinition<'expr, 'ident>]>,
 }
 
 impl<'expr, 'ident> Env<'expr, 'ident> {
@@ -19,7 +20,7 @@ impl<'expr, 'ident> Env<'expr, 'ident> {
             name: untyped.name,
             r#type,
         };
-        self.typed_variables.insert(untyped, typed);
+        self.variables.insert(untyped, typed);
     }
 
     pub fn bind_variables<ID>(
@@ -33,8 +34,12 @@ impl<'expr, 'ident> Env<'expr, 'ident> {
         }
     }
 
-    pub fn bind_struct(&mut self) {
-        todo!()
+    pub fn bind_struct(
+        &mut self,
+        name: &'ident str,
+        fields: &'expr [FieldDefinition<'expr, 'ident>],
+    ) {
+        self.structs.insert(name, fields);
     }
 
     pub fn lookup_variable(
@@ -42,7 +47,7 @@ impl<'expr, 'ident> Env<'expr, 'ident> {
         variable: impl Into<UntypedIdentifier<'ident>>,
     ) -> Identifier<'expr, 'ident> {
         *self
-            .typed_variables
+            .variables
             .get(&variable.into())
             .expect("the qualifier pass should have got undefined variables")
     }

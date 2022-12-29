@@ -32,6 +32,8 @@ pub type Statement<'expr, 'ident> =
 
 pub type Pattern<'expr, 'ident> = ast::Pattern<'expr, 'ident, Identifier<'expr, 'ident>>;
 
+pub type FieldDefinition<'expr, 'ident> = ast::FieldDefinition<'ident, Type<'expr, 'ident>>;
+
 pub type Block<'expr, 'ident> =
     ast::Block<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident>>;
 
