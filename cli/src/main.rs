@@ -1,8 +1,7 @@
 use arena_alloc::*;
 use bumpalo::Bump;
-use infinite_iterator::InfiniteIterator;
 use lexer::scan_tokens;
-use parser::parser::program;
+use parser::program::program;
 use qualifier::definitions::Definitions;
 use type_checker::{env::*, infer};
 

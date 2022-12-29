@@ -2,7 +2,6 @@ use arena_alloc::*;
 use bumpalo::Bump;
 use ir::typed::Program;
 use lexer::scan_tokens;
-use parser::parser;
 use qualifier::definitions::Definitions;
 use type_checker::{infer, env::Env};
 
@@ -16,7 +15,7 @@ fn run_frontend<'src, 'ident, 'qual>(
         panic!("{:?}\n{:?}", tokens, errors);
     }
     let parse_tree = Bump::new();
-    let ast_program = match parser::program(
+    let ast_program = match parser::program::program(
         &mut tokens.into_iter().peekable(),
         &General::new(&parse_tree),
         &Interning::new(ident),

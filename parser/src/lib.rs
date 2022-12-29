@@ -5,4 +5,7 @@
     clippy::redundant_else
 )]
 
-pub mod parser;
+pub mod expr;
+pub mod program;
+pub mod types;
+pub mod util;
