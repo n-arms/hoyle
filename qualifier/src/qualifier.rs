@@ -3,8 +3,8 @@ use crate::error::Result;
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast;
 use ir::qualified::{
-    Argument, Block, Branch, Definition, Expr, Field, Identifier, IdentifierSource, Path, Pattern,
-    PatternField, Program, Statement, Type, TypeField, TypeName,
+    Argument, Block, Branch, Definition, Expr, Field, FieldDefinition, Identifier,
+    IdentifierSource, Path, Pattern, PatternField, Program, Statement, Type, TypeField, TypeName,
 };
 
 pub fn program<'old, 'new, 'ident>(
@@ -31,45 +31,83 @@ pub fn definition<'old, 'new, 'ident>(
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'ident, Definition<'new, 'ident>> {
-    let identifier = Identifier {
-        source: IdentifierSource::Global(Path::Current),
+    match to_qualify {
+        ast::Definition::Function {
+            name,
+            generics,
+            arguments,
+            return_type,
+            body,
+            span,
+        } => {
+            let identifier = Identifier {
+                source: IdentifierSource::Global(Path::Current),
+                name,
+                r#type: None,
+            };
+            definitions.with_variables([(name, identifier)]);
+
+            let mut inner_defs = definitions.clone();
+            inner_defs.with_types(generics.iter().map(|generic| {
+                (
+                    generic.identifier,
+                    TypeName {
+                        source: IdentifierSource::Local,
+                        name: generic.identifier,
+                    },
+                )
+            }));
+
+            let return_type = return_type.map_or(Ok(None), |result| {
+                r#type(result, &mut inner_defs, interner, general).map(Some)
+            })?;
+
+            let arguments = general.alloc_slice_try_fill_iter(
+                arguments
+                    .iter()
+                    .map(|arg| argument(*arg, &mut inner_defs, interner, general)),
+            )?;
+
+            let body = expr(body, &mut inner_defs, interner, general)?;
+
+            let generics = general.alloc_slice_fill_iter(generics.iter().copied());
+
+            Ok(Definition::Function {
+                name,
+                generics,
+                arguments,
+                return_type,
+                body,
+                span,
+            })
+        }
+        ast::Definition::Struct { name, fields, span } => {
+            let qualified_fields = general.alloc_slice_try_fill_iter(
+                fields
+                    .iter()
+                    .map(|field| field_definition(*field, definitions, interner, general)),
+            )?;
+
+            Ok(Definition::Struct {
+                name,
+                fields: qualified_fields,
+                span,
+            })
+        }
+    }
+}
+
+pub fn field_definition<'old, 'new, 'ident>(
+    to_qualify: ast::FieldDefinition<'ident, ast::Type<'old, 'ident>>,
+    definitions: &mut Definitions<'new, 'ident>,
+    interner: &Interning<'ident, Specialized>,
+    general: &General<'new>,
+) -> Result<'ident, FieldDefinition<'new, 'ident>> {
+    let qualified_field_type = r#type(to_qualify.field_type, definitions, interner, general)?;
+
+    Ok(FieldDefinition {
         name: to_qualify.name,
-        r#type: None,
-    };
-    definitions.with_variables([(to_qualify.name, identifier)]);
-
-    let mut inner_defs = definitions.clone();
-    inner_defs.with_types(to_qualify.generics.iter().map(|generic| {
-        (
-            generic.identifier,
-            TypeName {
-                source: IdentifierSource::Local,
-                name: generic.identifier,
-            },
-        )
-    }));
-
-    let return_type = to_qualify.return_type.map_or(Ok(None), |result| {
-        r#type(result, &mut inner_defs, interner, general).map(Some)
-    })?;
-
-    let arguments = general.alloc_slice_try_fill_iter(
-        to_qualify
-            .arguments
-            .iter()
-            .map(|arg| argument(*arg, &mut inner_defs, interner, general)),
-    )?;
-
-    let body = expr(to_qualify.body, &mut inner_defs, interner, general)?;
-
-    let generics = general.alloc_slice_fill_iter(to_qualify.generics.iter().copied());
-
-    Ok(Definition {
-        name: to_qualify.name,
-        generics,
-        arguments,
-        return_type,
-        body,
+        field_type: qualified_field_type,
         span: to_qualify.span,
     })
 }
@@ -150,13 +188,13 @@ pub fn pattern<'old, 'new, 'ident>(
             definitions.with_variables([(variable, qualified)]);
             Ok(Pattern::Variable(qualified, span))
         }
-        ast::Pattern::Record { fields, span } => {
+        ast::Pattern::Struct { fields, span } => {
             let qualified_fields = general.alloc_slice_try_fill_iter(
                 fields
                     .iter()
                     .map(|f| pattern_field(*f, definitions, interner, general)),
             )?;
-            Ok(Pattern::Record {
+            Ok(Pattern::Struct {
                 fields: qualified_fields,
                 span,
             })
@@ -216,18 +254,6 @@ pub fn r#type<'old, 'new, 'ident>(
 
             Ok(Type::Named {
                 name: qualified_type_name,
-                span,
-            })
-        }
-        ast::Type::Record { fields, span } => {
-            let qualified_fields = general.alloc_slice_try_fill_iter(
-                fields
-                    .iter()
-                    .map(|f| type_field(*f, definitions, interner, general)),
-            )?;
-
-            Ok(Type::Record {
-                fields: qualified_fields,
                 span,
             })
         }
@@ -331,13 +357,14 @@ pub fn expr<'old, 'new, 'ident>(
             })
         }
         ast::Expr::Operation { .. } => todo!(),
-        ast::Expr::Record { fields, span } => {
+        ast::Expr::StructLiteral { name, fields, span } => {
             let qualified_fields = general.alloc_slice_try_fill_iter(
                 fields
                     .iter()
                     .map(|f| field(*f, definitions, interner, general)),
             )?;
-            Ok(Expr::Record {
+            Ok(Expr::StructLiteral {
+                name: definitions.lookup_struct(name)?,
                 fields: qualified_fields,
                 span,
             })

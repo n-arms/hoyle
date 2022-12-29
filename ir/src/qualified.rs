@@ -65,6 +65,9 @@ pub type Program<'expr, 'ident> =
 pub type Definition<'expr, 'ident> =
     ast::Definition<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident, ast::Span>>;
 
+pub type FieldDefinition<'expr, 'ident> =
+    ast::FieldDefinition<'ident, Type<'expr, 'ident, ast::Span>>;
+
 pub type Argument<'expr, 'ident> =
     ast::Argument<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident, ast::Span>>;
 

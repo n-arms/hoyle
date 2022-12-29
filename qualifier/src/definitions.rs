@@ -6,6 +6,7 @@ use ir::qualified::{self, Identifier};
 pub struct Definitions<'expr, 'ident> {
     variables: HashMap<&'ident str, Identifier<'expr, 'ident>>,
     types: HashMap<&'ident str, qualified::TypeName<'ident>>,
+    structs: HashMap<&'ident str, Identifier<'expr, 'ident>>,
 }
 
 impl<'expr, 'ident> Default for Definitions<'expr, 'ident> {
@@ -16,6 +17,7 @@ impl<'expr, 'ident> Default for Definitions<'expr, 'ident> {
                 "int" => qualified::TypeName { source: qualified::IdentifierSource::Global(qualified::Path::Builtin), name: "int" },
                 "bool" => qualified::TypeName { source: qualified::IdentifierSource::Global(qualified::Path::Builtin), name: "bool" }
             ],
+            structs: HashMap::default(),
         }
     }
 }
@@ -50,5 +52,15 @@ impl<'expr, 'ident> Definitions<'expr, 'ident> {
             .get(r#type)
             .copied()
             .ok_or(Error::UndefinedType(r#type))
+    }
+
+    pub fn lookup_struct(
+        &self,
+        r#struct: &'ident str,
+    ) -> Result<'ident, Identifier<'expr, 'ident>> {
+        self.structs
+            .get(r#struct)
+            .copied()
+            .ok_or(Error::UndefinedStruct(r#struct))
     }
 }

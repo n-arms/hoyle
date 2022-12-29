@@ -33,6 +33,10 @@ impl<'expr, 'ident> Env<'expr, 'ident> {
         }
     }
 
+    pub fn bind_struct(&mut self) {
+        todo!()
+    }
+
     pub fn lookup_variable(
         &mut self,
         variable: impl Into<UntypedIdentifier<'ident>>,

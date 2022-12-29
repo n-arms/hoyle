@@ -35,31 +35,49 @@ fn parens<'src, 'ident, 'expr>(
     Ok(Ok(expr))
 }
 
+pub fn struct_or_variable<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
+    let identifier = propogate!(token(text, Kind::Identifier));
+
+    let struct_list = list(
+        text,
+        alloc,
+        interner,
+        Kind::LeftBrace,
+        Kind::RightBrace,
+        &mut field,
+        false,
+    )?;
+
+    if let Ok((fields, end)) = struct_list {
+        Ok(Ok(Expr::StructLiteral {
+            name: interner.get_or_intern(identifier.data),
+            fields,
+            span: end.union(&identifier.into()),
+        }))
+    } else {
+        Ok(Ok(Expr::Variable(
+            interner.get_or_intern(identifier.data),
+            identifier.into(),
+        )))
+    }
+}
+
 pub fn not_application<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
-    // this aspect of the grammar isn't LL(1), this will make error handling for records rather bad
-    if token_hint(text, Kind::LeftBrace) {
-        let mut text_copy = text.clone();
-
-        match record(&mut text_copy, alloc, interner) {
-            Ok(Ok(record)) => {
-                *text = text_copy;
-                Ok(Ok(record))
-            }
-            Ok(Err(_)) => unreachable!(),
-            Err(_) => block(text, alloc, interner),
-        }
-    } else {
-        or_try!(
-            variable(text, interner),
-            literal(text, alloc),
-            case(text, alloc, interner),
-            parens(text, alloc, interner)
-        )
-    }
+    or_try!(
+        block(text, alloc, interner),
+        literal(text, alloc),
+        case(text, alloc, interner),
+        parens(text, alloc, interner),
+        struct_or_variable(text, alloc, interner)
+    )
 }
 
 pub fn expr<'src, 'ident, 'expr>(
@@ -132,24 +150,6 @@ fn field<'src, 'ident, 'expr>(
         value,
         span: start.union(&value.span()),
     }))
-}
-
-fn record<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
-    let (fields, span) = propogate!(list(
-        text,
-        alloc,
-        interner,
-        Kind::LeftBrace,
-        Kind::RightBrace,
-        &mut field,
-        true,
-    ));
-
-    Ok(Ok(Expr::Record { fields, span }))
 }
 
 fn branch<'src, 'ident, 'expr>(

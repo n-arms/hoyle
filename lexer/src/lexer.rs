@@ -75,6 +75,7 @@ pub fn scan_tokens(text: &str) -> (token::List, Errors) {
                 let span = source.span(start, end.unwrap_or(text.len()));
                 let kind = match span.data {
                     "func" => Kind::Func,
+                    "struct" => Kind::Struct,
                     "let" => Kind::Let,
                     "case" => Kind::Case,
                     "of" => Kind::Of,

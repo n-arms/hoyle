@@ -153,11 +153,11 @@ const TRIVIAL_PROGRAMS: [&str; 10] = [
     "func f[t](a: t): t = {let x = a; x}",
     "func call[a, b](f: func(a): b, x: a): b = f(x)",
     "func ufcs[a](f: func(int, int): int): int = 3.f(5)",
-    "func f() = {x: 5,}",
-    "func wrap[a](x: a): {x: a,} = {x: x,}",
+    "func f() = x_wrapper {x: 5}",
+    "func wrap[a](x: a): x_wrapper = x_wrapper",
     "func add(x: int, y: int): int = 5",
     "func if[a](predicate: bool, branch_if: a, branch_else: a): a = branch_if",
-    "func unbox[a]({inner: boxed,}: {inner: a,}): a = boxed",
+    "func unbox(x_wrapper {inner: boxed}: int_wrapper): a = boxed",
 ];
 
 #[test]
@@ -199,10 +199,10 @@ fn illegal_functions_semantics() {
         TestType::AllFail,
         [
             "func f() = x",
-            "func f(x: A) = x",
+            "func f(x: a) = x",
             "func f[a](x: a): x = x",
             "func f[a](x: a): a = a",
-            "func f() = {x: x,}",
+            "func f() = x_wrapper {x: x}",
         ],
     )
 }

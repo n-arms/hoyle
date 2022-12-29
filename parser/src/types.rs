@@ -59,32 +59,10 @@ fn field<'src, 'ident, 'expr>(
     }))
 }
 
-fn record<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Type<'expr, 'ident>> {
-    let (fields, span) = propogate!(list(
-        text,
-        alloc,
-        interner,
-        Kind::LeftBrace,
-        Kind::RightBrace,
-        &mut field,
-        true
-    ));
-
-    Ok(Ok(Type::Record { fields, span }))
-}
-
 pub fn r#type<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
-    or_try!(
-        arrow(text, alloc, interner),
-        record(text, alloc, interner),
-        named(text, interner)
-    )
+    or_try!(arrow(text, alloc, interner), named(text, interner))
 }

@@ -22,12 +22,26 @@ pub struct Program<'expr, 'ident, Id, Ty> {
 }
 
 #[derive(Copy, Clone)]
-pub struct Definition<'expr, 'ident, Id, Ty> {
+pub enum Definition<'expr, 'ident, Id, Ty> {
+    Function {
+        name: &'ident str,
+        generics: &'expr [Generic<'ident>],
+        arguments: &'expr [Argument<'expr, 'ident, Id, Ty>],
+        return_type: Option<Ty>,
+        body: Expr<'expr, 'ident, Id, Ty>,
+        span: Span,
+    },
+    Struct {
+        name: &'ident str,
+        fields: &'expr [FieldDefinition<'ident, Ty>],
+        span: Span,
+    },
+}
+
+#[derive(Copy, Clone)]
+pub struct FieldDefinition<'ident, Ty> {
     pub name: &'ident str,
-    pub generics: &'expr [Generic<'ident>],
-    pub arguments: &'expr [Argument<'expr, 'ident, Id, Ty>],
-    pub return_type: Option<Ty>,
-    pub body: Expr<'expr, 'ident, Id, Ty>,
+    pub field_type: Ty,
     pub span: Span,
 }
 
@@ -44,10 +58,6 @@ pub enum Type<'expr, 'ident> {
     Arrow {
         arguments: &'expr [Type<'expr, 'ident>],
         return_type: &'expr Type<'expr, 'ident>,
-        span: Span,
-    },
-    Record {
-        fields: &'expr [TypeField<'expr, 'ident>],
         span: Span,
     },
 }
@@ -85,7 +95,7 @@ pub struct PatternField<'expr, 'ident, Id> {
 #[derive(Copy, Clone)]
 pub enum Pattern<'expr, 'ident, Id> {
     Variable(Id, Span),
-    Record {
+    Struct {
         fields: &'expr [PatternField<'expr, 'ident, Id>],
         span: Span,
     },
@@ -126,7 +136,8 @@ pub enum Expr<'expr, 'ident, Id, Ty> {
         arguments: &'expr [Expr<'expr, 'ident, Id, Ty>],
         span: Span,
     },
-    Record {
+    StructLiteral {
+        name: Id,
         fields: &'expr [Field<'expr, 'ident, Id, Ty>],
         span: Span,
     },
@@ -195,7 +206,7 @@ impl<Id, Ty> Expr<'_, '_, Id, Ty> {
             | Expr::Call { span, .. }
             | Expr::Operation { span, .. }
             | Expr::Annotated { span, .. }
-            | Expr::Record { span, .. }
+            | Expr::StructLiteral { span, .. }
             | Expr::Case { span, .. }
             | Expr::Block(Block { span, .. }) => *span,
         }
@@ -206,7 +217,7 @@ impl<Id> Pattern<'_, '_, Id> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {
-            Pattern::Variable(_, span) | Pattern::Record { span, .. } => *span,
+            Pattern::Variable(_, span) | Pattern::Struct { span, .. } => *span,
         }
     }
 }
@@ -215,8 +226,15 @@ impl Type<'_, '_> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {
-            Type::Named(_, span) | Type::Arrow { span, .. } | Type::Record { span, .. } => *span,
+            Type::Named(_, span) | Type::Arrow { span, .. } => *span,
         }
+    }
+}
+
+impl<Ty> FieldDefinition<'_, Ty> {
+    #[must_use]
+    pub const fn span(&self) -> Span {
+        self.span
     }
 }
 
@@ -228,17 +246,34 @@ impl<Id: Debug, Ty: Debug> Debug for Program<'_, '_, Id, Ty> {
 
 impl<Id: Debug, Ty: Debug> Debug for Definition<'_, '_, Id, Ty> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut tuple = f.debug_tuple("func");
-        tuple
-            .field(&self.name)
-            .field(&self.generics)
-            .field(&self.arguments);
+        match self {
+            Definition::Function {
+                name,
+                generics,
+                arguments,
+                return_type,
+                body,
+                ..
+            } => {
+                let mut tuple = f.debug_tuple("func");
+                tuple.field(name).field(generics).field(arguments);
 
-        if let Some(return_type) = &self.return_type {
-            tuple.field(&return_type);
+                if let Some(return_type) = return_type {
+                    tuple.field(&return_type);
+                }
+
+                tuple.field(body).finish()
+            }
+            Definition::Struct { name, fields, .. } => {
+                let mut r#struct = f.debug_struct(name);
+
+                for field in *fields {
+                    r#struct.field(field.name, &field.field_type);
+                }
+
+                r#struct.finish()
+            }
         }
-
-        tuple.field(&self.body).finish()
     }
 }
 
@@ -258,7 +293,7 @@ impl<Id: Debug> Debug for Pattern<'_, '_, Id> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Pattern::Variable(variable, _) => variable.fmt(f),
-            Pattern::Record { fields, .. } => f
+            Pattern::Struct { fields, .. } => f
                 .debug_map()
                 .entries(fields.iter().map(|f| (f.name, &f.pattern)))
                 .finish(),
@@ -326,7 +361,7 @@ impl<Id: Debug, Ty: Debug> Debug for Expr<'_, '_, Id, Ty> {
                 }
                 tuple.finish()
             }
-            Expr::Record { fields, .. } => f
+            Expr::StructLiteral { fields, .. } => f
                 .debug_map()
                 .entries(fields.iter().map(|field| (field.name, &field.value)))
                 .finish(),
@@ -361,10 +396,6 @@ impl Debug for Type<'_, '_> {
                 .debug_tuple("func")
                 .field(arguments)
                 .field(return_type)
-                .finish(),
-            Type::Record { fields, .. } => f
-                .debug_map()
-                .entries(fields.iter().map(|field| (field.name, &field.field_type)))
                 .finish(),
         }
     }

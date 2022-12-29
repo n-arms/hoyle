@@ -3,7 +3,7 @@ use crate::pattern::*;
 use crate::types::*;
 use crate::util::*;
 use arena_alloc::{General, Interning, Specialized};
-use ir::ast::{Argument, Definition, Generic, Program, Type};
+use ir::ast::{Argument, Definition, FieldDefinition, Generic, Program, Type};
 use ir::token::{Kind, Token};
 use std::iter::Peekable;
 
@@ -77,7 +77,48 @@ fn return_type<'src, 'ident, 'expr>(
     Ok(Ok(r#type))
 }
 
-fn definition<'src, 'ident, 'expr>(
+fn field_definition<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<FieldDefinition<'ident, Type<'expr, 'ident>>> {
+    let (name, start) = propogate!(identifier(text, interner));
+    let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingFieldDefinition)?;
+    let field_type =
+        r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingFieldDefinition)?;
+    let span = field_type.span().union(&start.into());
+
+    Ok(Ok(FieldDefinition {
+        name,
+        field_type,
+        span,
+    }))
+}
+
+fn struct_definition<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Definition<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
+    let start = propogate!(token(text, Kind::Struct));
+    let (name, _) = identifier(text, interner)?.map_err(Irrecoverable::WhileParsingStruct)?;
+    let (fields, end) = list(
+        text,
+        alloc,
+        interner,
+        Kind::LeftBrace,
+        Kind::RightBrace,
+        &mut field_definition,
+        false,
+    )?
+    .map_err(Irrecoverable::WhileParsingStruct)?;
+
+    let span = end.union(&start.into());
+
+    Ok(Ok(Definition::Struct { name, fields, span }))
+}
+
+fn function_definition<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
@@ -90,7 +131,7 @@ fn definition<'src, 'ident, 'expr>(
     let _ = token(text, Kind::SingleEquals)?.map_err(Irrecoverable::WhileParsingFunc)?;
     let body = expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingFunc)?;
 
-    Ok(Ok(Definition {
+    Ok(Ok(Definition::Function {
         name,
         generics,
         arguments,
@@ -98,6 +139,17 @@ fn definition<'src, 'ident, 'expr>(
         body,
         span: body.span().union(&start.into()),
     }))
+}
+
+fn definition<'src, 'ident, 'expr>(
+    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
+    alloc: &General<'expr>,
+    interner: &Interning<'ident, Specialized>,
+) -> Result<Definition<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
+    or_try!(
+        struct_definition(text, alloc, interner),
+        function_definition(text, alloc, interner)
+    )
 }
 
 pub fn program<'src, 'ident, 'expr>(

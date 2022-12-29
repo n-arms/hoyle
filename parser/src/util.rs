@@ -71,6 +71,8 @@ pub enum Irrecoverable {
     WhileParsingBranch(Recoverable),
     WhileParsingPatternField(Recoverable),
     WhileParsingUfc(Recoverable),
+    WhileParsingStruct(Recoverable),
+    WhileParsingFieldDefinition(Recoverable),
 }
 
 pub type Result<T> = result::Result<result::Result<T, Recoverable>, Irrecoverable>;

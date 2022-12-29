@@ -4,14 +4,6 @@ use ir::ast::{Pattern, PatternField};
 use ir::token::{Kind, Token};
 use std::iter::Peekable;
 
-fn variable_pattern<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Pattern<'expr, 'ident, &'ident str>> {
-    let (id, span) = propogate!(identifier(text, interner));
-    Ok(Ok(Pattern::Variable(id, span)))
-}
-
 fn pattern_field<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
@@ -28,31 +20,29 @@ fn pattern_field<'src, 'ident, 'expr>(
     }))
 }
 
-fn record_pattern<'src, 'ident, 'expr>(
+pub fn pattern<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Pattern<'expr, 'ident, &'ident str>> {
-    let (fields, span) = propogate!(list(
+    let (name, start) = propogate!(identifier(text, interner));
+
+    let field_list = list(
         text,
         alloc,
         interner,
         Kind::LeftBrace,
         Kind::RightBrace,
         &mut pattern_field,
-        true,
-    ));
+        false,
+    )?;
 
-    Ok(Ok(Pattern::Record { fields, span }))
-}
-
-pub fn pattern<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Pattern<'expr, 'ident, &'ident str>> {
-    or_try!(
-        record_pattern(text, alloc, interner),
-        variable_pattern(text, interner)
-    )
+    if let Ok((fields, end)) = field_list {
+        Ok(Ok(Pattern::Struct {
+            fields,
+            span: end.union(&start.into()),
+        }))
+    } else {
+        Ok(Ok(Pattern::Variable(name, start)))
+    }
 }

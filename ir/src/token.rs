@@ -24,6 +24,7 @@ pub enum Kind {
     Number,
     Identifier,
     Func,
+    Struct,
     Case,
     Of,
     ThickArrow,
