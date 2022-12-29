@@ -41,11 +41,6 @@ pub struct Argument<'expr, 'ident, Id, Ty> {
 #[derive(Copy, Clone)]
 pub enum Type<'expr, 'ident> {
     Named(&'ident str, Span),
-    Variant {
-        tag: &'ident str,
-        arguments: &'expr [Type<'expr, 'ident>],
-        span: Span,
-    },
     Arrow {
         arguments: &'expr [Type<'expr, 'ident>],
         return_type: &'expr Type<'expr, 'ident>,
@@ -53,10 +48,6 @@ pub enum Type<'expr, 'ident> {
     },
     Record {
         fields: &'expr [TypeField<'expr, 'ident>],
-        span: Span,
-    },
-    Union {
-        cases: &'expr [Type<'expr, 'ident>],
         span: Span,
     },
 }
@@ -94,11 +85,6 @@ pub struct PatternField<'expr, 'ident, Id> {
 #[derive(Copy, Clone)]
 pub enum Pattern<'expr, 'ident, Id> {
     Variable(Id, Span),
-    Variant {
-        tag: &'ident str,
-        arguments: &'expr [Pattern<'expr, 'ident, Id>],
-        span: Span,
-    },
     Record {
         fields: &'expr [PatternField<'expr, 'ident, Id>],
         span: Span,
@@ -137,11 +123,6 @@ pub enum Expr<'expr, 'ident, Id, Ty> {
     },
     Operation {
         operator: Operator,
-        arguments: &'expr [Expr<'expr, 'ident, Id, Ty>],
-        span: Span,
-    },
-    Variant {
-        tag: &'ident str,
         arguments: &'expr [Expr<'expr, 'ident, Id, Ty>],
         span: Span,
     },
@@ -214,7 +195,6 @@ impl<Id, Ty> Expr<'_, '_, Id, Ty> {
             | Expr::Call { span, .. }
             | Expr::Operation { span, .. }
             | Expr::Annotated { span, .. }
-            | Expr::Variant { span, .. }
             | Expr::Record { span, .. }
             | Expr::Case { span, .. }
             | Expr::Block(Block { span, .. }) => *span,
@@ -226,9 +206,7 @@ impl<Id> Pattern<'_, '_, Id> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {
-            Pattern::Variable(_, span)
-            | Pattern::Record { span, .. }
-            | Pattern::Variant { span, .. } => *span,
+            Pattern::Variable(_, span) | Pattern::Record { span, .. } => *span,
         }
     }
 }
@@ -237,11 +215,7 @@ impl Type<'_, '_> {
     #[must_use]
     pub const fn span(&self) -> Span {
         match self {
-            Type::Named(_, span)
-            | Type::Variant { span, .. }
-            | Type::Arrow { span, .. }
-            | Type::Union { span, .. }
-            | Type::Record { span, .. } => *span,
+            Type::Named(_, span) | Type::Arrow { span, .. } | Type::Record { span, .. } => *span,
         }
     }
 }
@@ -284,15 +258,6 @@ impl<Id: Debug> Debug for Pattern<'_, '_, Id> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Pattern::Variable(variable, _) => variable.fmt(f),
-            Pattern::Variant { tag, arguments, .. } => {
-                let mut tuple = f.debug_tuple(tag);
-
-                for arg in *arguments {
-                    tuple.field(&arg);
-                }
-
-                tuple.finish()
-            }
             Pattern::Record { fields, .. } => f
                 .debug_map()
                 .entries(fields.iter().map(|f| (f.name, &f.pattern)))
@@ -361,13 +326,6 @@ impl<Id: Debug, Ty: Debug> Debug for Expr<'_, '_, Id, Ty> {
                 }
                 tuple.finish()
             }
-            Expr::Variant { tag, arguments, .. } => {
-                let mut tuple = f.debug_tuple(tag);
-                for arg in *arguments {
-                    tuple.field(arg);
-                }
-                tuple.finish()
-            }
             Expr::Record { fields, .. } => f
                 .debug_map()
                 .entries(fields.iter().map(|field| (field.name, &field.value)))
@@ -395,15 +353,6 @@ impl Debug for Type<'_, '_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Named(name, _) => name.fmt(f),
-            Type::Variant { tag, arguments, .. } => {
-                let mut tuple = f.debug_tuple(tag);
-
-                for arg in *arguments {
-                    tuple.field(arg);
-                }
-
-                tuple.finish()
-            }
             Type::Arrow {
                 arguments,
                 return_type,
@@ -417,15 +366,6 @@ impl Debug for Type<'_, '_> {
                 .debug_map()
                 .entries(fields.iter().map(|field| (field.name, &field.field_type)))
                 .finish(),
-            Type::Union { cases, .. } => {
-                let mut tuple = f.debug_tuple("union");
-
-                for case in *cases {
-                    tuple.field(case);
-                }
-
-                tuple.finish()
-            }
         }
     }
 }

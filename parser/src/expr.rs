@@ -35,7 +35,6 @@ fn parens<'src, 'ident, 'expr>(
     Ok(Ok(expr))
 }
 
-// fn expr
 pub fn not_application<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,

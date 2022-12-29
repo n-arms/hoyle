@@ -164,11 +164,6 @@ pub fn check_pattern<'old, 'new, 'ident>(
                 span,
             ))
         }
-        ir::ast::Pattern::Variant {
-            tag,
-            arguments,
-            span,
-        } => todo!(),
         ir::ast::Pattern::Record { fields, span } => todo!(),
     }
 }
@@ -270,23 +265,6 @@ pub fn expr<'old, 'new, 'ident>(
             arguments,
             span,
         } => todo!(),
-        ir::ast::Expr::Variant {
-            tag,
-            arguments,
-            span,
-        } => {
-            let typed_arguments = general.alloc_slice_try_fill_iter(
-                arguments
-                    .iter()
-                    .map(|arg| expr(*arg, env, interner, general)),
-            )?;
-
-            Ok(Expr::Variant {
-                tag,
-                arguments: typed_arguments,
-                span,
-            })
-        }
         ir::ast::Expr::Record { fields, span } => todo!(),
         ir::ast::Expr::Block(untyped_block) => {
             let typed_block = block(untyped_block, &mut env.clone(), interner, general)?;

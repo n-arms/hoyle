@@ -150,22 +150,6 @@ pub fn pattern<'old, 'new, 'ident>(
             definitions.with_variables([(variable, qualified)]);
             Ok(Pattern::Variable(qualified, span))
         }
-        ast::Pattern::Variant {
-            tag,
-            arguments,
-            span,
-        } => {
-            let qualified_arguments = general.alloc_slice_try_fill_iter(
-                arguments
-                    .iter()
-                    .map(|arg| pattern(*arg, definitions, interner, general)),
-            )?;
-            Ok(Pattern::Variant {
-                tag,
-                arguments: qualified_arguments,
-                span,
-            })
-        }
         ast::Pattern::Record { fields, span } => {
             let qualified_fields = general.alloc_slice_try_fill_iter(
                 fields
@@ -235,23 +219,6 @@ pub fn r#type<'old, 'new, 'ident>(
                 span,
             })
         }
-        ast::Type::Variant {
-            tag,
-            arguments,
-            span,
-        } => {
-            let qualified_arguments = general.alloc_slice_try_fill_iter(
-                arguments
-                    .iter()
-                    .map(|arg| r#type(*arg, definitions, interner, general)),
-            )?;
-
-            Ok(Type::Variant {
-                tag,
-                arguments: qualified_arguments,
-                span,
-            })
-        }
         ast::Type::Record { fields, span } => {
             let qualified_fields = general.alloc_slice_try_fill_iter(
                 fields
@@ -281,18 +248,6 @@ pub fn r#type<'old, 'new, 'ident>(
             Ok(Type::Arrow {
                 arguments: qualified_arguments,
                 return_type: qualified_return_type,
-                span,
-            })
-        }
-        ast::Type::Union { cases, span } => {
-            let qualified_cases = general.alloc_slice_try_fill_iter(
-                cases
-                    .iter()
-                    .map(|case| r#type(*case, definitions, interner, general)),
-            )?;
-
-            Ok(Type::Union {
-                cases: qualified_cases,
                 span,
             })
         }
@@ -392,22 +347,6 @@ pub fn expr<'old, 'new, 'ident>(
             Ok(Expr::Block(qualified_block))
         }
         ast::Expr::Annotated { .. } => todo!(),
-        ast::Expr::Variant {
-            tag,
-            arguments,
-            span,
-        } => {
-            let qualified_arguments = general.alloc_slice_try_fill_iter(
-                arguments
-                    .iter()
-                    .map(|arg| expr(*arg, definitions, interner, general)),
-            )?;
-            Ok(Expr::Variant {
-                tag,
-                arguments: qualified_arguments,
-                span,
-            })
-        }
         ast::Expr::Case {
             predicate,
             branches,

@@ -107,11 +107,6 @@ impl<'expr, 'ident> Expr<'expr, 'ident> {
                 arguments,
                 span,
             } => todo!(),
-            ast::Expr::Variant {
-                tag,
-                arguments,
-                span,
-            } => todo!(),
             ast::Expr::Record { fields, span } => todo!(),
             ast::Expr::Block(_) => todo!(),
             ast::Expr::Annotated {
