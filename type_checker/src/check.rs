@@ -1,45 +1,45 @@
 use crate::env::Env;
-use crate::error::*;
-use crate::unify::{struct_type, unify_types};
+use crate::error::Result;
+use crate::unify::{self, struct_type};
 use arena_alloc::{General, Interning, Specialized};
-use ir::ast::{Literal, Span};
+
 use ir::qualified;
-use ir::typed::*;
+use ir::typed::{Expr, Field, FieldDefinition, Identifier, Pattern, PatternField, Type};
 
 pub fn expr<'old, 'new, 'ident>(
     to_check: qualified::Expr<'old, 'ident>,
     target: Type<'new, 'ident>,
     env: &mut Env<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
+    _interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, Expr<'new, 'ident>> {
     match to_check {
-        ir::ast::Expr::Variable(identifier, span) => {
+        ir::ast::Expr::Variable(identifier, _span) => {
             env.check_variable(identifier, target)?;
             todo!()
         }
         ir::ast::Expr::Literal(literal, span) => Ok(Expr::Literal(literal.realloc(general), span)),
         ir::ast::Expr::Call {
-            function,
-            arguments,
-            span,
+            function: _,
+            arguments: _,
+            span: _,
         } => todo!(),
         ir::ast::Expr::Operation {
-            operator,
-            arguments,
-            span,
+            operator: _,
+            arguments: _,
+            span: _,
         } => todo!(),
-        ir::ast::Expr::StructLiteral { name, fields, span } => todo!(),
+        ir::ast::Expr::StructLiteral { name: _, fields: _, span: _ } => todo!(),
         ir::ast::Expr::Block(_) => todo!(),
         ir::ast::Expr::Annotated {
-            expr,
-            annotation,
-            span,
+            expr: _,
+            annotation: _,
+            span: _,
         } => todo!(),
         ir::ast::Expr::Case {
-            predicate,
-            branches,
-            span,
+            predicate: _,
+            branches: _,
+            span: _,
         } => todo!(),
     }
 }
@@ -113,7 +113,7 @@ pub fn pattern<'old, 'new, 'ident>(
         }
         ir::ast::Pattern::Struct { name, fields, span } => {
             let to_check_type = struct_type(name);
-            unify_types(to_check_type, target)?;
+            unify::types(to_check_type, target)?;
 
             let struct_definition = env.lookup_struct(name);
             let typed_fields =

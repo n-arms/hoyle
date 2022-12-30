@@ -79,7 +79,7 @@ impl<'expr, 'ident> Identifier<'expr, 'ident> {
 }
 
 impl<'expr, 'ident> ast::Literal<'expr> {
-    pub fn r#type(self, interner: &Interning<'ident, Specialized>) -> Type<'expr, 'ident> {
+    #[must_use] pub fn r#type(self, interner: &Interning<'ident, Specialized>) -> Type<'expr, 'ident> {
         Type::Named {
             name: TypeName {
                 name: interner.get_or_intern("int"),
@@ -91,35 +91,35 @@ impl<'expr, 'ident> ast::Literal<'expr> {
 }
 
 impl<'expr, 'ident> Expr<'expr, 'ident> {
-    pub fn r#type(
+    #[must_use] pub fn r#type(
         self,
         interner: &Interning<'ident, Specialized>,
-        general: &General<'expr>,
+        _general: &General<'expr>,
     ) -> Type<'expr, 'ident> {
         match self {
             ast::Expr::Variable(id, _) => id.r#type,
             ast::Expr::Literal(literal, _) => literal.r#type(interner),
             ast::Expr::Call {
-                function,
-                arguments,
-                span,
+                function: _,
+                arguments: _,
+                span: _,
             } => todo!(),
             ast::Expr::Operation {
-                operator,
-                arguments,
-                span,
+                operator: _,
+                arguments: _,
+                span: _,
             } => todo!(),
-            ast::Expr::StructLiteral { name, fields, span } => todo!(),
+            ast::Expr::StructLiteral { name: _, fields: _, span: _ } => todo!(),
             ast::Expr::Block(_) => todo!(),
             ast::Expr::Annotated {
-                expr,
-                annotation,
-                span,
+                expr: _,
+                annotation: _,
+                span: _,
             } => todo!(),
             ast::Expr::Case {
-                predicate,
-                branches,
-                span,
+                predicate: _,
+                branches: _,
+                span: _,
             } => todo!(),
         }
     }

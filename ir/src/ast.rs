@@ -171,7 +171,7 @@ pub enum Operator {
 }
 
 impl<'old> Literal<'old> {
-    pub fn realloc<'new>(&self, alloc: &General<'new>) -> Literal<'new> {
+    #[must_use] pub fn realloc<'new>(&self, alloc: &General<'new>) -> Literal<'new> {
         match self {
             Literal::Integer(int) => Literal::Integer(alloc.alloc_str(int)),
         }
@@ -366,7 +366,7 @@ impl<Id: Debug, Ty: Debug> Debug for Expr<'_, '_, Id, Ty> {
                 arguments,
                 ..
             } => {
-                let mut tuple = f.debug_tuple(&format!("{:?}", operator));
+                let mut tuple = f.debug_tuple(&format!("{operator:?}"));
                 for arg in *arguments {
                     tuple.field(arg);
                 }
@@ -380,7 +380,7 @@ impl<Id: Debug, Ty: Debug> Debug for Expr<'_, '_, Id, Ty> {
             Expr::Annotated {
                 expr, annotation, ..
             } => {
-                write!(f, "{:?}: {:?}", expr, annotation)
+                write!(f, "{expr:?}: {annotation:?}")
             }
             Expr::Case {
                 predicate,

@@ -1,8 +1,8 @@
-use crate::error::*;
+use crate::error::{Error, Result};
 use ir::qualified;
-use ir::typed::*;
+use ir::typed::Type;
 
-pub fn unify_types<'expr, 'ident>(
+pub fn types<'expr, 'ident>(
     to_check: Type<'expr, 'ident>,
     target: Type<'expr, 'ident>,
 ) -> Result<'expr, 'ident, ()> {
@@ -35,15 +35,16 @@ pub fn unify_types<'expr, 'ident>(
             },
         ) => {
             for (arg, target_arg) in arguments.iter().zip(target_arguments) {
-                unify_types(*arg, *target_arg)?;
+                types(*arg, *target_arg)?;
             }
-            unify_types(*return_type, *target_return_type)
+            types(*return_type, *target_return_type)
         }
         _ => todo!(),
     }
 }
 
-pub fn struct_type<'new, 'old, 'ident>(
+#[must_use]
+pub const fn struct_type<'new, 'old, 'ident>(
     struct_name: qualified::Identifier<'old, 'ident>,
 ) -> Type<'new, 'ident> {
     Type::Named {

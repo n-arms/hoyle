@@ -1,7 +1,7 @@
-use crate::expr::*;
-use crate::pattern::*;
-use crate::types::*;
-use crate::util::*;
+use crate::expr::expr;
+use crate::pattern::pattern;
+use crate::types::r#type;
+use crate::util::{identifier, list, or_try, propogate, token, Irrecoverable, Result};
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::{Argument, Definition, FieldDefinition, Generic, Program, Type};
 use ir::token::{Kind, Token};
@@ -86,7 +86,7 @@ fn field_definition<'src, 'ident, 'expr>(
     let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingFieldDefinition)?;
     let field_type =
         r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingFieldDefinition)?;
-    let span = field_type.span().union(&start.into());
+    let span = field_type.span().union(&start);
 
     Ok(Ok(FieldDefinition {
         name,

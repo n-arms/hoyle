@@ -1,4 +1,4 @@
-use crate::util::*;
+use crate::util::{identifier, list, propogate, token, Irrecoverable, Result};
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::{Pattern, PatternField};
 use ir::token::{Kind, Token};
@@ -41,7 +41,7 @@ pub fn pattern<'src, 'ident, 'expr>(
         Ok(Ok(Pattern::Struct {
             name,
             fields,
-            span: end.union(&start.into()),
+            span: end.union(&start),
         }))
     } else {
         Ok(Ok(Pattern::Variable(name, start)))

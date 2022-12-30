@@ -1,8 +1,8 @@
-use crate::error::*;
-use crate::unify::unify_types;
+use crate::error::Result;
+use crate::unify;
 use im::HashMap;
-use ir::qualified;
-use ir::typed::*;
+
+use ir::typed::{FieldDefinition, Identifier, Type, UntypedIdentifier};
 
 #[derive(Clone, Default)]
 pub struct Env<'expr, 'ident> {
@@ -61,7 +61,7 @@ impl<'expr, 'ident> Env<'expr, 'ident> {
     ) -> Result<'expr, 'ident, ()> {
         let typed_identifier = self.lookup_variable(identifier);
 
-        unify_types(typed_identifier.r#type, target)
+        unify::types(typed_identifier.r#type, target)
     }
 
     pub fn lookup_struct(

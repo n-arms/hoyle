@@ -2,7 +2,7 @@ use bumpalo::Bump;
 
 // use 0 size structs as type level keys for what the allocator can do :eyes:
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct General<'a> {
     arena: &'a Bump,
 }

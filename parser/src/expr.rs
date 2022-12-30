@@ -1,5 +1,5 @@
-use crate::pattern::*;
-use crate::util::*;
+use crate::pattern::pattern;
+use crate::util::{identifier, list, or_try, propogate, token, Irrecoverable, Result};
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::{Block, Branch, Expr, Field, Literal, Span, Statement, Type};
 use ir::token::{Kind, Token};
@@ -14,14 +14,6 @@ fn literal<'src, 'ident, 'expr>(
         Literal::Integer(alloc.alloc_str(span.data)),
         span.into(),
     )))
-}
-
-fn variable<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
-    let (var, span) = propogate!(identifier(text, interner));
-    Ok(Ok(Expr::Variable(var, span)))
 }
 
 fn parens<'src, 'ident, 'expr>(
@@ -103,7 +95,7 @@ pub fn expr<'src, 'ident, 'expr>(
             span,
         };
         Ok(Ok(call))
-    } else if let Ok(_) = token(text, Kind::Dot)? {
+    } else if token(text, Kind::Dot)?.is_ok() {
         let func =
             not_application(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingUfc)?;
         let (arguments, end) = list(

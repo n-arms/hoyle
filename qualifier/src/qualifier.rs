@@ -60,7 +60,7 @@ pub fn definition<'old, 'new, 'ident>(
             }));
 
             let return_type = return_type.map_or(Ok(None), |result| {
-                r#type(result, &mut inner_defs, interner, general).map(Some)
+                r#type(result, &mut inner_defs, general).map(Some)
             })?;
 
             let arguments = general.alloc_slice_try_fill_iter(
@@ -86,7 +86,7 @@ pub fn definition<'old, 'new, 'ident>(
             let qualified_fields = general.alloc_slice_try_fill_iter(
                 fields
                     .iter()
-                    .map(|field| field_definition(*field, definitions, interner, general)),
+                    .map(|field| field_definition(*field, definitions, general)),
             )?;
 
             definitions.with_struct(
@@ -110,10 +110,9 @@ pub fn definition<'old, 'new, 'ident>(
 pub fn field_definition<'old, 'new, 'ident>(
     to_qualify: ast::FieldDefinition<'ident, ast::Type<'old, 'ident>>,
     definitions: &mut Definitions<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, FieldDefinition<'new, 'ident>> {
-    let qualified_field_type = r#type(to_qualify.field_type, definitions, interner, general)?;
+    let qualified_field_type = r#type(to_qualify.field_type, definitions, general)?;
 
     Ok(FieldDefinition {
         name: to_qualify.name,
@@ -129,7 +128,7 @@ pub fn argument<'old, 'new, 'ident>(
     general: &General<'new>,
 ) -> Result<'new, 'ident, Argument<'new, 'ident>> {
     let qualified_pattern = pattern(to_qualify.pattern, definitions, interner, general)?;
-    let qualified_type = r#type(to_qualify.type_annotation, definitions, interner, general)?;
+    let qualified_type = r#type(to_qualify.type_annotation, definitions, general)?;
 
     Ok(Argument {
         pattern: qualified_pattern,
@@ -247,10 +246,9 @@ pub fn block<'old, 'new, 'ident>(
 pub fn type_field<'old, 'new, 'ident>(
     to_qualify: ast::TypeField<'old, 'ident>,
     definitions: &mut Definitions<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, TypeField<'new, 'ident, ast::Span>> {
-    let qualified_field_type = r#type(to_qualify.field_type, definitions, interner, general)?;
+    let qualified_field_type = r#type(to_qualify.field_type, definitions, general)?;
 
     Ok(TypeField {
         name: to_qualify.name,
@@ -262,7 +260,6 @@ pub fn type_field<'old, 'new, 'ident>(
 pub fn r#type<'old, 'new, 'ident>(
     to_qualify: ast::Type<'old, 'ident>,
     definitions: &mut Definitions<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, Type<'new, 'ident, ast::Span>> {
     match to_qualify {
@@ -282,11 +279,10 @@ pub fn r#type<'old, 'new, 'ident>(
             let qualified_arguments = general.alloc_slice_try_fill_iter(
                 arguments
                     .iter()
-                    .map(|arg| r#type(*arg, definitions, interner, general)),
+                    .map(|arg| r#type(*arg, definitions, general)),
             )?;
 
-            let qualified_return_type =
-                general.alloc(r#type(*return_type, definitions, interner, general)?);
+            let qualified_return_type = general.alloc(r#type(*return_type, definitions, general)?);
 
             Ok(Type::Arrow {
                 arguments: qualified_arguments,
@@ -424,10 +420,9 @@ pub fn struct_contains_fields<'expr, 'ident>(
     must_have: &[FieldDefinition<'expr, 'ident>],
 ) -> Result<'expr, 'ident, ()> {
     for required_field in must_have {
-        let missing_field = to_check
+        let missing_field = !to_check
             .iter()
-            .find(|field| field.name == required_field.name)
-            .is_none();
+            .any(|field| field.name == required_field.name);
         if missing_field {
             return Err(Error::StructLiteralMissingField(*required_field, to_check));
         }

@@ -1,6 +1,6 @@
-use crate::util::*;
+use crate::util::{identifier, list, or_try, propogate, token, Irrecoverable, Result};
 use arena_alloc::{General, Interning, Specialized};
-use ir::ast::{Type, TypeField};
+use ir::ast::Type;
 use ir::token::{Kind, Token};
 use std::iter::Peekable;
 
@@ -38,24 +38,6 @@ fn arrow<'src, 'ident, 'expr>(
         arguments,
         return_type: alloc.alloc(return_type),
         span: return_type.span().union(&start.into()),
-    }))
-}
-
-fn field<'src, 'ident, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<TypeField<'expr, 'ident>> {
-    let (name, start) = propogate!(identifier(text, interner));
-
-    let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingField)?;
-
-    let field_type = r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingField)?;
-
-    Ok(Ok(TypeField {
-        name,
-        field_type,
-        span: start.union(&field_type.span()),
     }))
 }
 
