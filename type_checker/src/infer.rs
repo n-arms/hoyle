@@ -1,11 +1,14 @@
-use crate::check::{field, pattern};
+use crate::check::{branch, field, pattern};
 use crate::env::Env;
 use crate::error::Result;
 use crate::unify::struct_type;
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::{Literal, Span};
 use ir::qualified;
-use ir::typed::{Argument, Block, Branch, Definition, Expr, FieldDefinition, Identifier, Program, Statement, Type, UntypedIdentifier};
+use ir::typed::{
+    Argument, Block, Definition, Expr, FieldDefinition, Identifier, Program, Statement, Type,
+    UntypedIdentifier,
+};
 
 pub fn program<'old, 'new, 'ident>(
     to_infer: qualified::Program<'old, 'ident>,
@@ -75,9 +78,7 @@ pub fn definition<'old, 'new, 'ident>(
         }
         ir::ast::Definition::Struct { name, fields, span } => {
             let typed_fields = general.alloc_slice_try_fill_iter(
-                fields
-                    .iter()
-                    .map(|field| field_definition(*field, general)),
+                fields.iter().map(|field| field_definition(*field, general)),
             )?;
             env.bind_struct(
                 UntypedIdentifier {
@@ -174,7 +175,8 @@ pub fn statement<'old, 'new, 'ident>(
         }
     }
 }
-#[must_use] pub fn r#type<'old, 'new, 'ident>(
+#[must_use]
+pub fn r#type<'old, 'new, 'ident>(
     to_infer: qualified::Type<'old, 'ident, Span>,
     general: &General<'new>,
 ) -> Type<'new, 'ident> {
@@ -204,15 +206,6 @@ pub fn literal<'old, 'new, 'ident>(
     match to_infer {
         Literal::Integer(integer) => Ok(Literal::Integer(general.alloc_str(integer))),
     }
-}
-
-pub fn branch<'old, 'new, 'ident>(
-    _to_infer: qualified::Branch<'old, 'ident>,
-    _env: &mut Env<'new, 'ident>,
-    _interner: &Interning<'ident, Specialized>,
-    _general: &General<'new>,
-) -> Result<'new, 'ident, Branch<'new, 'ident>> {
-    todo!()
 }
 
 pub fn expr<'old, 'new, 'ident>(
@@ -264,10 +257,28 @@ pub fn expr<'old, 'new, 'ident>(
             span: _,
         } => todo!(),
         ir::ast::Expr::Case {
-            predicate: _,
-            branches: _,
-            span: _,
-        } => todo!(),
+            predicate,
+            branches,
+            span,
+        } => {
+            let typed_predicate = expr(*predicate, env, interner, general)?;
+
+            let typed_branches = general.alloc_slice_try_fill_iter(branches.iter().map(|b| {
+                branch(
+                    *b,
+                    typed_predicate.r#type(interner, general),
+                    env,
+                    interner,
+                    general,
+                )
+            }))?;
+
+            Ok(Expr::Case {
+                predicate: general.alloc(typed_predicate),
+                branches: typed_branches,
+                span,
+            })
+        }
         ir::ast::Expr::StructLiteral { name, fields, span } => {
             let defined_type = env.lookup_struct(name);
 

@@ -1,10 +1,11 @@
 use crate::env::Env;
 use crate::error::Result;
+use crate::infer;
 use crate::unify::{self, struct_type};
 use arena_alloc::{General, Interning, Specialized};
 
 use ir::qualified;
-use ir::typed::{Expr, Field, FieldDefinition, Identifier, Pattern, PatternField, Type};
+use ir::typed::{Branch, Expr, Field, FieldDefinition, Identifier, Pattern, PatternField, Type};
 
 pub fn expr<'old, 'new, 'ident>(
     to_check: qualified::Expr<'old, 'ident>,
@@ -29,7 +30,11 @@ pub fn expr<'old, 'new, 'ident>(
             arguments: _,
             span: _,
         } => todo!(),
-        ir::ast::Expr::StructLiteral { name: _, fields: _, span: _ } => todo!(),
+        ir::ast::Expr::StructLiteral {
+            name: _,
+            fields: _,
+            span: _,
+        } => todo!(),
         ir::ast::Expr::Block(_) => todo!(),
         ir::ast::Expr::Annotated {
             expr: _,
@@ -132,4 +137,28 @@ pub fn pattern<'old, 'new, 'ident>(
             })
         }
     }
+}
+
+pub fn branch<'old, 'new, 'ident>(
+    to_check: qualified::Branch<'old, 'ident>,
+    target_pattern_type: Type<'new, 'ident>,
+    env: &mut Env<'new, 'ident>,
+    interner: &Interning<'ident, Specialized>,
+    general: &General<'new>,
+) -> Result<'new, 'ident, Branch<'new, 'ident>> {
+    let typed_pattern = pattern(
+        to_check.pattern,
+        target_pattern_type,
+        env,
+        interner,
+        general,
+    )?;
+
+    let typed_body = infer::expr(to_check.body, env, interner, general)?;
+
+    Ok(Branch {
+        pattern: typed_pattern,
+        body: typed_body,
+        span: to_check.span,
+    })
 }

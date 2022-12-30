@@ -147,7 +147,7 @@ fn run_test_over_data<D: Clone + Debug, T: Debug, E: Display>(
     }
 }
 
-const TRIVIAL_PROGRAMS: [&str; 9] = [
+const TRIVIAL_PROGRAMS: &[&str] = &[
     "func f() = 0",
     "func f[t](a: t): t = a",
     "func f[t](a: t): t = {let x = a; x}",
@@ -161,11 +161,17 @@ const TRIVIAL_PROGRAMS: [&str; 9] = [
     ",
     "func add(x: int, y: int): int = 5",
     "func if[a](predicate: bool, branch_if: a, branch_else: a): a = branch_if",
+    "func pattern_id[a](x: a): a = case x of { val => val }",
     "
-    struct int_wrapper {
-        inner: int
+    struct wrapper {
+        x: int
     }
-    func unbox(int_wrapper {inner: boxed}: int_wrapper): int = boxed
+    func unwrap_in_args(wrapper {x: y}: wrapper): int = y
+    func unwrap_in_let(w: wrapper): int = {
+        let wrapper {x: y} = w;
+        y
+    }
+    func unwrap_in_case(w: wrapper): int = case w of { wrapper {x: y} => y }
     ",
 ];
 
