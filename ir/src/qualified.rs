@@ -8,10 +8,17 @@ pub struct Identifier<'expr, 'ident> {
     pub r#type: Option<Type<'expr, 'ident, ast::Span>>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct TypeName<'ident> {
     pub source: IdentifierSource,
     pub name: &'ident str,
+}
+
+#[derive(Copy, Clone)]
+pub struct StructDefinition<'expr, 'ident> {
+    pub source: IdentifierSource,
+    pub name: &'ident str,
+    pub fields: &'expr [FieldDefinition<'expr, 'ident>],
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
@@ -32,22 +39,9 @@ pub enum Type<'expr, 'ident, SPAN> {
         name: TypeName<'ident>,
         span: SPAN,
     },
-    Variant {
-        tag: &'ident str,
-        arguments: &'expr [Type<'expr, 'ident, SPAN>],
-        span: SPAN,
-    },
-    Record {
-        fields: &'expr [TypeField<'expr, 'ident, SPAN>],
-        span: SPAN,
-    },
     Arrow {
         arguments: &'expr [Type<'expr, 'ident, SPAN>],
         return_type: &'expr Type<'expr, 'ident, SPAN>,
-        span: SPAN,
-    },
-    Union {
-        cases: &'expr [Type<'expr, 'ident, SPAN>],
         span: SPAN,
     },
 }
@@ -124,15 +118,6 @@ impl<SPAN: Copy> Debug for Type<'_, '_, SPAN> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Named { name, .. } => name.fmt(f),
-            Type::Variant { tag, arguments, .. } => {
-                let mut tuple = f.debug_tuple(tag);
-
-                for arg in *arguments {
-                    tuple.field(arg);
-                }
-
-                tuple.finish()
-            }
             Type::Arrow {
                 arguments,
                 return_type,
@@ -142,19 +127,6 @@ impl<SPAN: Copy> Debug for Type<'_, '_, SPAN> {
                 .field(arguments)
                 .field(return_type)
                 .finish(),
-            Type::Record { fields, .. } => f
-                .debug_map()
-                .entries(fields.iter().map(|field| (field.name, field.field_type)))
-                .finish(),
-            Type::Union { cases, .. } => {
-                let mut tuple = f.debug_tuple("union");
-
-                for case in *cases {
-                    tuple.field(&case);
-                }
-
-                tuple.finish()
-            }
         }
     }
 }

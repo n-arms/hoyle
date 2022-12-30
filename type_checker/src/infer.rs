@@ -1,26 +1,23 @@
+use crate::check::{field, pattern, pattern_field};
 use crate::env::Env;
+use crate::error::*;
+use crate::unify::struct_type;
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::{Literal, Span};
 use ir::qualified;
 use ir::typed::*;
-use std::result;
-
-#[derive(Debug)]
-pub enum Error {}
-
-type Result<T> = result::Result<T, Error>;
 
 pub fn program<'old, 'new, 'ident>(
     to_infer: qualified::Program<'old, 'ident>,
     env: &mut Env<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<Program<'new, 'ident>> {
+) -> Result<'new, 'ident, Program<'new, 'ident>> {
     let typed_definitions = general.alloc_slice_try_fill_iter(
         to_infer
             .definitions
             .iter()
-            .map(|def| definition(*def, &mut (env.clone()), interner, general)),
+            .map(|def| definition(*def, env, interner, general)),
     )?;
 
     Ok(Program {
@@ -31,7 +28,7 @@ pub fn program<'old, 'new, 'ident>(
 pub fn field_definition<'old, 'new, 'ident>(
     to_infer: qualified::FieldDefinition<'old, 'ident>,
     general: &General<'new>,
-) -> Result<FieldDefinition<'new, 'ident>> {
+) -> Result<'new, 'ident, FieldDefinition<'new, 'ident>> {
     let typed_field_type = r#type(to_infer.field_type, general);
 
     Ok(FieldDefinition {
@@ -46,7 +43,7 @@ pub fn definition<'old, 'new, 'ident>(
     env: &mut Env<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<Definition<'new, 'ident>> {
+) -> Result<'new, 'ident, Definition<'new, 'ident>> {
     match to_infer {
         ir::ast::Definition::Function {
             name,
@@ -56,10 +53,11 @@ pub fn definition<'old, 'new, 'ident>(
             body,
             span,
         } => {
+            let mut inner_env = env.clone();
             let typed_arguments = general.alloc_slice_try_fill_iter(
                 arguments
                     .iter()
-                    .map(|arg| argument(*arg, env, interner, general)),
+                    .map(|arg| argument(*arg, &mut inner_env, interner, general)),
             )?;
 
             let return_type = if let Some(return_type) = return_type {
@@ -68,7 +66,7 @@ pub fn definition<'old, 'new, 'ident>(
                 None
             };
 
-            let typed_body = expr(body, env, interner, general)?;
+            let typed_body = expr(body, &mut inner_env, interner, general)?;
 
             Ok(Definition::Function {
                 name,
@@ -85,7 +83,13 @@ pub fn definition<'old, 'new, 'ident>(
                     .into_iter()
                     .map(|field| field_definition(*field, general)),
             )?;
-            env.bind_struct(name, typed_fields);
+            env.bind_struct(
+                UntypedIdentifier {
+                    source: qualified::IdentifierSource::Local,
+                    name,
+                },
+                typed_fields,
+            );
 
             Ok(Definition::Struct {
                 name,
@@ -101,9 +105,9 @@ pub fn argument<'old, 'new, 'ident>(
     env: &mut Env<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<Argument<'new, 'ident>> {
+) -> Result<'new, 'ident, Argument<'new, 'ident>> {
     let type_annotation = r#type(to_infer.type_annotation, general);
-    let typed_pattern = check_pattern(to_infer.pattern, type_annotation, env, interner, general)?;
+    let typed_pattern = pattern(to_infer.pattern, type_annotation, env, interner, general)?;
 
     Ok(Argument {
         pattern: typed_pattern,
@@ -117,7 +121,7 @@ pub fn block<'old, 'new, 'ident>(
     env: &mut Env<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<Block<'new, 'ident>> {
+) -> Result<'new, 'ident, Block<'new, 'ident>> {
     let typed_statements = general.alloc_slice_try_fill_iter(
         to_infer
             .statements
@@ -144,7 +148,7 @@ pub fn statement<'old, 'new, 'ident>(
     env: &mut Env<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<Statement<'new, 'ident>> {
+) -> Result<'new, 'ident, Statement<'new, 'ident>> {
     match to_infer {
         ir::ast::Statement::Let {
             left_side,
@@ -153,7 +157,7 @@ pub fn statement<'old, 'new, 'ident>(
         } => {
             let typed_right_side = expr(right_side, env, interner, general)?;
 
-            let typed_left_side = check_pattern(
+            let typed_left_side = pattern(
                 left_side,
                 typed_right_side.r#type(interner, general),
                 env,
@@ -174,37 +178,6 @@ pub fn statement<'old, 'new, 'ident>(
         }
     }
 }
-
-pub fn check_pattern_field<'old, 'new, 'ident>(
-    to_check: qualified::PatternField<'old, 'ident>,
-    checking_type: Type<'new, 'ident>,
-    env: &mut Env<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
-    general: &General<'new>,
-) -> Result<PatternField<'new, 'ident>> {
-    todo!()
-}
-
-pub fn check_pattern<'old, 'new, 'ident>(
-    to_check: qualified::Pattern<'old, 'ident>,
-    checking_type: Type<'new, 'ident>,
-    env: &mut Env<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
-    general: &General<'new>,
-) -> Result<Pattern<'new, 'ident>> {
-    match to_check {
-        ir::ast::Pattern::Variable(variable, span) => {
-            env.bind_variable(variable, checking_type);
-
-            Ok(Pattern::Variable(
-                Identifier::new(variable, checking_type),
-                span,
-            ))
-        }
-        ir::ast::Pattern::Struct { fields, span } => todo!(),
-    }
-}
-
 pub fn r#type<'old, 'new, 'ident>(
     to_infer: qualified::Type<'old, 'ident, Span>,
     general: &General<'new>,
@@ -214,17 +187,6 @@ pub fn r#type<'old, 'new, 'ident>(
             name,
             span: Some(span),
         },
-        qualified::Type::Variant {
-            tag,
-            arguments,
-            span,
-        } => Type::Variant {
-            tag,
-            arguments: general
-                .alloc_slice_fill_iter(arguments.iter().map(|arg| r#type(*arg, general))),
-            span: Some(span),
-        },
-        qualified::Type::Record { fields, span } => todo!(),
         qualified::Type::Arrow {
             arguments,
             return_type,
@@ -235,7 +197,6 @@ pub fn r#type<'old, 'new, 'ident>(
             return_type: general.alloc(r#type(*return_type, general)),
             span: Some(span),
         },
-        qualified::Type::Union { cases, span } => todo!(),
     }
 }
 
@@ -243,19 +204,10 @@ pub fn literal<'old, 'new, 'ident>(
     to_infer: Literal<'old>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<Literal<'new>> {
+) -> Result<'new, 'ident, Literal<'new>> {
     match to_infer {
         Literal::Integer(integer) => Ok(Literal::Integer(general.alloc_str(integer))),
     }
-}
-
-pub fn field<'old, 'new, 'ident>(
-    to_infer: qualified::Field<'old, 'ident>,
-    env: &mut Env<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
-    general: &General<'new>,
-) -> Result<Field<'new, 'ident>> {
-    todo!()
 }
 
 pub fn branch<'old, 'new, 'ident>(
@@ -263,7 +215,7 @@ pub fn branch<'old, 'new, 'ident>(
     env: &mut Env<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<Branch<'new, 'ident>> {
+) -> Result<'new, 'ident, Branch<'new, 'ident>> {
     todo!()
 }
 
@@ -272,7 +224,7 @@ pub fn expr<'old, 'new, 'ident>(
     env: &mut Env<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<Expr<'new, 'ident>> {
+) -> Result<'new, 'ident, Expr<'new, 'ident>> {
     match to_infer {
         ir::ast::Expr::Variable(variable, span) => {
             let typed_variable = env.lookup_variable(variable);
@@ -287,7 +239,19 @@ pub fn expr<'old, 'new, 'ident>(
             function,
             arguments,
             span,
-        } => todo!(),
+        } => {
+            let typed_function = expr(*function, env, interner, general)?;
+            let typed_arguments = general.alloc_slice_try_fill_iter(
+                arguments
+                    .into_iter()
+                    .map(|arg| expr(*arg, env, interner, general)),
+            )?;
+            Ok(Expr::Call {
+                function: general.alloc(typed_function),
+                arguments: typed_arguments,
+                span,
+            })
+        }
         ir::ast::Expr::Operation {
             operator,
             arguments,
@@ -308,6 +272,26 @@ pub fn expr<'old, 'new, 'ident>(
             branches,
             span,
         } => todo!(),
-        ir::ast::Expr::StructLiteral { name, fields, span } => todo!(),
+        ir::ast::Expr::StructLiteral { name, fields, span } => {
+            let defined_type = env.lookup_struct(name);
+
+            let typed_name = Identifier {
+                source: name.source,
+                name: name.name,
+                r#type: struct_type(name),
+            };
+
+            let typed_fields = general.alloc_slice_try_fill_iter(
+                fields
+                    .iter()
+                    .map(|to_check| field(*to_check, defined_type, env, interner, general)),
+            )?;
+
+            Ok(Expr::StructLiteral {
+                name: typed_name,
+                fields: typed_fields,
+                span,
+            })
+        }
     }
 }

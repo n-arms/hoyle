@@ -1,3 +1,5 @@
+use crate::error::*;
+use crate::unify::unify_types;
 use im::HashMap;
 use ir::qualified;
 use ir::typed::*;
@@ -5,7 +7,7 @@ use ir::typed::*;
 #[derive(Clone, Default)]
 pub struct Env<'expr, 'ident> {
     variables: HashMap<UntypedIdentifier<'ident>, Identifier<'expr, 'ident>>,
-    structs: HashMap<&'ident str, &'expr [FieldDefinition<'expr, 'ident>]>,
+    structs: HashMap<UntypedIdentifier<'ident>, &'expr [FieldDefinition<'expr, 'ident>]>,
 }
 
 impl<'expr, 'ident> Env<'expr, 'ident> {
@@ -36,19 +38,38 @@ impl<'expr, 'ident> Env<'expr, 'ident> {
 
     pub fn bind_struct(
         &mut self,
-        name: &'ident str,
+        name: impl Into<UntypedIdentifier<'ident>>,
         fields: &'expr [FieldDefinition<'expr, 'ident>],
     ) {
-        self.structs.insert(name, fields);
+        self.structs.insert(name.into(), fields);
     }
 
     pub fn lookup_variable(
-        &mut self,
+        &self,
         variable: impl Into<UntypedIdentifier<'ident>>,
     ) -> Identifier<'expr, 'ident> {
         *self
             .variables
             .get(&variable.into())
-            .expect("the qualifier pass should have got undefined variables")
+            .expect("the qualifier pass should have caught undefined variables")
+    }
+
+    pub fn check_variable(
+        &self,
+        identifier: impl Into<UntypedIdentifier<'ident>>,
+        target: Type<'expr, 'ident>,
+    ) -> Result<'expr, 'ident, ()> {
+        let typed_identifier = self.lookup_variable(identifier);
+
+        unify_types(typed_identifier.r#type, target)
+    }
+
+    pub fn lookup_struct(
+        &self,
+        name: impl Into<UntypedIdentifier<'ident>>,
+    ) -> &'expr [FieldDefinition<'expr, 'ident>] {
+        self.structs
+            .get(&name.into())
+            .expect("the qualifier pass should have caught undefined structs")
     }
 }

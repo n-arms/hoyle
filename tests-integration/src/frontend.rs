@@ -2,7 +2,7 @@ use arena_alloc::*;
 use bumpalo::Bump;
 use lexer::scan_tokens;
 use qualifier::definitions::Definitions;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use type_checker::{env::Env, infer};
 
 fn run_syntactic_frontend<'src, 'ident, 'ast>(
@@ -89,7 +89,7 @@ pub enum TestType {
     AllFail,
 }
 
-fn run_test_over_data<D: Clone + Debug, T: Debug, E: Debug>(
+fn run_test_over_data<D: Clone + Debug, T: Debug, E: Display>(
     mut test: impl FnMut(D) -> Result<T, E>,
     test_name: &str,
     test_type: TestType,
@@ -123,7 +123,7 @@ fn run_test_over_data<D: Clone + Debug, T: Debug, E: Debug>(
                 let mut msg = format!("{} tests failed on level {}:\n", failures.len(), test_name);
 
                 for (test_case, error) in failures {
-                    msg += &format!("\n\n\ndata:\n{:?}\n\nerror:\n{:?}", test_case, error);
+                    msg += &format!("\n\n\ndata:\n{:?}\n\nerror:\n{}", test_case, error);
                 }
 
                 panic!("{}", msg)
@@ -147,17 +147,26 @@ fn run_test_over_data<D: Clone + Debug, T: Debug, E: Debug>(
     }
 }
 
-const TRIVIAL_PROGRAMS: [&str; 10] = [
+const TRIVIAL_PROGRAMS: [&str; 9] = [
     "func f() = 0",
     "func f[t](a: t): t = a",
     "func f[t](a: t): t = {let x = a; x}",
     "func call[a, b](f: func(a): b, x: a): b = f(x)",
     "func ufcs[a](f: func(int, int): int): int = 3.f(5)",
-    "func f() = x_wrapper {x: 5}",
-    "func wrap[a](x: a): x_wrapper = x_wrapper",
+    "
+    struct x_wrapper {
+        x: int
+    }
+    func f() = x_wrapper {x: 5}
+    ",
     "func add(x: int, y: int): int = 5",
     "func if[a](predicate: bool, branch_if: a, branch_else: a): a = branch_if",
-    "func unbox(x_wrapper {inner: boxed}: int_wrapper): a = boxed",
+    "
+    struct int_wrapper {
+        inner: int
+    }
+    func unbox(int_wrapper {inner: boxed}: int_wrapper): int = boxed
+    ",
 ];
 
 #[test]

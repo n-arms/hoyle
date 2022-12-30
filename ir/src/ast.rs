@@ -1,3 +1,5 @@
+use arena_alloc::General;
+
 use crate::token;
 use std::fmt::{Debug, Formatter};
 use std::ops::Range;
@@ -96,6 +98,7 @@ pub struct PatternField<'expr, 'ident, Id> {
 pub enum Pattern<'expr, 'ident, Id> {
     Variable(Id, Span),
     Struct {
+        name: Id,
         fields: &'expr [PatternField<'expr, 'ident, Id>],
         span: Span,
     },
@@ -165,6 +168,14 @@ pub enum Operator {
     Sub,
     Times,
     Div,
+}
+
+impl<'old> Literal<'old> {
+    pub fn realloc<'new>(&self, alloc: &General<'new>) -> Literal<'new> {
+        match self {
+            Literal::Integer(int) => Literal::Integer(alloc.alloc_str(int)),
+        }
+    }
 }
 
 impl From<Range<usize>> for Span {
@@ -412,5 +423,11 @@ impl<Id: Debug, Ty: Debug> Debug for Branch<'_, '_, Id, Ty> {
         self.pattern.fmt(f)?;
         write!(f, " => ")?;
         self.body.fmt(f)
+    }
+}
+
+impl<Ty: Debug> Debug for FieldDefinition<'_, Ty> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {:?}", self.name, self.field_type)
     }
 }

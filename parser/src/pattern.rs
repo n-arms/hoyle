@@ -39,6 +39,7 @@ pub fn pattern<'src, 'ident, 'expr>(
 
     if let Ok((fields, end)) = field_list {
         Ok(Ok(Pattern::Struct {
+            name,
             fields,
             span: end.union(&start.into()),
         }))
