@@ -1,12 +1,22 @@
 [workspace]
 members = [
-  "ir",
+  # Utilities
+  "arena_alloc",
+
+  # Public Interface
   "cli",
+
+  # Intermediate Representations
+  "ir",
+
+  # Frontend
   "lexer",
   "parser",
-  "type_checker",
   "qualifier",
-  "arena_alloc",
+  "type_checker",
+
+  # Backend
+  "flattener",
   
   # Internal
   "tests-integration"

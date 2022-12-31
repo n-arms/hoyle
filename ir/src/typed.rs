@@ -12,7 +12,7 @@ pub struct Identifier<'expr, 'ident> {
     pub r#type: Type<'expr, 'ident>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UntypedIdentifier<'ident> {
     pub source: IdentifierSource,
     pub name: &'ident str,
@@ -79,7 +79,8 @@ impl<'expr, 'ident> Identifier<'expr, 'ident> {
 }
 
 impl<'expr, 'ident> ast::Literal<'expr> {
-    #[must_use] pub fn r#type(self, interner: &Interning<'ident, Specialized>) -> Type<'expr, 'ident> {
+    #[must_use]
+    pub fn r#type(self, interner: &Interning<'ident, Specialized>) -> Type<'expr, 'ident> {
         Type::Named {
             name: TypeName {
                 name: interner.get_or_intern("int"),
@@ -91,7 +92,8 @@ impl<'expr, 'ident> ast::Literal<'expr> {
 }
 
 impl<'expr, 'ident> Expr<'expr, 'ident> {
-    #[must_use] pub fn r#type(
+    #[must_use]
+    pub fn r#type(
         self,
         interner: &Interning<'ident, Specialized>,
         _general: &General<'expr>,
@@ -109,7 +111,11 @@ impl<'expr, 'ident> Expr<'expr, 'ident> {
                 arguments: _,
                 span: _,
             } => todo!(),
-            ast::Expr::StructLiteral { name: _, fields: _, span: _ } => todo!(),
+            ast::Expr::StructLiteral {
+                name: _,
+                fields: _,
+                span: _,
+            } => todo!(),
             ast::Expr::Block(_) => todo!(),
             ast::Expr::Annotated {
                 expr: _,
