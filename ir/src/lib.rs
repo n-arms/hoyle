@@ -2,6 +2,7 @@
 #![allow(clippy::missing_panics_doc)]
 
 pub mod ast;
+pub mod flattened;
 pub mod qualified;
 pub mod token;
 pub mod typed;
