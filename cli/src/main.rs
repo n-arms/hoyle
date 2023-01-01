@@ -6,24 +6,6 @@ use qualifier::definitions::Definitions;
 use type_checker::{env::*, infer};
 
 use std::io::{self, BufRead};
-/*
-fn main() {
-    let (tokens, _) = scan_tokens("x(");
-
-    let mut text = tokens.into_iter().peekable();
-
-    let bump = Bump::new();
-    let alloc = General::new(&bump);
-    let interner = Interning::new(&bump);
-
-    let not_app = parser::expr::not_application(&mut text, &alloc, &interner)
-        .unwrap()
-        .unwrap();
-
-    println!("{:?}", not_app);
-    println!("{:?}", text.collect::<Vec<_>>());
-}
-*/
 
 fn main() {
     let stdin = io::stdin();
@@ -82,6 +64,6 @@ fn main() {
         let typed_program =
             infer::program(qualified_program, &mut type_env, &interner, &type_alloc).unwrap();
 
-        println!("{:?}", typed_program)
+        println!("{:#?}", typed_program)
     }
 }

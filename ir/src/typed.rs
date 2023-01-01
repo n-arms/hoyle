@@ -101,11 +101,10 @@ impl<'expr, 'ident> Expr<'expr, 'ident> {
         match self {
             ast::Expr::Variable(id, _) => id.r#type,
             ast::Expr::Literal(literal, _) => literal.r#type(interner),
-            ast::Expr::Call {
-                function: _,
-                arguments: _,
-                span: _,
-            } => todo!(),
+            ast::Expr::Call { function, .. } => match function.r#type(interner, _general) {
+                Type::Arrow { return_type, .. } => *return_type,
+                _ => unreachable!(),
+            },
             ast::Expr::Operation {
                 operator: _,
                 arguments: _,

@@ -14,9 +14,6 @@ members = [
   "parser",
   "qualifier",
   "type_checker",
-
-  # Backend
-  "flattener",
   
   # Internal
   "tests-integration"
