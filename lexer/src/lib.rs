@@ -6,3 +6,4 @@ pub mod lexer;
 pub mod span_source;
 
 pub use crate::lexer::scan_tokens;
+pub use crate::lexer::Errors;

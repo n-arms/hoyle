@@ -8,3 +8,5 @@
 pub mod definitions;
 pub mod error;
 pub mod qualifier;
+
+pub use qualifier::program as qualify;

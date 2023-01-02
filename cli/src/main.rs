@@ -1,3 +1,6 @@
+mod read;
+mod repl;
+
 use arena_alloc::*;
 use bumpalo::Bump;
 use ir::typed::Type;
@@ -24,62 +27,14 @@ fn extract_primitives<'old, 'new, 'ident>(
 }
 
 fn main() {
-    let stdin = io::stdin();
-    for line in stdin.lock().lines().map(Result::unwrap) {
-        let (tokens, token_errors) = scan_tokens(&line);
-
-        if !token_errors.success() {
-            println!("{:?}", token_errors);
-            continue;
+    let bump = Bump::new();
+    let mut repl = repl::Repl::new(&bump, &bump, &bump);
+    read::event_loop("Welcome to the Hoyle repl", |tokens, errors| {
+        if errors.success() {
+            repl.run(tokens);
+        } else {
+            println!("error while lexing: {:?}", errors)
         }
-        let ident = Bump::new();
-        let ast = Bump::new();
-        let alloc = General::new(&ast);
-        let interner = Interning::new(&ident);
-
-        let token_iter = tokens.into_iter();
-        let mut text = token_iter.clone().peekable();
-
-        let raw_program = match program(&mut text, &alloc, &interner) {
-            Ok(Ok(program)) => program,
-            Err(e) => {
-                println!("{:?}", token_iter.collect::<Vec<_>>());
-                println!("{:?}", e);
-                continue;
-            }
-            Ok(Err(e)) => {
-                println!("{:?}", e);
-                continue;
-            }
-        };
-
-        println!("{:?}", raw_program);
-
-        let qualified_ast_bump = Bump::new();
-        let qualifying_alloc = General::new(&qualified_ast_bump);
-        let mut defs = Definitions::new(1, GlobalDefinitions::default());
-
-        let qualified_program = match qualifier::qualifier::program(
-            raw_program,
-            &mut defs,
-            &interner,
-            &qualifying_alloc,
-        ) {
-            Ok(qp) => qp,
-            Err(e) => {
-                println!("{:?}", e);
-                continue;
-            }
-        };
-
-        println!("{:?}", qualified_program);
-
-        let type_bump = Bump::new();
-        let type_alloc = General::new(&type_bump);
-        let mut type_env = Env::new(extract_primitives(defs));
-        let typed_program =
-            infer::program(qualified_program, &mut type_env, &interner, &type_alloc).unwrap();
-
-        println!("{:#?}", typed_program)
-    }
+    })
+    .unwrap()
 }

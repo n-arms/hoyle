@@ -50,9 +50,9 @@ impl TagSource {
 }
 
 impl<'expr, 'ident> Definitions<'expr, 'ident> {
-    pub fn new(module: u32, definitions: GlobalDefinitions<'expr, 'ident>) -> Self {
+    pub fn new(module: u32, definitions: Rc<RefCell<GlobalDefinitions<'expr, 'ident>>>) -> Self {
         Self {
-            definitions: Rc::new(RefCell::new(definitions)),
+            definitions,
             variables: HashMap::default(),
             module,
         }
@@ -87,11 +87,6 @@ impl<'expr, 'ident> Definitions<'expr, 'ident> {
 
     pub fn lookup_type(&self, r#type: &'ident str) -> Result<'expr, 'ident, Identifier<'ident>> {
         let res = self.definitions.borrow().lookup_type(r#type);
-        /*
-        if let Err(e) = res {
-            panic!("{:?}", e);
-        }
-        */
         res
     }
 
