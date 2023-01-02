@@ -1,4 +1,4 @@
-macro_rules! propogate {
+macro_rules! propagate {
     ($e:expr) => {
         match $e? {
             Ok(res) => res,
@@ -24,7 +24,7 @@ macro_rules! or_try {
 }
 
 pub(crate) use or_try;
-pub(crate) use propogate;
+pub(crate) use propagate;
 
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::Span;
@@ -93,7 +93,7 @@ pub fn list<'src, 'ident, 'expr, T, I>(
 where
     I: Iterator<Item = Token<'src>> + Clone,
 {
-    let start = propogate!(token(text, start_token));
+    let start = propagate!(token(text, start_token));
     let mut elements = Vec::new();
     let end;
 
@@ -158,7 +158,7 @@ pub fn identifier<'src, 'ident>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<(&'ident str, Span)> {
-    let span = propogate!(token(text, Kind::Identifier));
+    let span = propagate!(token(text, Kind::Identifier));
     Ok(Ok((interner.get_or_intern(span.data), span.into())))
 }
 

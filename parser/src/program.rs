@@ -1,7 +1,7 @@
 use crate::expr::expr;
 use crate::pattern::pattern;
 use crate::types::r#type;
-use crate::util::{identifier, list, or_try, propogate, token, Irrecoverable, Result};
+use crate::util::{identifier, list, or_try, propagate, token, Irrecoverable, Result};
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::{Argument, Definition, FieldDefinition, Generic, Program, Type};
 use ir::token::{Kind, Token};
@@ -12,7 +12,7 @@ fn generic<'src, 'ident, 'expr>(
     _alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Generic<'ident>> {
-    let (identifier, span) = propogate!(identifier(text, interner));
+    let (identifier, span) = propagate!(identifier(text, interner));
     Ok(Ok(Generic { identifier, span }))
 }
 
@@ -21,7 +21,7 @@ fn argument<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Argument<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
-    let pattern = propogate!(pattern(text, alloc, interner));
+    let pattern = propagate!(pattern(text, alloc, interner));
     let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingArgument)?;
     let type_annotation =
         r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingArgument)?;
@@ -38,7 +38,7 @@ fn generics<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<&'expr [Generic<'ident>]> {
-    let (generics, _) = propogate!(list(
+    let (generics, _) = propagate!(list(
         text,
         alloc,
         interner,
@@ -55,7 +55,7 @@ fn arguments<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<&'expr [Argument<'expr, 'ident, &'ident str, Type<'expr, 'ident>>]> {
-    let (arguments, _) = propogate!(list(
+    let (arguments, _) = propagate!(list(
         text,
         alloc,
         interner,
@@ -72,7 +72,7 @@ fn return_type<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
-    let _ = propogate!(token(text, Kind::Colon));
+    let _ = propagate!(token(text, Kind::Colon));
     let r#type = r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingReturnType)?;
     Ok(Ok(r#type))
 }
@@ -82,7 +82,7 @@ fn field_definition<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<FieldDefinition<'ident, Type<'expr, 'ident>>> {
-    let (name, start) = propogate!(identifier(text, interner));
+    let (name, start) = propagate!(identifier(text, interner));
     let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingFieldDefinition)?;
     let field_type =
         r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingFieldDefinition)?;
@@ -100,7 +100,7 @@ fn struct_definition<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Definition<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
-    let start = propogate!(token(text, Kind::Struct));
+    let start = propagate!(token(text, Kind::Struct));
     let (name, _) = identifier(text, interner)?.map_err(Irrecoverable::WhileParsingStruct)?;
     let (fields, end) = list(
         text,
@@ -123,7 +123,7 @@ fn function_definition<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Definition<'expr, 'ident, &'ident str, Type<'expr, 'ident>>> {
-    let start = propogate!(token(text, Kind::Func));
+    let start = propagate!(token(text, Kind::Func));
     let (name, _) = identifier(text, interner)?.map_err(Irrecoverable::WhileParsingFunc)?;
     let generics = generics(text, alloc, interner)?.unwrap_or_default();
     let arguments = arguments(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingFunc)?;

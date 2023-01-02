@@ -1,4 +1,4 @@
-use crate::util::{identifier, list, or_try, propogate, token, Irrecoverable, Result};
+use crate::util::{identifier, list, or_try, propagate, token, Irrecoverable, Result};
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::Type;
 use ir::token::{Kind, Token};
@@ -8,7 +8,7 @@ fn named<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
-    let (name, span) = propogate!(identifier(text, interner));
+    let (name, span) = propagate!(identifier(text, interner));
     Ok(Ok(Type::Named(name, span)))
 }
 
@@ -17,7 +17,7 @@ fn arrow<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Type<'expr, 'ident>> {
-    let start = propogate!(token(text, Kind::Func));
+    let start = propagate!(token(text, Kind::Func));
 
     let (arguments, _) = list(
         text,

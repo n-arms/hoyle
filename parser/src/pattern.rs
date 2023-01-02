@@ -1,4 +1,4 @@
-use crate::util::{identifier, list, propogate, token, Irrecoverable, Result};
+use crate::util::{identifier, list, propagate, token, Irrecoverable, Result};
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::{Pattern, PatternField};
 use ir::token::{Kind, Token};
@@ -9,7 +9,7 @@ fn pattern_field<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<PatternField<'expr, 'ident, &'ident str>> {
-    let (name, start) = propogate!(identifier(text, interner));
+    let (name, start) = propagate!(identifier(text, interner));
     let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingPatternField)?;
     let pattern =
         pattern(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingPatternField)?;
@@ -25,7 +25,7 @@ pub fn pattern<'src, 'ident, 'expr>(
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
 ) -> Result<Pattern<'expr, 'ident, &'ident str>> {
-    let (name, start) = propogate!(identifier(text, interner));
+    let (name, start) = propagate!(identifier(text, interner));
 
     let field_list = list(
         text,
