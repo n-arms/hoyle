@@ -80,7 +80,22 @@ pub fn definition<'old, 'new, 'ident>(
 
             let return_type = return_type.map(|return_type| r#type(return_type, general));
 
-            let typed_body = expr(body, &mut inner_env, interner, general)?;
+            let typed_body;
+
+            if let Some(return_type) = return_type {
+                let func_type = Type::Arrow {
+                    arguments: general.alloc_slice_fill_iter(
+                        typed_arguments.iter().map(|arg| arg.type_annotation),
+                    ),
+                    return_type: general.alloc(return_type),
+                    span: None,
+                };
+                env.bind_variable(name, func_type);
+                typed_body = expr(body, &mut inner_env, interner, general)?;
+            } else {
+                typed_body = expr(body, &mut inner_env, interner, general)?;
+                env.bind_variable(name, typed_body.extract(&env.primitives));
+            }
 
             let typed_name = Identifier::new(
                 name,

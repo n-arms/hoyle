@@ -20,6 +20,7 @@ pub struct StructDefinition<'expr, 'ident> {
 }
 
 impl<'expr, 'ident> StructDefinition<'expr, 'ident> {
+    #[must_use]
     pub fn find_field(&self, name: &'ident str) -> Option<FieldDefinition<'expr, 'ident>> {
         self.fields.iter().find(|field| field.name == name).copied()
     }

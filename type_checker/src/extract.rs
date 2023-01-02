@@ -1,7 +1,7 @@
 use crate::env::Primitives;
 use ir::ast::Literal;
 use ir::qualified;
-use ir::typed::*;
+use ir::typed::{Expr, Type};
 
 pub trait Typeable<'expr, 'ident> {
     #[must_use]
@@ -21,31 +21,19 @@ impl<'expr, 'ident> Typeable<'expr, 'ident> for Expr<'expr, 'ident> {
         match self {
             ir::ast::Expr::Variable(id, _) => id.r#type,
             ir::ast::Expr::Literal(literal, _) => literal.extract(primitives),
-            ir::ast::Expr::Call {
-                function,
-                arguments,
-                span,
-            } => match function.extract(primitives) {
+            ir::ast::Expr::Call { function, .. } => match function.extract(primitives) {
                 Type::Arrow { return_type, .. } => *return_type,
-                _ => panic!("illegal function call: {:?} is not an arrow type", function),
+                Type::Named { .. } => {
+                    panic!("illegal function call: {function:?} is not an arrow type")
+                }
             },
-            ir::ast::Expr::Operation {
-                operator,
-                arguments,
-                span,
-            } => todo!(),
-            ir::ast::Expr::StructLiteral { name, fields, span } => struct_type(name.identifier),
+            ir::ast::Expr::Operation { operator, .. } => todo!(),
+            ir::ast::Expr::StructLiteral { name, .. } => struct_type(name.identifier),
             ir::ast::Expr::Block(block) => block.result.expect("todo").extract(primitives),
-            ir::ast::Expr::Annotated {
-                expr,
-                annotation,
-                span,
-            } => *annotation,
-            ir::ast::Expr::Case {
-                predicate,
-                branches,
-                span,
-            } => branches.iter().next().unwrap().body.extract(primitives),
+            ir::ast::Expr::Annotated { annotation, .. } => *annotation,
+            ir::ast::Expr::Case { branches, .. } => {
+                branches.iter().next().unwrap().body.extract(primitives)
+            }
         }
     }
 }

@@ -9,4 +9,4 @@ pub mod definitions;
 pub mod error;
 pub mod qualifier;
 
-pub use qualifier::program as qualify;
+pub use crate::qualifier::program as qualify;

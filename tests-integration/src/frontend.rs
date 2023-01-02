@@ -2,8 +2,9 @@ use arena_alloc::*;
 use bumpalo::Bump;
 use ir::typed::Type;
 use lexer::scan_tokens;
-use qualifier::definitions::{Definitions, GlobalDefinitions};
+use qualifier::definitions::Local;
 use std::fmt::{Debug, Display};
+use std::rc::Rc;
 use type_checker::{
     env::{Env, Primitives},
     infer,
@@ -45,9 +46,7 @@ fn run_syntactic_frontend<'src, 'ident, 'ast>(
     Ok(ast_program)
 }
 
-fn extract_primitives<'old, 'new, 'ident>(
-    defs: Definitions<'old, 'ident>,
-) -> Primitives<'new, 'ident> {
+fn extract_primitives<'old, 'new, 'ident>(defs: Local<'old, 'ident>) -> Primitives<'new, 'ident> {
     Primitives {
         int: Type::Named {
             name: defs.lookup_type("int").unwrap(),
@@ -67,7 +66,7 @@ fn run_semantic_frontend<'src, 'ident, 'qual>(
     typed_tree: &'qual Bump,
 ) -> Result<ir::typed::Program<'qual, 'ident>, String> {
     let qualified_tree = Bump::new();
-    let mut defs = Definitions::new(1, GlobalDefinitions::default());
+    let mut defs = Local::new(1, Rc::default());
     let qualified_program = match qualifier::qualifier::program(
         ast,
         &mut defs,

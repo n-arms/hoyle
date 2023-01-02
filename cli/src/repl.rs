@@ -1,12 +1,9 @@
-use crate::read::event_loop;
+use crate::read::ExitStatus;
 use arena_alloc::*;
 use bumpalo::Bump;
 use ir::token::*;
 use ir::typed::Type;
-use lexer::scan_tokens;
-use parser;
-use qualifier::definitions::{Definitions, GlobalDefinitions};
-use std::cell::RefCell;
+use qualifier::definitions::Local;
 use std::rc::Rc;
 use type_checker::{env::*, infer};
 
@@ -14,7 +11,7 @@ pub struct Repl<'a> {
     qualify: bool,
     type_check: bool,
 
-    definitions: Rc<RefCell<GlobalDefinitions<'a, 'a>>>,
+    definitions: Local<'a, 'a>,
     env: Env<'a, 'a>,
 
     ident_alloc: &'a Bump,
@@ -25,6 +22,7 @@ pub struct Repl<'a> {
 enum Command {
     Qualify(bool),
     Type(bool),
+    Quit,
 }
 
 fn parse_command<'a>(tokens: impl IntoIterator<Item = Token<'a>>) -> Option<Command> {
@@ -61,20 +59,27 @@ fn parse_command<'a>(tokens: impl IntoIterator<Item = Token<'a>>) -> Option<Comm
             kind: Kind::Identifier,
             span: Span { data: "type", .. },
         }] => Some(Command::Type(false)),
+        [Token {
+            kind: Kind::BinaryOperator(BinaryOperator::Dash | BinaryOperator::Cross),
+            ..
+        }, Token {
+            kind: Kind::Identifier,
+            span: Span { data: "quit", .. },
+        }] => Some(Command::Quit),
         _ => None,
     }
 }
 
 impl<'a> Repl<'a> {
     pub fn new(ident_alloc: &'a Bump, tree1_alloc: &'a Bump, tree2_alloc: &'a Bump) -> Self {
-        let defs = GlobalDefinitions::default();
+        let definitions = Local::new(1, Rc::default());
         let primitives = Primitives {
             int: Type::Named {
-                name: defs.lookup_type("int").unwrap(),
+                name: definitions.lookup_type("int").unwrap(),
                 span: None,
             },
             bool: Type::Named {
-                name: defs.lookup_type("bool").unwrap(),
+                name: definitions.lookup_type("bool").unwrap(),
                 span: None,
             },
         };
@@ -82,7 +87,7 @@ impl<'a> Repl<'a> {
             qualify: true,
             type_check: true,
 
-            definitions: Rc::new(RefCell::new(defs)),
+            definitions,
             env: Env::new(primitives),
 
             ident_alloc,
@@ -91,21 +96,19 @@ impl<'a> Repl<'a> {
         }
     }
 
-    pub fn run(&mut self, tokens: List) {
-        let ast_alloc = General::new(&self.tree1_alloc);
-        let ident_alloc = Interning::new(&self.ident_alloc);
+    pub fn run(&mut self, tokens: List) -> ExitStatus {
+        let ast_alloc = General::new(self.tree1_alloc);
+        let ident_alloc = Interning::new(self.ident_alloc);
 
         let token_iter = tokens.into_iter();
 
-        match parse_command(token_iter.clone()) {
-            Some(command) => {
-                match command {
-                    Command::Qualify(setting) => self.qualify = setting,
-                    Command::Type(setting) => self.type_check = setting,
-                }
-                return;
+        if let Some(command) = parse_command(token_iter.clone()) {
+            match command {
+                Command::Qualify(setting) => self.qualify = setting,
+                Command::Type(setting) => self.type_check = setting,
+                Command::Quit => return ExitStatus::Quit,
             }
-            None => {}
+            return ExitStatus::Okay;
         };
 
         let mut text = token_iter.clone().peekable();
@@ -118,34 +121,37 @@ impl<'a> Repl<'a> {
                     token_iter.collect::<Vec<_>>()
                 );
                 println!("{:?}", e);
-                return;
+                return ExitStatus::Error;
             }
         };
 
         if !self.qualify {
             println!("{:#?}", raw_ast);
-            return;
+            return ExitStatus::Okay;
         }
 
-        let qualified_alloc = General::new(&self.tree2_alloc);
-        let mut defs = Definitions::new(1, Rc::clone(&self.definitions));
+        let qualified_alloc = General::new(self.tree2_alloc);
 
-        let qualified_ast =
-            match qualifier::qualify(raw_ast, &mut defs, &ident_alloc, &qualified_alloc) {
-                Ok(program) => program,
-                Err(error) => {
-                    println!("error while qualifying program \n{:?}", raw_ast);
-                    println!("error: {:?}", error);
-                    return;
-                }
-            };
+        let qualified_ast = match qualifier::qualify(
+            raw_ast,
+            &mut self.definitions,
+            &ident_alloc,
+            &qualified_alloc,
+        ) {
+            Ok(program) => program,
+            Err(error) => {
+                println!("error while qualifying program \n{:?}", raw_ast);
+                println!("error: {:?}", error);
+                return ExitStatus::Error;
+            }
+        };
 
         if !self.type_check {
             println!("{:#?}", qualified_ast);
-            return;
+            return ExitStatus::Okay;
         }
 
-        let type_alloc = General::new(&self.tree1_alloc);
+        let type_alloc = General::new(self.tree1_alloc);
 
         let typed_program =
             match infer::program(qualified_ast, &mut self.env, &ident_alloc, &type_alloc) {
@@ -153,10 +159,12 @@ impl<'a> Repl<'a> {
                 Err(error) => {
                     println!("error while type checking program\n{:?}", qualified_ast);
                     println!("error: {:?}", error);
-                    return;
+                    return ExitStatus::Error;
                 }
             };
 
         println!("{:#?}", typed_program);
+
+        ExitStatus::Okay
     }
 }

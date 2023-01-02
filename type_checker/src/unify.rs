@@ -1,5 +1,4 @@
 use crate::error::{Error, Result};
-use ir::qualified;
 use ir::typed::Type;
 
 pub fn types<'expr, 'ident>(

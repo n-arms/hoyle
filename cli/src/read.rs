@@ -3,6 +3,12 @@ use std::io::{self, BufRead, Result, Write};
 use ir::token::{List, Token};
 use lexer::{scan_tokens, Errors};
 
+pub enum ExitStatus {
+    Okay,
+    Error,
+    Quit,
+}
+
 fn is_balanced<'a>(tokens: impl IntoIterator<Item = Token<'a>>) -> bool {
     let mut braces = 0i64;
     let mut parens = 0i64;
@@ -23,7 +29,7 @@ fn is_balanced<'a>(tokens: impl IntoIterator<Item = Token<'a>>) -> bool {
     braces == 0 && parens == 0 && squares == 0
 }
 
-pub fn event_loop(name: &str, mut callback: impl FnMut(List, Errors)) -> Result<()> {
+pub fn event_loop(name: &str, mut callback: impl FnMut(List, Errors) -> ExitStatus) -> Result<()> {
     let mut working_line = String::new();
     let stdin = io::stdin();
 
@@ -37,7 +43,9 @@ pub fn event_loop(name: &str, mut callback: impl FnMut(List, Errors)) -> Result<
         let (tokens, errors) = scan_tokens(&working_line);
 
         if is_balanced(&tokens) {
-            callback(tokens, errors);
+            if let ExitStatus::Quit = callback(tokens, errors) {
+                break;
+            }
 
             working_line = String::new();
         }

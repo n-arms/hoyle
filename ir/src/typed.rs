@@ -1,6 +1,5 @@
 use crate::ast;
 use crate::qualified;
-use arena_alloc::{General, Interning, Specialized};
 use std::fmt::{Debug, Formatter};
 
 pub type Type<'expr, 'ident> = qualified::Type<'expr, 'ident, Option<ast::Span>>;
@@ -12,7 +11,11 @@ pub struct Identifier<'expr, 'ident> {
 }
 
 impl<'expr, 'ident> Identifier<'expr, 'ident> {
-    pub fn new(identifier: qualified::Identifier<'ident>, r#type: Type<'expr, 'ident>) -> Self {
+    #[must_use]
+    pub const fn new(
+        identifier: qualified::Identifier<'ident>,
+        r#type: Type<'expr, 'ident>,
+    ) -> Self {
         Self { identifier, r#type }
     }
 }

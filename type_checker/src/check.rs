@@ -1,6 +1,6 @@
 use crate::env::Env;
 use crate::error::Result;
-use crate::extract::{struct_type, Typeable};
+use crate::extract::struct_type;
 use crate::infer;
 use crate::unify;
 use arena_alloc::{General, Interning, Specialized};
@@ -16,9 +16,16 @@ pub fn expr<'old, 'new, 'ident>(
     general: &General<'new>,
 ) -> Result<'new, 'ident, Expr<'new, 'ident>> {
     match to_check {
-        ir::ast::Expr::Variable(identifier, _span) => {
+        ir::ast::Expr::Variable(identifier, span) => {
             env.check_variable(identifier, target)?;
-            todo!()
+
+            Ok(Expr::Variable(
+                Identifier {
+                    identifier,
+                    r#type: target,
+                },
+                span,
+            ))
         }
         ir::ast::Expr::Literal(literal, span) => Ok(Expr::Literal(literal.realloc(general), span)),
         ir::ast::Expr::Call {

@@ -277,7 +277,7 @@ impl<Id: Debug, Ty: Debug> Debug for Definition<'_, '_, Id, Ty> {
                 tuple.field(body).finish()
             }
             Definition::Struct { name, fields, .. } => {
-                let mut r#struct = f.debug_struct(&format!("{:?}", name));
+                let mut r#struct = f.debug_struct(&format!("{name:?}"));
 
                 for field in *fields {
                     r#struct.field(&format!("{:?}", field.name), &field.field_type);

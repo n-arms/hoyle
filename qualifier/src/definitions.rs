@@ -1,14 +1,11 @@
 use crate::error::{Error, Result};
-use ir::ast::Span;
-use ir::qualified::{
-    FieldDefinition, Identifier, IdentifierSource, Path, StructDefinition, Tag, Type,
-};
+use ir::qualified::{FieldDefinition, Identifier, IdentifierSource, Path, StructDefinition, Tag};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Debug)]
-pub struct GlobalDefinitions<'expr, 'ident> {
+pub struct Global<'expr, 'ident> {
     types: HashMap<&'ident str, Identifier<'ident>>,
     structs: HashMap<&'ident str, StructDefinition<'expr, 'ident>>,
     import_paths: HashMap<Tag, IdentifierSource>,
@@ -16,8 +13,8 @@ pub struct GlobalDefinitions<'expr, 'ident> {
 }
 
 #[derive(Clone, Debug)]
-pub struct Definitions<'expr, 'ident> {
-    definitions: Rc<RefCell<GlobalDefinitions<'expr, 'ident>>>,
+pub struct Local<'expr, 'ident> {
+    definitions: Rc<RefCell<Global<'expr, 'ident>>>,
     variables: HashMap<&'ident str, Identifier<'ident>>,
     module: u32,
 }
@@ -49,8 +46,8 @@ impl TagSource {
     }
 }
 
-impl<'expr, 'ident> Definitions<'expr, 'ident> {
-    pub fn new(module: u32, definitions: Rc<RefCell<GlobalDefinitions<'expr, 'ident>>>) -> Self {
+impl<'expr, 'ident> Local<'expr, 'ident> {
+    pub fn new(module: u32, definitions: Rc<RefCell<Global<'expr, 'ident>>>) -> Self {
         Self {
             definitions,
             variables: HashMap::default(),
@@ -108,7 +105,7 @@ impl<'expr, 'ident> Definitions<'expr, 'ident> {
     }
 }
 
-impl<'expr, 'ident> Default for GlobalDefinitions<'expr, 'ident> {
+impl<'expr, 'ident> Default for Global<'expr, 'ident> {
     fn default() -> Self {
         let mut defs = Self {
             types: HashMap::default(),
@@ -123,7 +120,7 @@ impl<'expr, 'ident> Default for GlobalDefinitions<'expr, 'ident> {
     }
 }
 
-impl<'expr, 'ident> GlobalDefinitions<'expr, 'ident> {
+impl<'expr, 'ident> Global<'expr, 'ident> {
     pub fn define_type(
         &mut self,
         r#type: &'ident str,

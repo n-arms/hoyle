@@ -20,6 +20,7 @@ pub struct Env<'expr, 'ident> {
 }
 
 impl<'expr, 'ident> Env<'expr, 'ident> {
+    #[must_use]
     pub fn new(primitives: Primitives<'expr, 'ident>) -> Self {
         Self {
             primitives,
@@ -52,13 +53,14 @@ impl<'expr, 'ident> Env<'expr, 'ident> {
         }
     }
 
+    #[must_use]
     pub fn lookup_variable(
         &self,
         variable: qualified::Identifier<'ident>,
     ) -> Identifier<'expr, 'ident> {
         *self
             .variables
-            .get(&variable.into())
+            .get(&variable)
             .expect("the qualifier pass should have caught undefined variables")
     }
 
@@ -72,12 +74,13 @@ impl<'expr, 'ident> Env<'expr, 'ident> {
         unify::types(typed_identifier.r#type, target)
     }
 
+    #[must_use]
     pub fn lookup_struct(
         &self,
         name: qualified::Identifier<'ident>,
     ) -> &'expr [FieldDefinition<'expr, 'ident>] {
         self.structs
-            .get(&name.into())
+            .get(&name)
             .expect("the qualifier pass should have caught undefined structs")
     }
 }
