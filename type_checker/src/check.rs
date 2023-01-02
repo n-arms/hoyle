@@ -1,7 +1,8 @@
 use crate::env::Env;
 use crate::error::Result;
+use crate::extract::{struct_type, Typeable};
 use crate::infer;
-use crate::unify::{self, struct_type};
+use crate::unify;
 use arena_alloc::{General, Interning, Specialized};
 
 use ir::qualified;
@@ -128,8 +129,7 @@ pub fn pattern<'old, 'new, 'ident>(
 
             Ok(Pattern::Struct {
                 name: Identifier {
-                    source: name.source,
-                    name: name.name,
+                    identifier: name,
                     r#type: to_check_type,
                 },
                 fields: typed_fields,

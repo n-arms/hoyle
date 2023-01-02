@@ -1,52 +1,60 @@
 use crate::error::Result;
+use crate::extract::struct_type;
 use crate::unify;
 use im::HashMap;
 
-use ir::typed::{FieldDefinition, Identifier, Type, UntypedIdentifier};
+use ir::qualified;
+use ir::typed::{FieldDefinition, Identifier, Type};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
+pub struct Primitives<'expr, 'ident> {
+    pub int: Type<'expr, 'ident>,
+    pub bool: Type<'expr, 'ident>,
+}
+
+#[derive(Clone)]
 pub struct Env<'expr, 'ident> {
-    variables: HashMap<UntypedIdentifier<'ident>, Identifier<'expr, 'ident>>,
-    structs: HashMap<UntypedIdentifier<'ident>, &'expr [FieldDefinition<'expr, 'ident>]>,
+    variables: HashMap<qualified::Identifier<'ident>, Identifier<'expr, 'ident>>,
+    structs: HashMap<qualified::Identifier<'ident>, &'expr [FieldDefinition<'expr, 'ident>]>,
+    pub primitives: Primitives<'expr, 'ident>,
 }
 
 impl<'expr, 'ident> Env<'expr, 'ident> {
+    pub fn new(primitives: Primitives<'expr, 'ident>) -> Self {
+        Self {
+            primitives,
+            variables: HashMap::default(),
+            structs: HashMap::default(),
+        }
+    }
     pub fn bind_variable(
         &mut self,
-        variable: impl Into<UntypedIdentifier<'ident>>,
+        variable: qualified::Identifier<'ident>,
         r#type: Type<'expr, 'ident>,
     ) {
-        let untyped = variable.into();
         let typed = Identifier {
-            source: untyped.source,
-            name: untyped.name,
+            identifier: variable,
             r#type,
         };
-        self.variables.insert(untyped, typed);
-    }
-
-    pub fn bind_variables<ID>(
-        &mut self,
-        bindings: impl IntoIterator<Item = (ID, Type<'expr, 'ident>)>,
-    ) where
-        ID: Into<UntypedIdentifier<'ident>>,
-    {
-        for (variable, r#type) in bindings {
-            self.bind_variable(variable, r#type);
-        }
+        self.variables.insert(variable, typed);
     }
 
     pub fn bind_struct(
         &mut self,
-        name: impl Into<UntypedIdentifier<'ident>>,
+        name: qualified::Identifier<'ident>,
         fields: &'expr [FieldDefinition<'expr, 'ident>],
-    ) {
-        self.structs.insert(name.into(), fields);
+    ) -> Identifier<'expr, 'ident> {
+        self.structs.insert(name, fields);
+
+        Identifier {
+            r#type: struct_type(name),
+            identifier: name,
+        }
     }
 
     pub fn lookup_variable(
         &self,
-        variable: impl Into<UntypedIdentifier<'ident>>,
+        variable: qualified::Identifier<'ident>,
     ) -> Identifier<'expr, 'ident> {
         *self
             .variables
@@ -56,7 +64,7 @@ impl<'expr, 'ident> Env<'expr, 'ident> {
 
     pub fn check_variable(
         &self,
-        identifier: impl Into<UntypedIdentifier<'ident>>,
+        identifier: qualified::Identifier<'ident>,
         target: Type<'expr, 'ident>,
     ) -> Result<'expr, 'ident, ()> {
         let typed_identifier = self.lookup_variable(identifier);
@@ -66,7 +74,7 @@ impl<'expr, 'ident> Env<'expr, 'ident> {
 
     pub fn lookup_struct(
         &self,
-        name: impl Into<UntypedIdentifier<'ident>>,
+        name: qualified::Identifier<'ident>,
     ) -> &'expr [FieldDefinition<'expr, 'ident>] {
         self.structs
             .get(&name.into())

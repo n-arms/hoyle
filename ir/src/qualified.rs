@@ -1,33 +1,37 @@
 use crate::ast;
 use std::fmt::{Debug, Formatter};
 
-#[derive(Copy, Clone)]
-pub struct Identifier<'expr, 'ident> {
-    pub source: IdentifierSource,
-    pub name: &'ident str,
-    pub r#type: Option<Type<'expr, 'ident, ast::Span>>,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub struct TypeName<'ident> {
-    pub source: IdentifierSource,
-    pub name: &'ident str,
-}
-
-#[derive(Copy, Clone)]
-pub struct StructDefinition<'expr, 'ident> {
-    pub source: IdentifierSource,
-    pub name: &'ident str,
-    pub fields: &'expr [FieldDefinition<'expr, 'ident>],
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Tag {
+    pub module: u32,
+    pub identifier: u32,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct Identifier<'ident> {
+    pub tag: Tag,
+    pub name: &'ident str,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct StructDefinition<'expr, 'ident> {
+    pub name: Identifier<'ident>,
+    pub fields: &'expr [FieldDefinition<'expr, 'ident>],
+}
+
+impl<'expr, 'ident> StructDefinition<'expr, 'ident> {
+    pub fn find_field(&self, name: &'ident str) -> Option<FieldDefinition<'expr, 'ident>> {
+        self.fields.iter().find(|field| field.name == name).copied()
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Path {
     Current,
     Builtin,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum IdentifierSource {
     Local,
     Global(Path),
@@ -36,7 +40,7 @@ pub enum IdentifierSource {
 #[derive(Copy, Clone)]
 pub enum Type<'expr, 'ident, SPAN> {
     Named {
-        name: TypeName<'ident>,
+        name: Identifier<'ident>,
         span: SPAN,
     },
     Arrow {
@@ -48,69 +52,45 @@ pub enum Type<'expr, 'ident, SPAN> {
 
 #[derive(Copy, Clone)]
 pub struct TypeField<'expr, 'ident, SPAN> {
-    pub name: &'ident str,
+    pub id: Identifier<'ident>,
     pub field_type: Type<'expr, 'ident, SPAN>,
     pub span: SPAN,
 }
 
 pub type Program<'expr, 'ident> =
-    ast::Program<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident, ast::Span>>;
+    ast::Program<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
 
 pub type Definition<'expr, 'ident> =
-    ast::Definition<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident, ast::Span>>;
+    ast::Definition<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
 
 pub type FieldDefinition<'expr, 'ident> =
     ast::FieldDefinition<'ident, Type<'expr, 'ident, ast::Span>>;
 
 pub type Argument<'expr, 'ident> =
-    ast::Argument<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident, ast::Span>>;
+    ast::Argument<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
 
 pub type Statement<'expr, 'ident> =
-    ast::Statement<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident, ast::Span>>;
+    ast::Statement<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
 
-pub type Pattern<'expr, 'ident> = ast::Pattern<'expr, 'ident, Identifier<'expr, 'ident>>;
+pub type Pattern<'expr, 'ident> = ast::Pattern<'expr, 'ident, Identifier<'ident>>;
 
 pub type Block<'expr, 'ident> =
-    ast::Block<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident, ast::Span>>;
+    ast::Block<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
 
 pub type Field<'expr, 'ident> =
-    ast::Field<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident, ast::Span>>;
+    ast::Field<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
 
 pub type Branch<'expr, 'ident> =
-    ast::Branch<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident, ast::Span>>;
+    ast::Branch<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
 
 pub type Expr<'expr, 'ident> =
-    ast::Expr<'expr, 'ident, Identifier<'expr, 'ident>, Type<'expr, 'ident, ast::Span>>;
+    ast::Expr<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
 
-pub type PatternField<'expr, 'ident> = ast::PatternField<'expr, 'ident, Identifier<'expr, 'ident>>;
+pub type PatternField<'expr, 'ident> = ast::PatternField<'expr, 'ident, Identifier<'ident>>;
 
-impl Debug for Identifier<'_, '_> {
+impl Debug for Identifier<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}::{} : {:?}", self.source, self.name, self.r#type)
-    }
-}
-
-impl Debug for TypeName<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}::{}", self.source, self.name)
-    }
-}
-
-impl Debug for IdentifierSource {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Local => write!(f, "local"),
-            Self::Global(path) => path.fmt(f),
-        }
-    }
-}
-
-impl Debug for Path {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Current => write!(f, "current"),
-            Self::Builtin => write!(f, "builtin"),
-        }
+        write!(f, "{:?}::{}", self.tag, self.name)
     }
 }
 
@@ -128,5 +108,11 @@ impl<SPAN: Copy> Debug for Type<'_, '_, SPAN> {
                 .field(return_type)
                 .finish(),
         }
+    }
+}
+
+impl Debug for Tag {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{}.{}", self.module, self.identifier)
     }
 }

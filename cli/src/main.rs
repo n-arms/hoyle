@@ -1,11 +1,27 @@
 use arena_alloc::*;
 use bumpalo::Bump;
+use ir::typed::Type;
 use lexer::scan_tokens;
 use parser::program::program;
-use qualifier::definitions::Definitions;
+use qualifier::definitions::{Definitions, GlobalDefinitions};
 use type_checker::{env::*, infer};
 
 use std::io::{self, BufRead};
+
+fn extract_primitives<'old, 'new, 'ident>(
+    defs: Definitions<'old, 'ident>,
+) -> Primitives<'new, 'ident> {
+    Primitives {
+        int: Type::Named {
+            name: defs.lookup_type("int").unwrap(),
+            span: None,
+        },
+        bool: Type::Named {
+            name: defs.lookup_type("bool").unwrap(),
+            span: None,
+        },
+    }
+}
 
 fn main() {
     let stdin = io::stdin();
@@ -41,7 +57,7 @@ fn main() {
 
         let qualified_ast_bump = Bump::new();
         let qualifying_alloc = General::new(&qualified_ast_bump);
-        let mut defs = Definitions::default();
+        let mut defs = Definitions::new(1, GlobalDefinitions::default());
 
         let qualified_program = match qualifier::qualifier::program(
             raw_program,
@@ -60,7 +76,7 @@ fn main() {
 
         let type_bump = Bump::new();
         let type_alloc = General::new(&type_bump);
-        let mut type_env = Env::default();
+        let mut type_env = Env::new(extract_primitives(defs));
         let typed_program =
             infer::program(qualified_program, &mut type_env, &interner, &type_alloc).unwrap();
 

@@ -1,13 +1,12 @@
 use crate::check::{branch, field, pattern};
 use crate::env::Env;
 use crate::error::Result;
-use crate::unify::struct_type;
+use crate::extract::{struct_type, Typeable};
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::{Literal, Span};
 use ir::qualified;
 use ir::typed::{
     Argument, Block, Definition, Expr, FieldDefinition, Identifier, Program, Statement, Type,
-    UntypedIdentifier,
 };
 
 pub fn program<'old, 'new, 'ident>(
@@ -41,6 +40,22 @@ pub fn field_definition<'old, 'new, 'ident>(
     })
 }
 
+fn arrow_type<'expr, 'ident, I>(
+    arguments: I,
+    r#return: Type<'expr, 'ident>,
+    general: &General<'expr>,
+) -> Type<'expr, 'ident>
+where
+    I: IntoIterator<Item = Type<'expr, 'ident>>,
+    I::IntoIter: ExactSizeIterator,
+{
+    Type::Arrow {
+        arguments: general.alloc_slice_fill_iter(arguments),
+        return_type: general.alloc(r#return),
+        span: None,
+    }
+}
+
 pub fn definition<'old, 'new, 'ident>(
     to_infer: qualified::Definition<'old, 'ident>,
     env: &mut Env<'new, 'ident>,
@@ -67,8 +82,17 @@ pub fn definition<'old, 'new, 'ident>(
 
             let typed_body = expr(body, &mut inner_env, interner, general)?;
 
-            Ok(Definition::Function {
+            let typed_name = Identifier::new(
                 name,
+                arrow_type(
+                    typed_arguments.iter().map(|arg| arg.type_annotation),
+                    typed_body.extract(&env.primitives),
+                    general,
+                ),
+            );
+
+            Ok(Definition::Function {
+                name: typed_name,
                 generics: general.alloc_slice_fill_iter(generics.iter().copied()),
                 arguments: typed_arguments,
                 return_type,
@@ -80,16 +104,10 @@ pub fn definition<'old, 'new, 'ident>(
             let typed_fields = general.alloc_slice_try_fill_iter(
                 fields.iter().map(|field| field_definition(*field, general)),
             )?;
-            env.bind_struct(
-                UntypedIdentifier {
-                    source: qualified::IdentifierSource::Local,
-                    name,
-                },
-                typed_fields,
-            );
+            let typed_name = env.bind_struct(name, typed_fields);
 
             Ok(Definition::Struct {
-                name,
+                name: typed_name,
                 fields: typed_fields,
                 span,
             })
@@ -156,7 +174,7 @@ pub fn statement<'old, 'new, 'ident>(
 
             let typed_left_side = pattern(
                 left_side,
-                typed_right_side.r#type(interner, general),
+                typed_right_side.extract(&env.primitives),
                 env,
                 interner,
                 general,
@@ -266,7 +284,7 @@ pub fn expr<'old, 'new, 'ident>(
             let typed_branches = general.alloc_slice_try_fill_iter(branches.iter().map(|b| {
                 branch(
                     *b,
-                    typed_predicate.r#type(interner, general),
+                    typed_predicate.extract(&env.primitives),
                     env,
                     interner,
                     general,
@@ -283,8 +301,7 @@ pub fn expr<'old, 'new, 'ident>(
             let defined_type = env.lookup_struct(name);
 
             let typed_name = Identifier {
-                source: name.source,
-                name: name.name,
+                identifier: name,
                 r#type: struct_type(name),
             };
 

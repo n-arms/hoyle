@@ -26,7 +26,7 @@ pub struct Program<'expr, 'ident, Id, Ty> {
 #[derive(Copy, Clone)]
 pub enum Definition<'expr, 'ident, Id, Ty> {
     Function {
-        name: &'ident str,
+        name: Id,
         generics: &'expr [Generic<'ident>],
         arguments: &'expr [Argument<'expr, 'ident, Id, Ty>],
         return_type: Option<Ty>,
@@ -34,7 +34,7 @@ pub enum Definition<'expr, 'ident, Id, Ty> {
         span: Span,
     },
     Struct {
-        name: &'ident str,
+        name: Id,
         fields: &'expr [FieldDefinition<'ident, Ty>],
         span: Span,
     },
@@ -171,7 +171,8 @@ pub enum Operator {
 }
 
 impl<'old> Literal<'old> {
-    #[must_use] pub fn realloc<'new>(&self, alloc: &General<'new>) -> Literal<'new> {
+    #[must_use]
+    pub fn realloc<'new>(&self, alloc: &General<'new>) -> Literal<'new> {
         match self {
             Literal::Integer(int) => Literal::Integer(alloc.alloc_str(int)),
         }
@@ -276,10 +277,10 @@ impl<Id: Debug, Ty: Debug> Debug for Definition<'_, '_, Id, Ty> {
                 tuple.field(body).finish()
             }
             Definition::Struct { name, fields, .. } => {
-                let mut r#struct = f.debug_struct(name);
+                let mut r#struct = f.debug_struct(&format!("{:?}", name));
 
                 for field in *fields {
-                    r#struct.field(field.name, &field.field_type);
+                    r#struct.field(&format!("{:?}", field.name), &field.field_type);
                 }
 
                 r#struct.finish()
@@ -428,6 +429,6 @@ impl<Id: Debug, Ty: Debug> Debug for Branch<'_, '_, Id, Ty> {
 
 impl<Ty: Debug> Debug for FieldDefinition<'_, Ty> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {:?}", self.name, self.field_type)
+        write!(f, "{:?}: {:?}", self.name, self.field_type)
     }
 }

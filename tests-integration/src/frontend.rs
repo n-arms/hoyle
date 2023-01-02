@@ -1,9 +1,13 @@
 use arena_alloc::*;
 use bumpalo::Bump;
+use ir::typed::Type;
 use lexer::scan_tokens;
-use qualifier::definitions::Definitions;
+use qualifier::definitions::{Definitions, GlobalDefinitions};
 use std::fmt::{Debug, Display};
-use type_checker::{env::Env, infer};
+use type_checker::{
+    env::{Env, Primitives},
+    infer,
+};
 
 fn run_syntactic_frontend<'src, 'ident, 'ast>(
     text: &'src str,
@@ -41,6 +45,21 @@ fn run_syntactic_frontend<'src, 'ident, 'ast>(
     Ok(ast_program)
 }
 
+fn extract_primitives<'old, 'new, 'ident>(
+    defs: Definitions<'old, 'ident>,
+) -> Primitives<'new, 'ident> {
+    Primitives {
+        int: Type::Named {
+            name: defs.lookup_type("int").unwrap(),
+            span: None,
+        },
+        bool: Type::Named {
+            name: defs.lookup_type("bool").unwrap(),
+            span: None,
+        },
+    }
+}
+
 #[allow(dead_code)]
 fn run_semantic_frontend<'src, 'ident, 'qual>(
     ast: ir::ast::Program<'_, 'ident, &'ident str, ir::ast::Type<'_, 'ident>>,
@@ -48,7 +67,7 @@ fn run_semantic_frontend<'src, 'ident, 'qual>(
     typed_tree: &'qual Bump,
 ) -> Result<ir::typed::Program<'qual, 'ident>, String> {
     let qualified_tree = Bump::new();
-    let mut defs = Definitions::default();
+    let mut defs = Definitions::new(1, GlobalDefinitions::default());
     let qualified_program = match qualifier::qualifier::program(
         ast,
         &mut defs,
@@ -64,7 +83,7 @@ fn run_semantic_frontend<'src, 'ident, 'qual>(
         }
     };
 
-    let mut env = Env::default();
+    let mut env = Env::new(extract_primitives(defs));
     let typed_program = match infer::program(
         qualified_program,
         &mut env,

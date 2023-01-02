@@ -42,16 +42,3 @@ pub fn types<'expr, 'ident>(
         _ => todo!(),
     }
 }
-
-#[must_use]
-pub const fn struct_type<'new, 'old, 'ident>(
-    struct_name: qualified::Identifier<'old, 'ident>,
-) -> Type<'new, 'ident> {
-    Type::Named {
-        name: qualified::TypeName {
-            source: struct_name.source,
-            name: struct_name.name,
-        },
-        span: None,
-    }
-}

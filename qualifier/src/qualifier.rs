@@ -5,7 +5,7 @@ use ir::ast;
 use ir::qualified::{
     Argument, Block, Branch, Definition, Expr, Field, FieldDefinition, Identifier,
     IdentifierSource, Path, Pattern, PatternField, Program, Statement, StructDefinition, Type,
-    TypeField, TypeName,
+    TypeField,
 };
 
 pub fn program<'old, 'new, 'ident>(
@@ -41,23 +41,13 @@ pub fn definition<'old, 'new, 'ident>(
             body,
             span,
         } => {
-            let identifier = Identifier {
-                source: IdentifierSource::Global(Path::Current),
-                name,
-                r#type: None,
-            };
-            definitions.with_variables([(name, identifier)]);
+            let identifier = definitions.define_local_variable(name);
 
             let mut inner_defs = definitions.clone();
-            inner_defs.with_types(generics.iter().map(|generic| {
-                (
-                    generic.identifier,
-                    TypeName {
-                        source: IdentifierSource::Local,
-                        name: generic.identifier,
-                    },
-                )
-            }));
+
+            for generic in generics {
+                inner_defs.define_local_type(generic.identifier);
+            }
 
             let return_type = return_type.map_or(Ok(None), |result| {
                 r#type(result, &mut inner_defs, general).map(Some)
@@ -74,7 +64,7 @@ pub fn definition<'old, 'new, 'ident>(
             let generics = general.alloc_slice_fill_iter(generics.iter().copied());
 
             Ok(Definition::Function {
-                name,
+                name: identifier,
                 generics,
                 arguments,
                 return_type,
@@ -89,17 +79,10 @@ pub fn definition<'old, 'new, 'ident>(
                     .map(|field| field_definition(*field, definitions, general)),
             )?;
 
-            definitions.with_struct(
-                name,
-                StructDefinition {
-                    source: IdentifierSource::Local,
-                    name,
-                    fields: qualified_fields,
-                },
-            );
+            let def = definitions.define_local_struct(name, qualified_fields);
 
             Ok(Definition::Struct {
-                name,
+                name: def.name,
                 fields: qualified_fields,
                 span,
             })
@@ -189,28 +172,18 @@ pub fn pattern<'old, 'new, 'ident>(
 ) -> Result<'new, 'ident, Pattern<'new, 'ident>> {
     match to_qualify {
         ast::Pattern::Variable(variable, span) => {
-            let qualified = Identifier {
-                source: IdentifierSource::Local,
-                name: variable,
-                r#type: None,
-            };
-            definitions.with_variables([(variable, qualified)]);
+            let qualified = definitions.define_local_variable(variable);
             Ok(Pattern::Variable(qualified, span))
         }
         ast::Pattern::Struct { name, fields, span } => {
             let struct_definition = definitions.lookup_struct(name)?;
-            let qualified_name = Identifier {
-                name: struct_definition.name,
-                source: struct_definition.source,
-                r#type: None,
-            };
             let qualified_fields = general.alloc_slice_try_fill_iter(
                 fields
                     .iter()
                     .map(|f| pattern_field(*f, definitions, interner, general)),
             )?;
             Ok(Pattern::Struct {
-                name: qualified_name,
+                name: struct_definition.name,
                 fields: qualified_fields,
                 span,
             })
@@ -239,20 +212,6 @@ pub fn block<'old, 'new, 'ident>(
     Ok(Block {
         statements,
         result,
-        span: to_qualify.span,
-    })
-}
-
-pub fn type_field<'old, 'new, 'ident>(
-    to_qualify: ast::TypeField<'old, 'ident>,
-    definitions: &mut Definitions<'new, 'ident>,
-    general: &General<'new>,
-) -> Result<'new, 'ident, TypeField<'new, 'ident, ast::Span>> {
-    let qualified_field_type = r#type(to_qualify.field_type, definitions, general)?;
-
-    Ok(TypeField {
-        name: to_qualify.name,
-        field_type: qualified_field_type,
         span: to_qualify.span,
     })
 }
@@ -367,22 +326,10 @@ pub fn expr<'old, 'new, 'ident>(
                     .map(|f| field(*f, definitions, interner, general)),
             )?;
 
-            let name_identifier = Identifier {
-                source: definition.source,
-                name,
-                r#type: Some(Type::Named {
-                    name: TypeName {
-                        source: definition.source,
-                        name,
-                    },
-                    span,
-                }),
-            };
-
             struct_contains_fields(qualified_fields, definition.fields)?;
 
             Ok(Expr::StructLiteral {
-                name: name_identifier,
+                name: definition.name,
                 fields: qualified_fields,
                 span,
             })
