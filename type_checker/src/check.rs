@@ -2,6 +2,7 @@ use crate::env::Env;
 use crate::error::Result;
 use crate::extract::{struct_type, Typeable};
 use crate::infer;
+use crate::substitute::{Substitute, Substitution};
 use crate::unify;
 use arena_alloc::{General, Interning, Specialized};
 
@@ -12,10 +13,11 @@ pub fn expr<'old, 'new, 'ident>(
     to_check: qualified::Expr<'old, 'ident>,
     target: Type<'new, 'ident>,
     env: &mut Env<'new, 'ident>,
+    substitution: &mut Substitution<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, Expr<'new, 'ident>> {
-    let typed_expr = infer::expr(to_check, env, interner, general)?;
+    let typed_expr = infer::expr(to_check, env, substitution, interner, general)?;
 
     unify::check_types(target, typed_expr.extract(&env.primitives))?;
 
@@ -26,6 +28,7 @@ pub fn field<'old, 'new, 'ident>(
     to_check: qualified::Field<'old, 'ident>,
     target_fields: &'new [FieldDefinition<'new, 'ident>],
     env: &mut Env<'new, 'ident>,
+    substitution: &mut Substitution<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, Field<'new, 'ident>> {
@@ -38,6 +41,7 @@ pub fn field<'old, 'new, 'ident>(
         to_check.value,
         target_field.field_type,
         env,
+        substitution,
         interner,
         general,
     )?;
@@ -115,6 +119,7 @@ pub fn branch<'old, 'new, 'ident>(
     to_check: qualified::Branch<'old, 'ident>,
     target_pattern_type: Type<'new, 'ident>,
     env: &mut Env<'new, 'ident>,
+    substitution: &mut Substitution<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, Branch<'new, 'ident>> {
@@ -126,7 +131,7 @@ pub fn branch<'old, 'new, 'ident>(
         general,
     )?;
 
-    let typed_body = infer::expr(to_check.body, env, interner, general)?;
+    let typed_body = infer::expr(to_check.body, env, substitution, interner, general)?;
 
     Ok(Branch {
         pattern: typed_pattern,

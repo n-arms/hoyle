@@ -2,6 +2,7 @@ use crate::check::{branch, field, pattern};
 use crate::env::Env;
 use crate::error::Result;
 use crate::extract::{struct_type, Typeable};
+use crate::substitute::{Substitute, Substitution};
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::{Literal, Span};
 use ir::qualified;
@@ -80,6 +81,7 @@ pub fn definition<'old, 'new, 'ident>(
             let return_type = return_type.map(|return_type| r#type(return_type, general));
 
             let typed_body;
+            let mut substitution = Substitution::default();
 
             if let Some(return_type) = return_type {
                 let func_type = Type::Arrow {
@@ -90,9 +92,11 @@ pub fn definition<'old, 'new, 'ident>(
                     span: None,
                 };
                 env.bind_qualified_variable(name, func_type, todo!());
-                typed_body = expr(body, env, interner, general)?;
+                typed_body = expr(body, env, &mut substitution, interner, general)?
+                    .apply(&substitution, general);
             } else {
-                typed_body = expr(body, env, interner, general)?;
+                typed_body = expr(body, env, &mut substitution, interner, general)?
+                    .apply(&substitution, general);
                 env.bind_qualified_variable(name, typed_body.extract(&env.primitives), todo!());
             }
 
@@ -148,6 +152,7 @@ pub fn argument<'old, 'new, 'ident>(
 pub fn block<'old, 'new, 'ident>(
     to_infer: qualified::Block<'old, 'ident>,
     env: &mut Env<'new, 'ident>,
+    substitution: &mut Substitution<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, Block<'new, 'ident>> {
@@ -155,11 +160,11 @@ pub fn block<'old, 'new, 'ident>(
         to_infer
             .statements
             .iter()
-            .map(|stmt| statement(*stmt, env, interner, general)),
+            .map(|stmt| statement(*stmt, env, substitution, interner, general)),
     )?;
 
     let typed_result = if let Some(result) = to_infer.result {
-        let alloc_result: &_ = general.alloc(expr(*result, env, interner, general)?);
+        let alloc_result: &_ = general.alloc(expr(*result, env, substitution, interner, general)?);
         Some(alloc_result)
     } else {
         None
@@ -175,6 +180,7 @@ pub fn block<'old, 'new, 'ident>(
 pub fn statement<'old, 'new, 'ident>(
     to_infer: qualified::Statement<'old, 'ident>,
     env: &mut Env<'new, 'ident>,
+    substitution: &mut Substitution<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, Statement<'new, 'ident>> {
@@ -184,7 +190,7 @@ pub fn statement<'old, 'new, 'ident>(
             right_side,
             span,
         } => {
-            let typed_right_side = expr(right_side, env, interner, general)?;
+            let typed_right_side = expr(right_side, env, substitution, interner, general)?;
 
             let typed_left_side = pattern(
                 left_side,
@@ -201,7 +207,7 @@ pub fn statement<'old, 'new, 'ident>(
             })
         }
         ir::ast::Statement::Raw(raw, span) => {
-            let typed_raw = expr(raw, env, interner, general)?;
+            let typed_raw = expr(raw, env, substitution, interner, general)?;
 
             Ok(Statement::Raw(typed_raw, span))
         }
@@ -243,6 +249,7 @@ pub fn literal<'old, 'new, 'ident>(
 pub fn expr<'old, 'new, 'ident>(
     to_infer: qualified::Expr<'old, 'ident>,
     env: &mut Env<'new, 'ident>,
+    substitution: &mut Substitution<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, Expr<'new, 'ident>> {
@@ -261,11 +268,11 @@ pub fn expr<'old, 'new, 'ident>(
             arguments,
             span,
         } => {
-            let typed_function = expr(*function, env, interner, general)?;
+            let typed_function = expr(*function, env, substitution, interner, general)?;
             let typed_arguments = general.alloc_slice_try_fill_iter(
                 arguments
                     .iter()
-                    .map(|arg| expr(*arg, env, interner, general)),
+                    .map(|arg| expr(*arg, env, substitution, interner, general)),
             )?;
             Ok(Expr::Call {
                 function: general.alloc(typed_function),
@@ -279,7 +286,7 @@ pub fn expr<'old, 'new, 'ident>(
             span: _,
         } => todo!(),
         ir::ast::Expr::Block(untyped_block) => {
-            let typed_block = block(untyped_block, env, interner, general)?;
+            let typed_block = block(untyped_block, env, substitution, interner, general)?;
 
             Ok(Expr::Block(typed_block))
         }
@@ -293,13 +300,14 @@ pub fn expr<'old, 'new, 'ident>(
             branches,
             span,
         } => {
-            let typed_predicate = expr(*predicate, env, interner, general)?;
+            let typed_predicate = expr(*predicate, env, substitution, interner, general)?;
 
             let typed_branches = general.alloc_slice_try_fill_iter(branches.iter().map(|b| {
                 branch(
                     *b,
                     typed_predicate.extract(&env.primitives),
                     env,
+                    substitution,
                     interner,
                     general,
                 )
@@ -319,11 +327,17 @@ pub fn expr<'old, 'new, 'ident>(
                 r#type: struct_type(name),
             };
 
-            let typed_fields = general.alloc_slice_try_fill_iter(
-                fields
-                    .iter()
-                    .map(|to_check| field(*to_check, defined_type, env, interner, general)),
-            )?;
+            let typed_fields =
+                general.alloc_slice_try_fill_iter(fields.iter().map(|to_check| {
+                    field(
+                        *to_check,
+                        defined_type,
+                        env,
+                        substitution,
+                        interner,
+                        general,
+                    )
+                }))?;
 
             Ok(Expr::StructLiteral {
                 name: typed_name,
