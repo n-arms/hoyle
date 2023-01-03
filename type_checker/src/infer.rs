@@ -71,11 +71,10 @@ pub fn definition<'old, 'new, 'ident>(
             body,
             span,
         } => {
-            let mut inner_env = env.clone();
             let typed_arguments = general.alloc_slice_try_fill_iter(
                 arguments
                     .iter()
-                    .map(|arg| argument(*arg, &mut inner_env, interner, general)),
+                    .map(|arg| argument(*arg, env, interner, general)),
             )?;
 
             let return_type = return_type.map(|return_type| r#type(return_type, general));
@@ -90,11 +89,11 @@ pub fn definition<'old, 'new, 'ident>(
                     return_type: general.alloc(return_type),
                     span: None,
                 };
-                env.bind_variable(name, func_type);
-                typed_body = expr(body, &mut inner_env, interner, general)?;
+                env.bind_qualified_variable(name, func_type, todo!());
+                typed_body = expr(body, env, interner, general)?;
             } else {
-                typed_body = expr(body, &mut inner_env, interner, general)?;
-                env.bind_variable(name, typed_body.extract(&env.primitives));
+                typed_body = expr(body, env, interner, general)?;
+                env.bind_qualified_variable(name, typed_body.extract(&env.primitives), todo!());
             }
 
             let typed_name = Identifier::new(
@@ -249,7 +248,7 @@ pub fn expr<'old, 'new, 'ident>(
 ) -> Result<'new, 'ident, Expr<'new, 'ident>> {
     match to_infer {
         ir::ast::Expr::Variable(variable, span) => {
-            let typed_variable = env.lookup_variable(variable);
+            let typed_variable = env.lookup_variable(variable, general);
 
             Ok(Expr::Variable(typed_variable, span))
         }
@@ -280,7 +279,7 @@ pub fn expr<'old, 'new, 'ident>(
             span: _,
         } => todo!(),
         ir::ast::Expr::Block(untyped_block) => {
-            let typed_block = block(untyped_block, &mut env.clone(), interner, general)?;
+            let typed_block = block(untyped_block, env, interner, general)?;
 
             Ok(Expr::Block(typed_block))
         }

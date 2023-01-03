@@ -1,6 +1,6 @@
 use crate::env::Env;
 use crate::error::Result;
-use crate::extract::struct_type;
+use crate::extract::{struct_type, Typeable};
 use crate::infer;
 use crate::unify;
 use arena_alloc::{General, Interning, Specialized};
@@ -12,49 +12,14 @@ pub fn expr<'old, 'new, 'ident>(
     to_check: qualified::Expr<'old, 'ident>,
     target: Type<'new, 'ident>,
     env: &mut Env<'new, 'ident>,
-    _interner: &Interning<'ident, Specialized>,
+    interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, Expr<'new, 'ident>> {
-    match to_check {
-        ir::ast::Expr::Variable(identifier, span) => {
-            env.check_variable(identifier, target)?;
+    let typed_expr = infer::expr(to_check, env, interner, general)?;
 
-            Ok(Expr::Variable(
-                Identifier {
-                    identifier,
-                    r#type: target,
-                },
-                span,
-            ))
-        }
-        ir::ast::Expr::Literal(literal, span) => Ok(Expr::Literal(literal.realloc(general), span)),
-        ir::ast::Expr::Call {
-            function: _,
-            arguments: _,
-            span: _,
-        } => todo!(),
-        ir::ast::Expr::Operation {
-            operator: _,
-            arguments: _,
-            span: _,
-        } => todo!(),
-        ir::ast::Expr::StructLiteral {
-            name: _,
-            fields: _,
-            span: _,
-        } => todo!(),
-        ir::ast::Expr::Block(_) => todo!(),
-        ir::ast::Expr::Annotated {
-            expr: _,
-            annotation: _,
-            span: _,
-        } => todo!(),
-        ir::ast::Expr::Case {
-            predicate: _,
-            branches: _,
-            span: _,
-        } => todo!(),
-    }
+    unify::check_types(target, typed_expr.extract(&env.primitives))?;
+
+    Ok(typed_expr)
 }
 
 pub fn field<'old, 'new, 'ident>(
@@ -120,13 +85,13 @@ pub fn pattern<'old, 'new, 'ident>(
 ) -> Result<'new, 'ident, Pattern<'new, 'ident>> {
     match to_check {
         ir::ast::Pattern::Variable(variable, span) => {
-            env.bind_variable(variable, target);
+            env.bind_unqualified_variable(variable, target);
 
             Ok(Pattern::Variable(Identifier::new(variable, target), span))
         }
         ir::ast::Pattern::Struct { name, fields, span } => {
             let to_check_type = struct_type(name);
-            unify::types(to_check_type, target)?;
+            unify::check_types(to_check_type, target)?;
 
             let struct_definition = env.lookup_struct(name);
             let typed_fields =

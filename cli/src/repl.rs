@@ -1,6 +1,7 @@
 use crate::read::ExitStatus;
 use arena_alloc::*;
 use bumpalo::Bump;
+use ir::qualified::TagSource;
 use ir::token::*;
 use ir::typed::Type;
 use qualifier::definitions::Local;
@@ -72,7 +73,8 @@ fn parse_command<'a>(tokens: impl IntoIterator<Item = Token<'a>>) -> Option<Comm
 
 impl<'a> Repl<'a> {
     pub fn new(ident_alloc: &'a Bump, tree1_alloc: &'a Bump, tree2_alloc: &'a Bump) -> Self {
-        let definitions = Local::new(1, Rc::default());
+        let tags = TagSource::default();
+        let definitions = Local::new(1, tags.clone());
         let primitives = Primitives {
             int: Type::Named {
                 name: definitions.lookup_type("int").unwrap(),
@@ -87,8 +89,8 @@ impl<'a> Repl<'a> {
             qualify: true,
             type_check: true,
 
+            env: Env::new(tags, primitives),
             definitions,
-            env: Env::new(primitives),
 
             ident_alloc,
             tree1_alloc,

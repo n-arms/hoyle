@@ -1,5 +1,7 @@
 use crate::error::{Error, Result};
-use ir::qualified::{FieldDefinition, Identifier, IdentifierSource, Path, StructDefinition, Tag};
+use ir::qualified::{
+    FieldDefinition, Identifier, IdentifierSource, Path, StructDefinition, Tag, TagSource,
+};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -18,38 +20,10 @@ pub struct Local<'expr, 'ident> {
     variables: HashMap<&'ident str, Identifier<'ident>>,
     module: u32,
 }
-
-#[derive(Debug, Default)]
-struct TagSource {
-    unused_identifier: u32,
-}
-
-impl TagSource {
-    pub fn fresh_tag(&mut self, module: u32) -> Tag {
-        let tag = Tag {
-            module,
-            identifier: self.unused_identifier,
-        };
-        self.unused_identifier += 1;
-        tag
-    }
-
-    pub fn fresh_identifier<'ident>(
-        &mut self,
-        name: &'ident str,
-        module: u32,
-    ) -> Identifier<'ident> {
-        Identifier {
-            tag: self.fresh_tag(module),
-            name,
-        }
-    }
-}
-
 impl<'expr, 'ident> Local<'expr, 'ident> {
-    pub fn new(module: u32, definitions: Rc<RefCell<Global<'expr, 'ident>>>) -> Self {
+    pub fn new(module: u32, tags: TagSource) -> Self {
         Self {
-            definitions,
+            definitions: Rc::new(RefCell::new(Global::new(tags))),
             variables: HashMap::default(),
             module,
         }
@@ -105,12 +79,12 @@ impl<'expr, 'ident> Local<'expr, 'ident> {
     }
 }
 
-impl<'expr, 'ident> Default for Global<'expr, 'ident> {
-    fn default() -> Self {
+impl<'expr, 'ident> Global<'expr, 'ident> {
+    pub fn new(tags: TagSource) -> Self {
         let mut defs = Self {
             types: HashMap::default(),
             structs: HashMap::default(),
-            tags: TagSource::default(),
+            tags,
             import_paths: HashMap::default(),
         };
 
@@ -118,9 +92,7 @@ impl<'expr, 'ident> Default for Global<'expr, 'ident> {
         defs.define_primitive_type("bool");
         defs
     }
-}
 
-impl<'expr, 'ident> Global<'expr, 'ident> {
     pub fn define_type(
         &mut self,
         r#type: &'ident str,

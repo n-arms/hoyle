@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use ir::typed::Type;
 
-pub fn types<'expr, 'ident>(
+pub fn check_types<'expr, 'ident>(
     to_check: Type<'expr, 'ident>,
     target: Type<'expr, 'ident>,
 ) -> Result<'expr, 'ident, ()> {
@@ -34,9 +34,9 @@ pub fn types<'expr, 'ident>(
             },
         ) => {
             for (arg, target_arg) in arguments.iter().zip(target_arguments) {
-                types(*arg, *target_arg)?;
+                check_types(*arg, *target_arg)?;
             }
-            types(*return_type, *target_return_type)
+            check_types(*return_type, *target_return_type)
         }
         _ => todo!(),
     }

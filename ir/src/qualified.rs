@@ -1,5 +1,7 @@
 use crate::ast;
+use std::cell::Cell;
 use std::fmt::{Debug, Formatter};
+use std::rc::Rc;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Tag {
@@ -51,11 +53,29 @@ pub enum Type<'expr, 'ident, SPAN> {
     },
 }
 
-#[derive(Copy, Clone)]
-pub struct TypeField<'expr, 'ident, SPAN> {
-    pub id: Identifier<'ident>,
-    pub field_type: Type<'expr, 'ident, SPAN>,
-    pub span: SPAN,
+#[derive(Clone, Debug, Default)]
+pub struct TagSource {
+    unused_identifier: Rc<Cell<u32>>,
+}
+
+impl TagSource {
+    pub fn fresh_tag(&mut self, module: u32) -> Tag {
+        let identifier = self.unused_identifier.get();
+        let tag = Tag { module, identifier };
+        self.unused_identifier.set(identifier + 1);
+        tag
+    }
+
+    pub fn fresh_identifier<'ident>(
+        &mut self,
+        name: &'ident str,
+        module: u32,
+    ) -> Identifier<'ident> {
+        Identifier {
+            tag: self.fresh_tag(module),
+            name,
+        }
+    }
 }
 
 pub type Program<'expr, 'ident> =

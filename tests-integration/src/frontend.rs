@@ -1,8 +1,10 @@
 use arena_alloc::*;
 use bumpalo::Bump;
+use ir::qualified::TagSource;
 use ir::typed::Type;
 use lexer::scan_tokens;
-use qualifier::definitions::Local;
+use qualifier::definitions::{Global, Local};
+use std::cell::RefCell;
 use std::fmt::{Debug, Display};
 use std::rc::Rc;
 use type_checker::{
@@ -66,7 +68,8 @@ fn run_semantic_frontend<'src, 'ident, 'qual>(
     typed_tree: &'qual Bump,
 ) -> Result<ir::typed::Program<'qual, 'ident>, String> {
     let qualified_tree = Bump::new();
-    let mut defs = Local::new(1, Rc::default());
+    let tags = TagSource::default();
+    let mut defs = Local::new(1, tags.clone());
     let qualified_program = match qualifier::qualifier::program(
         ast,
         &mut defs,
@@ -82,7 +85,7 @@ fn run_semantic_frontend<'src, 'ident, 'qual>(
         }
     };
 
-    let mut env = Env::new(extract_primitives(defs));
+    let mut env = Env::new(tags, extract_primitives(defs));
     let typed_program = match infer::program(
         qualified_program,
         &mut env,

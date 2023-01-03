@@ -6,4 +6,5 @@ pub mod env;
 pub mod error;
 pub mod extract;
 pub mod infer;
+pub mod substitute;
 pub mod unify;
