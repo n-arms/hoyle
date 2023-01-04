@@ -1,6 +1,6 @@
 use arena_alloc::General;
 use ir::qualified::{self, Type};
-use ir::typed::{Block, Branch, Expr, Field, Identifier, Pattern, Statement};
+use ir::typed::{Block, Branch, Expr, Field, Identifier, Pattern, PatternField, Statement};
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -140,13 +140,32 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for Branch<'expr, 'ident> {
     }
 }
 
+impl<'expr, 'ident> Substitute<'expr, 'ident> for PatternField<'expr, 'ident> {
+    fn apply(&self, sub: &Substitution<'expr, 'ident>, alloc: &General<'expr>) -> Self {
+        Self {
+            name: self.name.apply(sub, alloc),
+            pattern: self.pattern.apply(sub, alloc),
+            span: self.span,
+        }
+    }
+}
+
 impl<'expr, 'ident> Substitute<'expr, 'ident> for Pattern<'expr, 'ident> {
     fn apply(&self, sub: &Substitution<'expr, 'ident>, alloc: &General<'expr>) -> Self {
         match self {
             ir::ast::Pattern::Variable(identifier, span) => {
                 Pattern::Variable(identifier.apply(sub, alloc), *span)
             }
-            ir::ast::Pattern::Struct { .. } => todo!(),
+            ir::ast::Pattern::Struct { name, fields, span } => {
+                let sub_name = name.apply(sub, alloc);
+                let sub_fields =
+                    alloc.alloc_slice_fill_iter(fields.iter().map(|f| f.apply(sub, alloc)));
+                Pattern::Struct {
+                    name: sub_name,
+                    fields: sub_fields,
+                    span: *span,
+                }
+            }
         }
     }
 }
