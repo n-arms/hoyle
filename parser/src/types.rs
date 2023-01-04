@@ -7,16 +7,19 @@ use std::iter::Peekable;
 fn named<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<Type<'expr, 'ident>> {
+) -> Result<Type<'expr, &'ident str>> {
     let (name, span) = propagate!(identifier(text, interner));
-    Ok(Ok(Type::Named(name, span)))
+    Ok(Ok(Type::Named {
+        name,
+        span: Some(span),
+    }))
 }
 
 fn arrow<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<Type<'expr, 'ident>> {
+) -> Result<Type<'expr, &'ident str>> {
     let start = propagate!(token(text, Kind::Func));
 
     let (arguments, _) = list(
@@ -37,7 +40,7 @@ fn arrow<'src, 'ident, 'expr>(
     Ok(Ok(Type::Arrow {
         arguments,
         return_type: alloc.alloc(return_type),
-        span: return_type.span().union(&start.into()),
+        span: Some(return_type.span().unwrap().union(&start.into())),
     }))
 }
 
@@ -45,6 +48,6 @@ pub fn r#type<'src, 'ident, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
     interner: &Interning<'ident, Specialized>,
-) -> Result<Type<'expr, 'ident>> {
+) -> Result<Type<'expr, &'ident str>> {
     or_try!(arrow(text, alloc, interner), named(text, interner))
 }

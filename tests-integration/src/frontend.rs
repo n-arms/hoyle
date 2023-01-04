@@ -1,12 +1,9 @@
 use arena_alloc::*;
 use bumpalo::Bump;
-use ir::qualified::TagSource;
-use ir::typed::Type;
+use ir::qualified::{TagSource, Type};
 use lexer::scan_tokens;
-use qualifier::definitions::{Global, Local};
-use std::cell::RefCell;
+use qualifier::definitions::Local;
 use std::fmt::{Debug, Display};
-use std::rc::Rc;
 use type_checker::{
     env::{Env, Primitives},
     infer,
@@ -16,7 +13,7 @@ fn run_syntactic_frontend<'src, 'ident, 'ast>(
     text: &'src str,
     ident_bump: &'ident Bump,
     ast_bump: &'ast Bump,
-) -> Result<ir::ast::Program<'ast, 'ident, &'ident str, ir::ast::Type<'ast, 'ident>>, String> {
+) -> Result<ir::ast::Program<'ast, &'ident str, &'ident str>, String> {
     let (tokens, errors) = scan_tokens(text);
     if !errors.success() {
         return Err(format!(
@@ -63,7 +60,7 @@ fn extract_primitives<'old, 'new, 'ident>(defs: Local<'old, 'ident>) -> Primitiv
 
 #[allow(dead_code)]
 fn run_semantic_frontend<'src, 'ident, 'qual>(
-    ast: ir::ast::Program<'_, 'ident, &'ident str, ir::ast::Type<'_, 'ident>>,
+    ast: ir::ast::Program<'_, &'ident str, &'ident str>,
     ident: &'ident Bump,
     typed_tree: &'qual Bump,
 ) -> Result<ir::typed::Program<'qual, 'ident>, String> {

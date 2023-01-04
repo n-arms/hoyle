@@ -21,6 +21,7 @@ pub struct Local<'expr, 'ident> {
     module: u32,
 }
 impl<'expr, 'ident> Local<'expr, 'ident> {
+    #[must_use]
     pub fn new(module: u32, tags: TagSource) -> Self {
         Self {
             definitions: Rc::new(RefCell::new(Global::new(tags))),
@@ -56,22 +57,31 @@ impl<'expr, 'ident> Local<'expr, 'ident> {
         )
     }
 
-    pub fn lookup_type(&self, r#type: &'ident str) -> Result<'expr, 'ident, Identifier<'ident>> {
+    pub fn define_local_field(&mut self, name: &'ident str) -> Identifier<'ident> {
+        self.definitions
+            .borrow_mut()
+            .define_field(name, IdentifierSource::Local, self.module)
+    }
+
+    pub fn lookup_type<'old>(
+        &self,
+        r#type: &'ident str,
+    ) -> Result<'old, 'expr, 'ident, Identifier<'ident>> {
         let res = self.definitions.borrow().lookup_type(r#type);
         res
     }
 
-    pub fn lookup_struct(
+    pub fn lookup_struct<'old>(
         &self,
         r#struct: &'ident str,
-    ) -> Result<'expr, 'ident, StructDefinition<'expr, 'ident>> {
+    ) -> Result<'old, 'expr, 'ident, StructDefinition<'expr, 'ident>> {
         self.definitions.borrow().lookup_struct(r#struct)
     }
 
-    pub fn lookup_variable(
+    pub fn lookup_variable<'old>(
         &self,
         variable: &'ident str,
-    ) -> Result<'expr, 'ident, Identifier<'ident>> {
+    ) -> Result<'old, 'expr, 'ident, Identifier<'ident>> {
         self.variables
             .get(variable)
             .copied()
@@ -80,6 +90,7 @@ impl<'expr, 'ident> Local<'expr, 'ident> {
 }
 
 impl<'expr, 'ident> Global<'expr, 'ident> {
+    #[must_use]
     pub fn new(tags: TagSource) -> Self {
         let mut defs = Self {
             types: HashMap::default(),
@@ -128,17 +139,31 @@ impl<'expr, 'ident> Global<'expr, 'ident> {
         def
     }
 
-    pub fn lookup_type(&self, r#type: &'ident str) -> Result<'expr, 'ident, Identifier<'ident>> {
+    pub fn define_field(
+        &mut self,
+        field: &'ident str,
+        source: IdentifierSource,
+        module: u32,
+    ) -> Identifier<'ident> {
+        let id = self.tags.fresh_identifier(field, module);
+        self.import_paths.insert(id.tag, source);
+        id
+    }
+
+    pub fn lookup_type<'old>(
+        &self,
+        r#type: &'ident str,
+    ) -> Result<'old, 'expr, 'ident, Identifier<'ident>> {
         self.types
             .get(r#type)
             .copied()
             .ok_or(Error::UndefinedType(r#type))
     }
 
-    pub fn lookup_struct(
+    pub fn lookup_struct<'old>(
         &self,
         r#struct: &'ident str,
-    ) -> Result<'expr, 'ident, StructDefinition<'expr, 'ident>> {
+    ) -> Result<'old, 'expr, 'ident, StructDefinition<'expr, 'ident>> {
         self.structs
             .get(r#struct)
             .copied()

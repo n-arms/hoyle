@@ -1,4 +1,4 @@
-use ir::typed::Type;
+use ir::qualified::Type;
 use std::result;
 
 #[derive(Debug)]

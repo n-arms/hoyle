@@ -2,12 +2,12 @@ use crate::env::Env;
 use crate::error::Result;
 use crate::extract::{struct_type, Typeable};
 use crate::infer;
-use crate::substitute::{Substitute, Substitution};
+use crate::substitute::Substitution;
 use crate::unify;
 use arena_alloc::{General, Interning, Specialized};
 
-use ir::qualified;
-use ir::typed::{Branch, Expr, Field, FieldDefinition, Identifier, Pattern, PatternField, Type};
+use ir::qualified::{self, Type};
+use ir::typed::{Branch, Expr, Field, FieldDefinition, Identifier, Pattern, PatternField};
 
 pub fn expr<'old, 'new, 'ident>(
     to_check: qualified::Expr<'old, 'ident>,
@@ -34,7 +34,7 @@ pub fn field<'old, 'new, 'ident>(
 ) -> Result<'new, 'ident, Field<'new, 'ident>> {
     let target_field = target_fields
         .iter()
-        .find(|field| field.name == to_check.name)
+        .find(|field| field.name.identifier == to_check.name)
         .expect("qualifier should have caught undefined field");
 
     let typed_value = expr(
@@ -47,7 +47,7 @@ pub fn field<'old, 'new, 'ident>(
     )?;
 
     Ok(Field {
-        name: to_check.name,
+        name: target_field.name,
         value: typed_value,
         span: to_check.span,
     })
@@ -62,7 +62,7 @@ pub fn pattern_field<'old, 'new, 'ident>(
 ) -> Result<'new, 'ident, PatternField<'new, 'ident>> {
     let target_field = target_fields
         .iter()
-        .find(|field| field.name == to_check.name)
+        .find(|field| field.name.identifier == to_check.name)
         .expect("qualification should have caught undefined fields");
 
     let typed_pattern = pattern(
@@ -74,7 +74,7 @@ pub fn pattern_field<'old, 'new, 'ident>(
     )?;
 
     Ok(PatternField {
-        name: to_check.name,
+        name: target_field.name,
         pattern: typed_pattern,
         span: to_check.span,
     })

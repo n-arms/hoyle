@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use ir::typed::Type;
+use ir::qualified::Type;
 
 pub fn check_types<'expr, 'ident>(
     to_check: Type<'expr, 'ident>,

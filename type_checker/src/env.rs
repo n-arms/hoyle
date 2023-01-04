@@ -2,8 +2,8 @@ use crate::error::{Error, Result};
 use crate::extract::struct_type;
 use crate::substitute::{Substitute, Substitution};
 use arena_alloc::General;
-use ir::qualified::{self, TagSource};
-use ir::typed::{FieldDefinition, Identifier, Type};
+use ir::qualified::{self, TagSource, Type};
+use ir::typed::{FieldDefinition, Identifier};
 use std::collections::HashMap;
 
 pub struct Primitives<'expr, 'ident> {

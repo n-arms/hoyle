@@ -1,11 +1,9 @@
 use crate::read::ExitStatus;
 use arena_alloc::*;
 use bumpalo::Bump;
-use ir::qualified::TagSource;
+use ir::qualified::{TagSource, Type};
 use ir::token::*;
-use ir::typed::Type;
 use qualifier::definitions::Local;
-use std::rc::Rc;
 use type_checker::{env::*, infer};
 
 pub struct Repl<'a> {

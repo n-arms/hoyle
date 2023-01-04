@@ -1,7 +1,7 @@
 use crate::env::Primitives;
 use ir::ast::Literal;
-use ir::qualified;
-use ir::typed::{Expr, Type};
+use ir::qualified::{self, Type};
+use ir::typed::Expr;
 
 pub trait Typeable<'expr, 'ident> {
     #[must_use]
@@ -27,7 +27,7 @@ impl<'expr, 'ident> Typeable<'expr, 'ident> for Expr<'expr, 'ident> {
                     panic!("illegal function call: {function:?} is not an arrow type")
                 }
             },
-            ir::ast::Expr::Operation { operator, .. } => todo!(),
+            ir::ast::Expr::Operation { .. } => todo!(),
             ir::ast::Expr::StructLiteral { name, .. } => struct_type(name.identifier),
             ir::ast::Expr::Block(block) => block.result.expect("todo").extract(primitives),
             ir::ast::Expr::Annotated { annotation, .. } => *annotation,

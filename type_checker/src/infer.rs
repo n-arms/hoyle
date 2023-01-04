@@ -4,10 +4,10 @@ use crate::error::Result;
 use crate::extract::{struct_type, Typeable};
 use crate::substitute::{Substitute, Substitution};
 use arena_alloc::{General, Interning, Specialized};
-use ir::ast::{Literal, Span};
-use ir::qualified;
+use ir::ast::Literal;
+use ir::qualified::{self, Type};
 use ir::typed::{
-    Argument, Block, Definition, Expr, FieldDefinition, Identifier, Program, Statement, Type,
+    Argument, Block, Definition, Expr, FieldDefinition, Identifier, Program, Statement,
 };
 
 pub fn program<'old, 'new, 'ident>(
@@ -33,9 +33,13 @@ pub fn field_definition<'old, 'new, 'ident>(
     general: &General<'new>,
 ) -> Result<'new, 'ident, FieldDefinition<'new, 'ident>> {
     let typed_field_type = r#type(to_infer.field_type, general);
+    let name = Identifier {
+        identifier: to_infer.name,
+        r#type: typed_field_type,
+    };
 
     Ok(FieldDefinition {
-        name: to_infer.name,
+        name,
         field_type: typed_field_type,
         span: to_infer.span,
     })
@@ -83,6 +87,8 @@ pub fn definition<'old, 'new, 'ident>(
             let typed_body;
             let mut substitution = Substitution::default();
 
+            let forall = generics.iter().map(|generic| generic.identifier);
+
             if let Some(return_type) = return_type {
                 let func_type = Type::Arrow {
                     arguments: general.alloc_slice_fill_iter(
@@ -91,13 +97,17 @@ pub fn definition<'old, 'new, 'ident>(
                     return_type: general.alloc(return_type),
                     span: None,
                 };
-                env.bind_qualified_variable(name, func_type, todo!());
+                env.bind_qualified_variable(name, func_type, forall.collect());
                 typed_body = expr(body, env, &mut substitution, interner, general)?
                     .apply(&substitution, general);
             } else {
                 typed_body = expr(body, env, &mut substitution, interner, general)?
                     .apply(&substitution, general);
-                env.bind_qualified_variable(name, typed_body.extract(&env.primitives), todo!());
+                env.bind_qualified_variable(
+                    name,
+                    typed_body.extract(&env.primitives),
+                    forall.collect(),
+                );
             }
 
             let typed_name = Identifier::new(
@@ -213,16 +223,14 @@ pub fn statement<'old, 'new, 'ident>(
         }
     }
 }
+
 #[must_use]
 pub fn r#type<'old, 'new, 'ident>(
-    to_infer: qualified::Type<'old, 'ident, Span>,
+    to_infer: qualified::Type<'old, 'ident>,
     general: &General<'new>,
 ) -> Type<'new, 'ident> {
     match to_infer {
-        qualified::Type::Named { name, span } => Type::Named {
-            name,
-            span: Some(span),
-        },
+        qualified::Type::Named { name, span } => Type::Named { name, span },
         qualified::Type::Arrow {
             arguments,
             return_type,
@@ -231,7 +239,7 @@ pub fn r#type<'old, 'new, 'ident>(
             arguments: general
                 .alloc_slice_fill_iter(arguments.iter().map(|arg| r#type(*arg, general))),
             return_type: general.alloc(r#type(*return_type, general)),
-            span: Some(span),
+            span,
         },
     }
 }

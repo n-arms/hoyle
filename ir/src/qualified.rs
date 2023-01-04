@@ -3,6 +3,8 @@ use std::cell::Cell;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
+pub type Type<'expr, 'ident> = ast::Type<'expr, Identifier<'ident>>;
+
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Tag {
     pub module: u32,
@@ -23,7 +25,7 @@ pub struct StructDefinition<'expr, 'ident> {
 
 impl<'expr, 'ident> StructDefinition<'expr, 'ident> {
     #[must_use]
-    pub fn find_field(&self, name: &'ident str) -> Option<FieldDefinition<'expr, 'ident>> {
+    pub fn find_field(&self, name: Identifier<'ident>) -> Option<FieldDefinition<'expr, 'ident>> {
         self.fields.iter().find(|field| field.name == name).copied()
     }
 }
@@ -38,19 +40,6 @@ pub enum Path {
 pub enum IdentifierSource {
     Local,
     Global(Path),
-}
-
-#[derive(Copy, Clone)]
-pub enum Type<'expr, 'ident, SPAN> {
-    Named {
-        name: Identifier<'ident>,
-        span: SPAN,
-    },
-    Arrow {
-        arguments: &'expr [Type<'expr, 'ident, SPAN>],
-        return_type: &'expr Type<'expr, 'ident, SPAN>,
-        span: SPAN,
-    },
 }
 
 #[derive(Clone, Debug, Default)]
@@ -78,57 +67,34 @@ impl TagSource {
     }
 }
 
-pub type Program<'expr, 'ident> =
-    ast::Program<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
+pub type Program<'expr, 'ident> = ast::Program<'expr, Identifier<'ident>, Identifier<'ident>>;
 
-pub type Definition<'expr, 'ident> =
-    ast::Definition<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
+pub type Definition<'expr, 'ident> = ast::Definition<'expr, Identifier<'ident>, Identifier<'ident>>;
+
+pub type Generic<'ident> = ast::Generic<Identifier<'ident>>;
 
 pub type FieldDefinition<'expr, 'ident> =
-    ast::FieldDefinition<'ident, Type<'expr, 'ident, ast::Span>>;
+    ast::FieldDefinition<'expr, Identifier<'ident>, Identifier<'ident>>;
 
-pub type Argument<'expr, 'ident> =
-    ast::Argument<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
+pub type Argument<'expr, 'ident> = ast::Argument<'expr, Identifier<'ident>, Identifier<'ident>>;
 
-pub type Statement<'expr, 'ident> =
-    ast::Statement<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
+pub type Statement<'expr, 'ident> = ast::Statement<'expr, Identifier<'ident>, Identifier<'ident>>;
 
-pub type Pattern<'expr, 'ident> = ast::Pattern<'expr, 'ident, Identifier<'ident>>;
+pub type Pattern<'expr, 'ident> = ast::Pattern<'expr, Identifier<'ident>>;
 
-pub type Block<'expr, 'ident> =
-    ast::Block<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
+pub type Block<'expr, 'ident> = ast::Block<'expr, Identifier<'ident>, Identifier<'ident>>;
 
-pub type Field<'expr, 'ident> =
-    ast::Field<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
+pub type Field<'expr, 'ident> = ast::Field<'expr, Identifier<'ident>, Identifier<'ident>>;
 
-pub type Branch<'expr, 'ident> =
-    ast::Branch<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
+pub type Branch<'expr, 'ident> = ast::Branch<'expr, Identifier<'ident>, Identifier<'ident>>;
 
-pub type Expr<'expr, 'ident> =
-    ast::Expr<'expr, 'ident, Identifier<'ident>, Type<'expr, 'ident, ast::Span>>;
+pub type Expr<'expr, 'ident> = ast::Expr<'expr, Identifier<'ident>, Identifier<'ident>>;
 
-pub type PatternField<'expr, 'ident> = ast::PatternField<'expr, 'ident, Identifier<'ident>>;
+pub type PatternField<'expr, 'ident> = ast::PatternField<'expr, Identifier<'ident>>;
 
 impl Debug for Identifier<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}::{}", self.tag, self.name)
-    }
-}
-
-impl<SPAN: Copy> Debug for Type<'_, '_, SPAN> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Type::Named { name, .. } => name.fmt(f),
-            Type::Arrow {
-                arguments,
-                return_type,
-                ..
-            } => f
-                .debug_tuple("func")
-                .field(arguments)
-                .field(return_type)
-                .finish(),
-        }
     }
 }
 

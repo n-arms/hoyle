@@ -1,6 +1,6 @@
 use arena_alloc::General;
-use ir::qualified;
-use ir::typed::{Block, Branch, Expr, Field, Identifier, Pattern, Statement, Type};
+use ir::qualified::{self, Type};
+use ir::typed::{Block, Branch, Expr, Field, Identifier, Pattern, Statement};
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -146,7 +146,7 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for Pattern<'expr, 'ident> {
             ir::ast::Pattern::Variable(identifier, span) => {
                 Pattern::Variable(identifier.apply(sub, alloc), *span)
             }
-            ir::ast::Pattern::Struct { name, fields, span } => todo!(),
+            ir::ast::Pattern::Struct { .. } => todo!(),
         }
     }
 }

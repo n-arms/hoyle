@@ -1,15 +1,21 @@
+use ir::ast::{self, PatternField};
 use ir::qualified::{Field, FieldDefinition};
 use std::result;
 
 #[derive(Debug)]
-pub enum Error<'expr, 'ident> {
+pub enum Error<'old, 'new, 'ident> {
     UndefinedVariable(&'ident str),
     UndefinedType(&'ident str),
     UndefinedStruct(&'ident str),
-    StructLiteralMissingField(
-        FieldDefinition<'expr, 'ident>,
-        &'expr [Field<'expr, 'ident>],
+    StructLiteralMissingField(FieldDefinition<'new, 'ident>, &'new [Field<'new, 'ident>]),
+    StructLiteralContainsExtraField(
+        ast::Field<'old, &'ident str, &'ident str>,
+        &'new [FieldDefinition<'new, 'ident>],
+    ),
+    StructPatternMissingField(
+        PatternField<'old, &'ident str>,
+        &'new [FieldDefinition<'new, 'ident>],
     ),
 }
 
-pub type Result<'expr, 'ident, T> = result::Result<T, Error<'expr, 'ident>>;
+pub type Result<'old, 'new, 'ident, T> = result::Result<T, Error<'old, 'new, 'ident>>;

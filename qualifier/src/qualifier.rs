@@ -3,16 +3,16 @@ use crate::error::{Error, Result};
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast;
 use ir::qualified::{
-    Argument, Block, Branch, Definition, Expr, Field, FieldDefinition, Pattern, PatternField,
-    Program, Statement, Type,
+    Argument, Block, Branch, Definition, Expr, Field, FieldDefinition, Generic, Pattern,
+    PatternField, Program, Statement, Type,
 };
 
 pub fn program<'old, 'new, 'ident>(
-    to_qualify: ast::Program<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
+    to_qualify: ast::Program<'old, &'ident str, &'ident str>,
     definitions: &mut Local<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Program<'new, 'ident>> {
+) -> Result<'old, 'new, 'ident, Program<'new, 'ident>> {
     let qualified_definitions = general.alloc_slice_try_fill_iter(
         to_qualify
             .definitions
@@ -26,11 +26,11 @@ pub fn program<'old, 'new, 'ident>(
 }
 
 pub fn definition<'old, 'new, 'ident>(
-    to_qualify: ast::Definition<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
+    to_qualify: ast::Definition<'old, &'ident str, &'ident str>,
     definitions: &mut Local<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Definition<'new, 'ident>> {
+) -> Result<'old, 'new, 'ident, Definition<'new, 'ident>> {
     match to_qualify {
         ast::Definition::Function {
             name,
@@ -44,9 +44,8 @@ pub fn definition<'old, 'new, 'ident>(
 
             let mut inner_defs = definitions.clone();
 
-            for generic in generics {
-                inner_defs.define_local_type(generic.identifier);
-            }
+            let generics = general
+                .alloc_slice_try_fill_iter(generics.iter().map(|g| generic(*g, &mut inner_defs)))?;
 
             let return_type = return_type.map_or(Ok(None), |result| {
                 r#type(result, &mut inner_defs, general).map(Some)
@@ -59,8 +58,6 @@ pub fn definition<'old, 'new, 'ident>(
             )?;
 
             let body = expr(body, &mut inner_defs, interner, general)?;
-
-            let generics = general.alloc_slice_fill_iter(generics.iter().copied());
 
             Ok(Definition::Function {
                 name: identifier,
@@ -89,26 +86,39 @@ pub fn definition<'old, 'new, 'ident>(
     }
 }
 
+pub fn generic<'old, 'new, 'ident>(
+    to_qualify: ast::Generic<&'ident str>,
+    definitions: &mut Local<'new, 'ident>,
+) -> Result<'old, 'new, 'ident, Generic<'ident>> {
+    let identifier = definitions.define_local_type(to_qualify.identifier);
+
+    Ok(Generic {
+        identifier,
+        span: to_qualify.span,
+    })
+}
+
 pub fn field_definition<'old, 'new, 'ident>(
-    to_qualify: ast::FieldDefinition<'ident, ast::Type<'old, 'ident>>,
+    to_qualify: ast::FieldDefinition<'old, &'ident str, &'ident str>,
     definitions: &mut Local<'new, 'ident>,
     general: &General<'new>,
-) -> Result<'new, 'ident, FieldDefinition<'new, 'ident>> {
+) -> Result<'old, 'new, 'ident, FieldDefinition<'new, 'ident>> {
     let qualified_field_type = r#type(to_qualify.field_type, definitions, general)?;
+    let qualified_field_name = definitions.define_local_field(to_qualify.name);
 
     Ok(FieldDefinition {
-        name: to_qualify.name,
+        name: qualified_field_name,
         field_type: qualified_field_type,
         span: to_qualify.span,
     })
 }
 
 pub fn argument<'old, 'new, 'ident>(
-    to_qualify: ast::Argument<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
+    to_qualify: ast::Argument<'old, &'ident str, &'ident str>,
     definitions: &mut Local<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Argument<'new, 'ident>> {
+) -> Result<'old, 'new, 'ident, Argument<'new, 'ident>> {
     let qualified_pattern = pattern(to_qualify.pattern, definitions, interner, general)?;
     let qualified_type = r#type(to_qualify.type_annotation, definitions, general)?;
 
@@ -120,11 +130,11 @@ pub fn argument<'old, 'new, 'ident>(
 }
 
 pub fn statement<'old, 'new, 'ident>(
-    to_qualify: ast::Statement<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
+    to_qualify: ast::Statement<'old, &'ident str, &'ident str>,
     definitions: &mut Local<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Statement<'new, 'ident>> {
+) -> Result<'old, 'new, 'ident, Statement<'new, 'ident>> {
     match to_qualify {
         ast::Statement::Let {
             left_side,
@@ -149,26 +159,32 @@ pub fn statement<'old, 'new, 'ident>(
 }
 
 pub fn pattern_field<'old, 'new, 'ident>(
-    to_qualify: ast::PatternField<'old, 'ident, &'ident str>,
+    to_qualify: ast::PatternField<'old, &'ident str>,
+    target_fields: &'new [FieldDefinition<'new, 'ident>],
     definitions: &mut Local<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, PatternField<'new, 'ident>> {
+) -> Result<'old, 'new, 'ident, PatternField<'new, 'ident>> {
+    let target_field = target_fields
+        .iter()
+        .find(|field| field.name.name == to_qualify.name)
+        .ok_or(Error::StructPatternMissingField(to_qualify, target_fields))?;
+
     let qualified_value = pattern(to_qualify.pattern, definitions, interner, general)?;
 
     Ok(PatternField {
-        name: to_qualify.name,
+        name: target_field.name,
         pattern: qualified_value,
         span: to_qualify.span,
     })
 }
 
 pub fn pattern<'old, 'new, 'ident>(
-    to_qualify: ast::Pattern<'old, 'ident, &'ident str>,
+    to_qualify: ast::Pattern<'old, &'ident str>,
     definitions: &mut Local<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Pattern<'new, 'ident>> {
+) -> Result<'old, 'new, 'ident, Pattern<'new, 'ident>> {
     match to_qualify {
         ast::Pattern::Variable(variable, span) => {
             let qualified = definitions.define_local_variable(variable);
@@ -176,11 +192,9 @@ pub fn pattern<'old, 'new, 'ident>(
         }
         ast::Pattern::Struct { name, fields, span } => {
             let struct_definition = definitions.lookup_struct(name)?;
-            let qualified_fields = general.alloc_slice_try_fill_iter(
-                fields
-                    .iter()
-                    .map(|f| pattern_field(*f, definitions, interner, general)),
-            )?;
+            let qualified_fields = general.alloc_slice_try_fill_iter(fields.iter().map(|f| {
+                pattern_field(*f, struct_definition.fields, definitions, interner, general)
+            }))?;
             Ok(Pattern::Struct {
                 name: struct_definition.name,
                 fields: qualified_fields,
@@ -191,11 +205,11 @@ pub fn pattern<'old, 'new, 'ident>(
 }
 
 pub fn block<'old, 'new, 'ident>(
-    to_qualify: ast::Block<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
+    to_qualify: ast::Block<'old, &'ident str, &'ident str>,
     definitions: &mut Local<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Block<'new, 'ident>> {
+) -> Result<'old, 'new, 'ident, Block<'new, 'ident>> {
     let statements = general.alloc_slice_try_fill_iter(
         to_qualify
             .statements
@@ -216,13 +230,13 @@ pub fn block<'old, 'new, 'ident>(
 }
 
 pub fn r#type<'old, 'new, 'ident>(
-    to_qualify: ast::Type<'old, 'ident>,
+    to_qualify: ast::Type<'old, &'ident str>,
     definitions: &mut Local<'new, 'ident>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Type<'new, 'ident, ast::Span>> {
+) -> Result<'old, 'new, 'ident, Type<'new, 'ident>> {
     match to_qualify {
-        ast::Type::Named(type_name, span) => {
-            let qualified_type_name = definitions.lookup_type(type_name)?;
+        ast::Type::Named { name, span } => {
+            let qualified_type_name = definitions.lookup_type(name)?;
 
             Ok(Type::Named {
                 name: qualified_type_name,
@@ -252,26 +266,34 @@ pub fn r#type<'old, 'new, 'ident>(
 }
 
 pub fn field<'old, 'new, 'ident>(
-    to_qualify: ast::Field<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
+    to_qualify: ast::Field<'old, &'ident str, &'ident str>,
+    target_fields: &'new [FieldDefinition<'new, 'ident>],
     definitions: &mut Local<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Field<'new, 'ident>> {
+) -> Result<'old, 'new, 'ident, Field<'new, 'ident>> {
+    let target_field = target_fields
+        .iter()
+        .find(|field| field.name.name == to_qualify.name)
+        .ok_or(Error::StructLiteralContainsExtraField(
+            to_qualify,
+            target_fields,
+        ))?;
     let qualified_value = expr(to_qualify.value, definitions, interner, general)?;
 
     Ok(Field {
-        name: to_qualify.name,
+        name: target_field.name,
         value: qualified_value,
         span: to_qualify.span,
     })
 }
 
 pub fn branch<'old, 'new, 'ident>(
-    to_qualify: ast::Branch<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
+    to_qualify: ast::Branch<'old, &'ident str, &'ident str>,
     definitions: &mut Local<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Branch<'new, 'ident>> {
+) -> Result<'old, 'new, 'ident, Branch<'new, 'ident>> {
     let qualified_pattern = pattern(to_qualify.pattern, definitions, interner, general)?;
     let qualified_body = expr(to_qualify.body, definitions, interner, general)?;
 
@@ -283,11 +305,11 @@ pub fn branch<'old, 'new, 'ident>(
 }
 
 pub fn expr<'old, 'new, 'ident>(
-    to_qualify: ast::Expr<'old, 'ident, &'ident str, ast::Type<'old, 'ident>>,
+    to_qualify: ast::Expr<'old, &'ident str, &'ident str>,
     definitions: &mut Local<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Expr<'new, 'ident>> {
+) -> Result<'old, 'new, 'ident, Expr<'new, 'ident>> {
     match to_qualify {
         ast::Expr::Variable(variable, span) => {
             let qualified_variable = definitions.lookup_variable(variable)?;
@@ -322,7 +344,7 @@ pub fn expr<'old, 'new, 'ident>(
             let qualified_fields = general.alloc_slice_try_fill_iter(
                 fields
                     .iter()
-                    .map(|f| field(*f, definitions, interner, general)),
+                    .map(|f| field(*f, definition.fields, definitions, interner, general)),
             )?;
 
             struct_contains_fields(qualified_fields, definition.fields)?;
@@ -361,10 +383,10 @@ pub fn expr<'old, 'new, 'ident>(
     }
 }
 
-pub fn struct_contains_fields<'expr, 'ident>(
-    to_check: &'expr [Field<'expr, 'ident>],
-    must_have: &[FieldDefinition<'expr, 'ident>],
-) -> Result<'expr, 'ident, ()> {
+pub fn struct_contains_fields<'old, 'new, 'ident>(
+    to_check: &'new [Field<'new, 'ident>],
+    must_have: &[FieldDefinition<'new, 'ident>],
+) -> Result<'old, 'new, 'ident, ()> {
     for required_field in must_have {
         let missing_field = !to_check
             .iter()
