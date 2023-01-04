@@ -26,6 +26,11 @@ impl<'expr, 'ident> Substitution<'expr, 'ident> {
     pub fn lookup(&self, from: &qualified::Identifier<'ident>) -> Option<Type<'expr, 'ident>> {
         self.0.get(from).copied()
     }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 impl<'expr, 'ident> From<HashMap<qualified::Identifier<'ident>, Type<'expr, 'ident>>>

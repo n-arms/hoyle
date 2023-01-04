@@ -3,6 +3,7 @@ use crate::env::Env;
 use crate::error::Result;
 use crate::extract::{struct_type, Typeable};
 use crate::substitute::{Substitute, Substitution};
+use crate::unify::substitute_types;
 use arena_alloc::{General, Interning, Specialized};
 use ir::ast::Literal;
 use ir::qualified::{self, Type};
@@ -282,6 +283,16 @@ pub fn expr<'old, 'new, 'ident>(
                     .iter()
                     .map(|arg| expr(*arg, env, substitution, interner, general)),
             )?;
+            if let Type::Arrow { arguments, .. } = typed_function.extract(&env.primitives) {
+                for (expected, found) in arguments.iter().zip(typed_arguments.iter()) {
+                    substitution.union(&substitute_types(
+                        *expected,
+                        found.extract(&env.primitives),
+                    )?);
+                }
+            } else {
+                todo!()
+            }
             Ok(Expr::Call {
                 function: general.alloc(typed_function),
                 arguments: typed_arguments,

@@ -1,26 +1,26 @@
+use crate::env::is_unification;
 use crate::error::{Error, Result};
+use crate::substitute::Substitution;
 use ir::qualified::Type;
 
 pub fn check_types<'expr, 'ident>(
     to_check: Type<'expr, 'ident>,
     target: Type<'expr, 'ident>,
 ) -> Result<'expr, 'ident, ()> {
-    match (to_check, target) {
-        (
-            Type::Named { name, .. },
-            Type::Named {
-                name: target_name, ..
-            },
-        ) => {
-            if name == target_name {
-                Ok(())
-            } else {
-                Err(Error::TypeMismatch {
-                    expected: target,
-                    found: to_check,
-                })
-            }
-        }
+    let sub = substitute_types(to_check, target)?;
+
+    if sub.is_empty() {
+        Ok(())
+    } else {
+        todo!()
+    }
+}
+
+pub fn substitute_types<'expr, 'ident>(
+    general: Type<'expr, 'ident>,
+    specific: Type<'expr, 'ident>,
+) -> Result<'expr, 'ident, Substitution<'expr, 'ident>> {
+    match (general, specific) {
         (
             Type::Arrow {
                 arguments,
@@ -28,16 +28,30 @@ pub fn check_types<'expr, 'ident>(
                 ..
             },
             Type::Arrow {
-                arguments: target_arguments,
-                return_type: target_return_type,
+                arguments: specific_arguments,
+                return_type: specific_return_type,
                 ..
             },
         ) => {
-            for (arg, target_arg) in arguments.iter().zip(target_arguments) {
-                check_types(*arg, *target_arg)?;
+            let mut sub = substitute_types(*return_type, *specific_return_type)?;
+            for (arg, specific_arg) in arguments.iter().zip(specific_arguments.iter()) {
+                sub.union(&substitute_types(*arg, *specific_arg)?);
             }
-            check_types(*return_type, *target_return_type)
+            Ok(sub)
         }
-        _ => todo!(),
+        (
+            Type::Named { name, .. },
+            Type::Named {
+                name: specific_name,
+                ..
+            },
+        ) if name == specific_name => Ok(Substitution::default()),
+        (Type::Named { name, .. }, specific) if is_unification(name) => {
+            Ok(Substitution::unit(name, specific))
+        }
+        (general, specific) => Err(Error::TypeMismatch {
+            expected: general,
+            found: specific,
+        }),
     }
 }

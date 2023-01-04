@@ -147,3 +147,7 @@ pub fn substitute_types<'expr, 'ident>(
         (found @ Type::Arrow { .. }, expected) => Err(Error::TypeMismatch { expected, found }),
     }
 }
+
+pub fn is_unification(identifier: qualified::Identifier) -> bool {
+    identifier.name == "unification"
+}
