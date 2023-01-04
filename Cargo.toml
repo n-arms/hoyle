@@ -14,6 +14,9 @@ members = [
   "parser",
   "qualifier",
   "type_checker",
+
+  # Backend
+  "desugar",
   
   # Internal
   "tests-integration"
