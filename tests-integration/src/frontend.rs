@@ -1,10 +1,14 @@
 use arena_alloc::*;
 use bumpalo::Bump;
-use ir::qualified::{TagSource, Type};
+use ir::{
+    ast::Field,
+    qualified::{TagSource, Type},
+};
 use lexer::scan_tokens;
 use qualifier::definitions::Local;
 use std::fmt::{Debug, Display};
 use type_checker::{
+    check,
     env::{Env, Primitives},
     infer,
 };
@@ -98,6 +102,8 @@ fn run_semantic_frontend<'src, 'ident, 'qual>(
         }
     };
 
+    crate::check_qualified::program(typed_program)?;
+
     Ok(typed_program)
 }
 
@@ -190,6 +196,10 @@ const TRIVIAL_PROGRAMS: &[&str] = &[
         y
     }
     func unwrap_in_case(w: wrapper): int = case w of { wrapper {x: y} => y }
+    ",
+    "
+    func id[a](x: a): a = x
+    func five(): int = id(5)
     ",
 ];
 
