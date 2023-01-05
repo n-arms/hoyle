@@ -9,6 +9,7 @@ use type_checker::{env::*, infer};
 pub struct Repl<'a> {
     qualify: bool,
     type_check: bool,
+    desugar: bool,
 
     definitions: Local<'a, 'a>,
     env: Env<'a, 'a>,
@@ -21,6 +22,7 @@ pub struct Repl<'a> {
 enum Command {
     Qualify(bool),
     Type(bool),
+    Desugar(bool),
     Quit,
 }
 
@@ -59,6 +61,24 @@ fn parse_command<'a>(tokens: impl IntoIterator<Item = Token<'a>>) -> Option<Comm
             span: Span { data: "type", .. },
         }] => Some(Command::Type(false)),
         [Token {
+            kind: Kind::BinaryOperator(BinaryOperator::Cross),
+            ..
+        }, Token {
+            kind: Kind::Identifier,
+            span: Span {
+                data: "desugar", ..
+            },
+        }] => Some(Command::Desugar(true)),
+        [Token {
+            kind: Kind::BinaryOperator(BinaryOperator::Dash),
+            ..
+        }, Token {
+            kind: Kind::Identifier,
+            span: Span {
+                data: "desugar", ..
+            },
+        }] => Some(Command::Desugar(false)),
+        [Token {
             kind: Kind::BinaryOperator(BinaryOperator::Dash | BinaryOperator::Cross),
             ..
         }, Token {
@@ -86,6 +106,7 @@ impl<'a> Repl<'a> {
         Self {
             qualify: true,
             type_check: true,
+            desugar: false,
 
             env: Env::new(tags, primitives),
             definitions,
@@ -106,6 +127,7 @@ impl<'a> Repl<'a> {
             match command {
                 Command::Qualify(setting) => self.qualify = setting,
                 Command::Type(setting) => self.type_check = setting,
+                Command::Desugar(setting) => self.desugar = setting,
                 Command::Quit => return ExitStatus::Quit,
             }
             return ExitStatus::Okay;

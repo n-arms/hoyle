@@ -10,8 +10,13 @@ pub struct Name {
 }
 
 #[derive(Copy, Clone, Debug)]
+pub struct Label {
+    name: Name,
+}
+
+#[derive(Copy, Clone, Debug)]
 pub struct FunctionDefinition<'expr> {
-    pub name: Name,
+    pub label: Label,
     pub arguments: &'expr [Argument<'expr>],
     pub body: Block<'expr>,
 }
@@ -60,6 +65,7 @@ pub struct Field {
 #[derive(Copy, Clone, Debug)]
 pub enum Atom {
     Variable(Name),
+    Function(Label),
     Literal(Literal),
 }
 
@@ -92,4 +98,18 @@ pub enum Type<'expr> {
     Named {
         name: Name,
     },
+    Any,
+}
+
+#[derive(Debug, Default)]
+pub struct NameSource {
+    unused: usize,
+}
+
+impl NameSource {
+    pub fn fresh(&mut self) -> Name {
+        let index = self.unused;
+        self.unused += 1;
+        Name { index }
+    }
 }
