@@ -1,39 +1,42 @@
 use ir::desugared::*;
-use ir::qualified::Identifier;
+use ir::qualified::{self, Generic, Identifier};
 use std::collections::HashMap;
 
 pub struct Metadata {
     size: Atom,
+    name: Name,
 }
 
-pub struct Env<'ident> {
+#[derive(Copy, Clone, Debug)]
+pub enum VariableTemplate<'old, 'ident> {
+    Monomorphic {
+        name: Name,
+    },
+    Polymorphic {
+        label: Label,
+        definition: qualified::Type<'old, 'ident>,
+        generics: &'old [Generic<'ident>],
+    },
+}
+
+pub struct Env<'old, 'ident> {
     metadata: HashMap<Identifier<'ident>, Metadata>,
-    bindings: HashMap<Identifier<'ident>, Name>,
-    functions: HashMap<Identifier<'ident>, ()>,
+    variables: HashMap<Identifier<'ident>, VariableTemplate<'old, 'ident>>,
 }
 
-impl<'ident> Env<'ident> {
-    pub fn new(
-        metadata: HashMap<Identifier<'ident>, Metadata>,
-        bindings: HashMap<Identifier<'ident>, Name>,
-        functions: HashMap<Identifier<'ident>, ()>,
-    ) -> Self {
+impl<'old, 'ident> Env<'old, 'ident> {
+    pub fn new(metadata: HashMap<Identifier<'ident>, Metadata>) -> Self {
+        let variables = HashMap::default();
         Self {
             metadata,
-            bindings,
-            functions,
+            variables,
         }
     }
 
-    pub fn define_identifier(&mut self, identifier: Identifier<'ident>, name: Name) {
-        assert!(!self.bindings.contains_key(&identifier));
-        self.bindings.insert(identifier, name);
-    }
-
-    pub fn lookup_identifier(&self, identifier: &Identifier<'ident>) -> Name {
+    pub fn lookup_variable(&self, variable: Identifier<'ident>) -> VariableTemplate<'old, 'ident> {
         *self
-            .bindings
-            .get(identifier)
-            .expect("the frontend should have caught undefined variables")
+            .variables
+            .get(&variable)
+            .expect("frontend should have caught undefined variables")
     }
 }

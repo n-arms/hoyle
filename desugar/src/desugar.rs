@@ -1,19 +1,21 @@
 use crate::builder;
-use crate::metadata::Env;
+use crate::env::{Env, VariableTemplate};
 use arena_alloc::General;
 use ir::desugared::*;
-use ir::qualified::{self, Identifier};
+use ir::qualified;
 use ir::typed;
 
 pub fn expr<'old, 'new, 'names, 'ident>(
     to_desugar: typed::Expr<'old, 'ident>,
     block: &mut builder::Block<'names, 'new>,
-    env: &mut Env<'ident>,
+    env: &mut Env<'old, 'ident>,
     alloc: &General<'new>,
 ) -> Atom {
     match to_desugar {
         ir::ast::Expr::Variable(variable, _) => {
-            let name = env.lookup_identifier(variable);
+            let template = env.lookup_variable(variable.identifier);
+
+            let name = expand_template(template, variable.r#type, block, env, alloc);
             Atom::Variable(name)
         }
         ir::ast::Expr::Literal(ir::ast::Literal::Integer(int), _) => {
@@ -26,51 +28,51 @@ pub fn expr<'old, 'new, 'names, 'ident>(
             function,
             arguments,
             ..
-        } => todo!(),
+        } => {
+            let desugared_function = expr(*function, block, env, alloc);
+            let desugared_arguments = alloc
+                .alloc_slice_fill_iter(arguments.iter().map(|arg| expr(*arg, block, env, alloc)));
+            let call = Expr::Call {
+                function: alloc.alloc(desugared_function),
+                arguments: desugared_arguments,
+            };
+            let result_name = block.fresh_name();
+            block.with_statement(Statement {
+                variable: result_name,
+                r#type: todo!(),
+                value: call,
+            });
+            Atom::Variable(result_name)
+        }
         ir::ast::Expr::Operation {
             operator,
             arguments,
-            span,
+            ..
         } => todo!(),
-        ir::ast::Expr::StructLiteral { name, fields, span } => {
-            let type_name = env.lookup_identifier(name);
-            let desugared_fields =
-                alloc.alloc_slice_fill_iter(fields.iter().map(|f| field(*f, block, env, alloc)));
-            let result = block.fresh_name();
-            block.with_statement(Statement {
-                variable: result,
-                r#type: Type::Named { name: type_name },
-                value: Expr::Struct {
-                    fields: desugared_fields,
-                },
-            });
-            Atom::Variable(result)
-        }
+        ir::ast::Expr::StructLiteral { name, fields, .. } => todo!(),
         ir::ast::Expr::Block(_) => todo!(),
         ir::ast::Expr::Annotated {
-            expr,
-            annotation,
-            span,
+            expr, annotation, ..
         } => todo!(),
         ir::ast::Expr::Case {
             predicate,
             branches,
-            span,
+            ..
         } => todo!(),
     }
 }
 
-pub fn field<'old, 'new, 'names, 'ident>(
-    to_desugar: typed::Field<'old, 'ident>,
+pub fn expand_template<'old, 'new, 'names, 'ident>(
+    template: VariableTemplate<'old, 'ident>,
+    instance_type: qualified::Type<'old, 'ident>,
     block: &mut builder::Block<'names, 'new>,
-    env: &mut Env<'ident>,
+    env: &mut Env<'old, 'ident>,
     alloc: &General<'new>,
-) -> Field {
-    let desugared_name = env.lookup_identifier(to_desugar.name);
-    let desugared_value = expr(to_desugar.value, block, env, alloc);
-
-    Field {
-        name: desugared_name,
-        value: desugared_value,
+) -> Name {
+    match template {
+        VariableTemplate::Monomorphic { name } => name,
+        VariableTemplate::Polymorphic { .. } => {
+            todo!()
+        }
     }
 }
