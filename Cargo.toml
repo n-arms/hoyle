@@ -16,6 +16,7 @@ members = [
   "type_checker",
 
   # Backend
+  "metadata",
   "desugar",
   
   # Internal

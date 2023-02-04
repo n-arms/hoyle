@@ -42,24 +42,40 @@ pub enum IdentifierSource {
     Global(Path),
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug)]
+pub struct LocalTagSource<'t> {
+    module: u32,
+    tags: &'t TagSource,
+}
+
+impl<'t> LocalTagSource<'t> {
+    pub fn new(module: u32, tags: &'t TagSource) -> Self {
+        Self { module, tags }
+    }
+
+    pub fn fresh_tag(&self) -> Tag {
+        self.tags.fresh_tag(self.module)
+    }
+
+    pub fn fresh_identifier<'ident>(&self, name: &'ident str) -> Identifier<'ident> {
+        self.tags.fresh_identifier(name, self.module)
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct TagSource {
-    unused_identifier: Rc<Cell<u32>>,
+    unused_identifier: Cell<u32>,
 }
 
 impl TagSource {
-    pub fn fresh_tag(&mut self, module: u32) -> Tag {
+    pub fn fresh_tag(&self, module: u32) -> Tag {
         let identifier = self.unused_identifier.get();
         let tag = Tag { module, identifier };
         self.unused_identifier.set(identifier + 1);
         tag
     }
 
-    pub fn fresh_identifier<'ident>(
-        &mut self,
-        name: &'ident str,
-        module: u32,
-    ) -> Identifier<'ident> {
+    pub fn fresh_identifier<'ident>(&self, name: &'ident str, module: u32) -> Identifier<'ident> {
         Identifier {
             tag: self.fresh_tag(module),
             name,
