@@ -143,6 +143,7 @@ pub fn substitute_types<'expr, 'ident>(
     }
 }
 
+#[must_use]
 pub fn is_unification(identifier: qualified::Identifier) -> bool {
     identifier.name == "unification"
 }

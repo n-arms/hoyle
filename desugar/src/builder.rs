@@ -9,6 +9,7 @@ pub struct Program<'names, 'expr> {
 }
 
 impl<'names, 'expr> Program<'names, 'expr> {
+    #[must_use]
     pub const fn new(names: LocalTagSource<'names>) -> Self {
         Self {
             structs: Vec::new(),
@@ -46,7 +47,8 @@ pub struct Block<'names, 'expr> {
 }
 
 impl<'names, 'expr> Block<'names, 'expr> {
-    pub fn new(names: LocalTagSource<'names>) -> Self {
+    #[must_use]
+    pub const fn new(names: LocalTagSource<'names>) -> Self {
         Self {
             statements: Vec::new(),
             names,

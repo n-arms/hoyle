@@ -1,5 +1,5 @@
 use ir::desugared::Type;
-use ir::metadata::*;
+use ir::metadata::{Function, Metadata};
 use ir::qualified::{Identifier, Primitives, Tag};
 use std::collections::HashMap;
 
@@ -11,6 +11,7 @@ pub struct Env<'old, 'new, 'ident, 'meta> {
 }
 
 impl<'old, 'new, 'ident, 'meta> Env<'old, 'new, 'ident, 'meta> {
+    #[must_use]
     pub fn new(
         metadata: &'meta Metadata<'old, 'ident>,
         primitives: Primitives<'ident>,
@@ -24,6 +25,7 @@ impl<'old, 'new, 'ident, 'meta> Env<'old, 'new, 'ident, 'meta> {
         }
     }
 
+    #[must_use]
     pub fn lookup_variable(&self, variable: Identifier<'ident>) -> Option<Function<'old, 'ident>> {
         self.metadata.functions.get(&variable).copied()
     }
@@ -32,6 +34,7 @@ impl<'old, 'new, 'ident, 'meta> Env<'old, 'new, 'ident, 'meta> {
         self.rebound_generics.insert(generic, rebound_type);
     }
 
+    #[must_use]
     pub fn lookup_generic(&self, generic: Tag) -> Type<'new> {
         self.rebound_generics
             .get(&generic)

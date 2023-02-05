@@ -1,7 +1,7 @@
 use crate::builder;
 use crate::env::Env;
 use arena_alloc::General;
-use ir::desugared::*;
+use ir::desugared::{Argument, Atom, Expr, FunctionDefinition, Literal, Program, Statement, Type};
 use ir::qualified::{self, LocalTagSource};
 use ir::typed;
 use type_checker::extract::Typeable;
@@ -47,7 +47,7 @@ pub fn definition<'old, 'new, 'names, 'ident, 'meta>(
                     Type::Any {
                         metadata: Expr::Atom(Atom::Variable(generic.identifier.tag)),
                     },
-                )
+                );
             }
 
             let mut block = builder::Block::new(program.names);
@@ -56,7 +56,7 @@ pub fn definition<'old, 'new, 'names, 'ident, 'meta>(
                 if let typed::Pattern::Variable(identifier, ..) = argument.pattern {
                     desugared_arguments.push(Argument {
                         name: identifier.identifier.tag,
-                        r#type: r#type(argument.type_annotation, &mut block, env, alloc),
+                        r#type: r#type(argument.type_annotation, env, alloc),
                     });
                 } else {
                     todo!()
@@ -111,7 +111,7 @@ pub fn expr<'old, 'new, 'names, 'ident, 'meta>(
             let call_result = if let qualified::Type::Arrow { return_type, .. } =
                 function.extract(&env.primitives)
             {
-                r#type(*return_type, block, env, alloc)
+                r#type(*return_type, env, alloc)
             } else {
                 unreachable!()
             };
@@ -140,9 +140,8 @@ pub fn expr<'old, 'new, 'names, 'ident, 'meta>(
     }
 }
 
-fn r#type<'old, 'new, 'names, 'ident, 'meta>(
+fn r#type<'old, 'new, 'ident, 'meta>(
     to_desugar: qualified::Type<'old, 'ident>,
-    block: &mut builder::Block<'names, 'new>,
     env: &mut Env<'old, 'new, 'ident, 'meta>,
     alloc: &General<'new>,
 ) -> Type<'new> {
@@ -154,8 +153,8 @@ fn r#type<'old, 'new, 'names, 'ident, 'meta>(
             ..
         } => Type::Function {
             arguments: alloc
-                .alloc_slice_fill_iter(arguments.iter().map(|arg| r#type(*arg, block, env, alloc))),
-            result: alloc.alloc(r#type(*return_type, block, env, alloc)),
+                .alloc_slice_fill_iter(arguments.iter().map(|arg| r#type(*arg, env, alloc))),
+            result: alloc.alloc(r#type(*return_type, env, alloc)),
         },
     }
 }

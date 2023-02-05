@@ -1,7 +1,7 @@
 use crate::read::ExitStatus;
 use arena_alloc::*;
 use bumpalo::Bump;
-use ir::qualified::{self, LocalTagSource, Primitives, TagSource, Type};
+use ir::qualified::{LocalTagSource, Primitives, TagSource};
 use ir::token::*;
 use qualifier::definitions::Local;
 use type_checker::{env::*, infer};
@@ -120,6 +120,12 @@ impl<'a> Repl<'a> {
             tree1_alloc,
             tree2_alloc,
         }
+    }
+
+    pub fn with_mode(&mut self, qualify: bool, type_check: bool, desugar: bool) {
+        self.qualify = qualify;
+        self.type_check = type_check;
+        self.desugar = desugar;
     }
 
     pub fn run(&mut self, tokens: List) -> ExitStatus {

@@ -1,17 +1,11 @@
 use arena_alloc::*;
 use bumpalo::Bump;
-use ir::{
-    ast::Field,
-    qualified::{TagSource, Type},
-};
+use ir::qualified::Primitives;
+use ir::qualified::{LocalTagSource, TagSource, Type};
 use lexer::scan_tokens;
 use qualifier::definitions::Local;
 use std::fmt::{Debug, Display};
-use type_checker::{
-    check,
-    env::{Env, Primitives},
-    infer,
-};
+use type_checker::{env::Env, infer};
 
 fn run_syntactic_frontend<'src, 'ident, 'ast>(
     text: &'src str,
@@ -49,19 +43,6 @@ fn run_syntactic_frontend<'src, 'ident, 'ast>(
     Ok(ast_program)
 }
 
-fn extract_primitives<'old, 'new, 'ident>(defs: Local<'old, 'ident>) -> Primitives<'new, 'ident> {
-    Primitives {
-        int: Type::Named {
-            name: defs.lookup_type("int").unwrap(),
-            span: None,
-        },
-        bool: Type::Named {
-            name: defs.lookup_type("bool").unwrap(),
-            span: None,
-        },
-    }
-}
-
 #[allow(dead_code)]
 fn run_semantic_frontend<'src, 'ident, 'qual>(
     ast: ir::ast::Program<'_, &'ident str, &'ident str>,
@@ -70,7 +51,12 @@ fn run_semantic_frontend<'src, 'ident, 'qual>(
 ) -> Result<ir::typed::Program<'qual, 'ident>, String> {
     let qualified_tree = Bump::new();
     let tags = TagSource::default();
-    let mut defs = Local::new(1, tags.clone());
+    let primitives = Primitives {
+        int: tags.fresh_identifier("int", 0),
+        bool: tags.fresh_identifier("bool", 0),
+    };
+    let local_tags = LocalTagSource::new(1, &tags);
+    let mut defs = Local::new(local_tags, primitives);
     let qualified_program = match qualifier::qualifier::program(
         ast,
         &mut defs,
@@ -86,7 +72,7 @@ fn run_semantic_frontend<'src, 'ident, 'qual>(
         }
     };
 
-    let mut env = Env::new(tags, extract_primitives(defs));
+    let mut env = Env::new(local_tags, primitives);
     let typed_program = match infer::program(
         qualified_program,
         &mut env,

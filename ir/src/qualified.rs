@@ -1,7 +1,6 @@
 use crate::ast;
 use std::cell::Cell;
 use std::fmt::{Debug, Formatter};
-use std::rc::Rc;
 
 pub type Type<'expr, 'ident> = ast::Type<'expr, Identifier<'ident>>;
 
@@ -24,6 +23,7 @@ pub struct Identifier<'ident> {
 }
 
 impl<'ident> Identifier<'ident> {
+    #[must_use]
     pub const fn new(tag: Tag, name: &'ident str) -> Self {
         Self { tag, name }
     }
@@ -61,14 +61,16 @@ pub struct LocalTagSource<'t> {
 }
 
 impl<'t> LocalTagSource<'t> {
-    pub fn new(module: u32, tags: &'t TagSource) -> Self {
+    pub const fn new(module: u32, tags: &'t TagSource) -> Self {
         Self { module, tags }
     }
 
+    #[must_use]
     pub fn fresh_tag(&self) -> Tag {
         self.tags.fresh_tag(self.module)
     }
 
+    #[must_use]
     pub fn fresh_identifier<'ident>(&self, name: &'ident str) -> Identifier<'ident> {
         self.tags.fresh_identifier(name, self.module)
     }
