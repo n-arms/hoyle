@@ -17,3 +17,10 @@ pub struct Metadata<'expr, 'ident> {
     pub functions: HashMap<Identifier<'ident>, Function<'expr, 'ident>>,
     pub structs: HashMap<Identifier<'ident>, Struct>,
 }
+
+impl<'expr, 'ident> Metadata<'expr, 'ident> {
+    pub fn merge(&mut self, other: &Self) {
+        self.functions.extend(other.functions.iter());
+        self.structs.extend(other.structs.iter());
+    }
+}

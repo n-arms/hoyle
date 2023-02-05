@@ -1,6 +1,7 @@
 use crate::read::ExitStatus;
 use arena_alloc::*;
 use bumpalo::Bump;
+use ir::metadata::Metadata;
 use ir::qualified::{LocalTagSource, Primitives, TagSource};
 use ir::token::*;
 use qualifier::definitions::Local;
@@ -17,6 +18,7 @@ pub struct Repl<'a> {
     local_tags: LocalTagSource<'a>,
     primitives: Primitives<'a>,
     metadata_type: ir::desugared::Type<'a>,
+    metadata: Metadata<'a, 'a>,
 
     ident_alloc: &'a Bump,
     tree1_alloc: &'a Bump,
@@ -115,6 +117,7 @@ impl<'a> Repl<'a> {
             local_tags: LocalTagSource::new(1, tags),
             primitives,
             metadata_type,
+            metadata: Metadata::default(),
 
             ident_alloc,
             tree1_alloc,
@@ -203,9 +206,11 @@ impl<'a> Repl<'a> {
 
         let desugar_alloc = General::new(self.tree2_alloc);
 
-        let metadata = metadata::program(typed_program, self.local_tags, &desugar_alloc);
+        let new_metadata = metadata::program(typed_program, self.local_tags, &desugar_alloc);
 
-        let mut env = desugar::env::Env::new(&metadata, self.primitives, self.metadata_type);
+        self.metadata.merge(&new_metadata);
+
+        let mut env = desugar::env::Env::new(&self.metadata, self.primitives, self.metadata_type);
 
         let desugared_program =
             desugar::desugar::program(typed_program, self.local_tags, &mut env, &desugar_alloc);
