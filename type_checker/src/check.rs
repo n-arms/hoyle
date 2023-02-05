@@ -9,10 +9,10 @@ use arena_alloc::{General, Interning, Specialized};
 use ir::qualified::{self, Type};
 use ir::typed::{Branch, Expr, Field, FieldDefinition, Identifier, Pattern, PatternField};
 
-pub fn expr<'old, 'new, 'ident>(
+pub fn expr<'old, 'new, 'ident, 'names>(
     to_check: qualified::Expr<'old, 'ident>,
     target: Type<'new, 'ident>,
-    env: &mut Env<'new, 'ident>,
+    env: &mut Env<'new, 'ident, 'names>,
     substitution: &mut Substitution<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
@@ -24,10 +24,10 @@ pub fn expr<'old, 'new, 'ident>(
     Ok(typed_expr)
 }
 
-pub fn field<'old, 'new, 'ident>(
+pub fn field<'old, 'new, 'ident, 'names>(
     to_check: qualified::Field<'old, 'ident>,
     target_fields: &'new [FieldDefinition<'new, 'ident>],
-    env: &mut Env<'new, 'ident>,
+    env: &mut Env<'new, 'ident, 'names>,
     substitution: &mut Substitution<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
@@ -53,10 +53,10 @@ pub fn field<'old, 'new, 'ident>(
     })
 }
 
-pub fn pattern_field<'old, 'new, 'ident>(
+pub fn pattern_field<'old, 'new, 'ident, 'names>(
     to_check: qualified::PatternField<'old, 'ident>,
     target_fields: &'new [FieldDefinition<'new, 'ident>],
-    env: &mut Env<'new, 'ident>,
+    env: &mut Env<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, PatternField<'new, 'ident>> {
@@ -80,10 +80,10 @@ pub fn pattern_field<'old, 'new, 'ident>(
     })
 }
 
-pub fn pattern<'old, 'new, 'ident>(
+pub fn pattern<'old, 'new, 'ident, 'names>(
     to_check: qualified::Pattern<'old, 'ident>,
     target: Type<'new, 'ident>,
-    env: &mut Env<'new, 'ident>,
+    env: &mut Env<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, Pattern<'new, 'ident>> {
@@ -115,10 +115,10 @@ pub fn pattern<'old, 'new, 'ident>(
     }
 }
 
-pub fn branch<'old, 'new, 'ident>(
+pub fn branch<'old, 'new, 'ident, 'names>(
     to_check: qualified::Branch<'old, 'ident>,
     target_pattern_type: Type<'new, 'ident>,
-    env: &mut Env<'new, 'ident>,
+    env: &mut Env<'new, 'ident, 'names>,
     substitution: &mut Substitution<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,

@@ -5,6 +5,12 @@ use std::rc::Rc;
 
 pub type Type<'expr, 'ident> = ast::Type<'expr, Identifier<'ident>>;
 
+#[derive(Copy, Clone)]
+pub struct Primitives<'ident> {
+    pub int: Identifier<'ident>,
+    pub bool: Identifier<'ident>,
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Tag {
     pub module: u32,
@@ -15,6 +21,12 @@ pub struct Tag {
 pub struct Identifier<'ident> {
     pub tag: Tag,
     pub name: &'ident str,
+}
+
+impl<'ident> Identifier<'ident> {
+    pub const fn new(tag: Tag, name: &'ident str) -> Self {
+        Self { tag, name }
+    }
 }
 
 #[derive(Copy, Clone, Debug)]

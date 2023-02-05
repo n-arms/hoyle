@@ -1,3 +1,5 @@
+use crate::qualified::Tag;
+
 #[derive(Copy, Clone, Debug)]
 pub struct Program<'expr> {
     pub functions: &'expr [FunctionDefinition<'expr>],
@@ -5,25 +7,15 @@ pub struct Program<'expr> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Name {
-    index: usize,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct Label {
-    name: Name,
-}
-
-#[derive(Copy, Clone, Debug)]
 pub struct FunctionDefinition<'expr> {
-    pub label: Label,
+    pub label: Tag,
     pub arguments: &'expr [Argument<'expr>],
     pub body: Block<'expr>,
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct Argument<'expr> {
-    pub name: Name,
+    pub name: Tag,
     pub r#type: Type<'expr>,
 }
 
@@ -35,7 +27,7 @@ pub struct Block<'expr> {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Statement<'expr> {
-    pub variable: Name,
+    pub variable: Tag,
     pub r#type: Type<'expr>,
     pub value: Expr<'expr>,
 }
@@ -45,7 +37,7 @@ pub enum Expr<'expr> {
     Atom(Atom),
     FieldAccess {
         r#struct: Atom,
-        field: Name,
+        field: Tag,
     },
     Struct {
         fields: &'expr [Field],
@@ -58,14 +50,13 @@ pub enum Expr<'expr> {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Field {
-    pub name: Name,
+    pub name: Tag,
     pub value: Atom,
 }
 
 #[derive(Copy, Clone, Debug)]
 pub enum Atom {
-    Variable(Name),
-    Function(Label),
+    Variable(Tag),
     Literal(Literal),
 }
 
@@ -76,13 +67,13 @@ pub enum Literal {
 
 #[derive(Copy, Clone, Debug)]
 pub struct StructDefinition<'expr> {
-    pub name: Name,
+    pub name: Tag,
     pub fields: &'expr [FieldDefinition<'expr>],
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct FieldDefinition<'expr> {
-    pub name: Name,
+    pub name: Tag,
     pub r#type: Type<'expr>,
 }
 
@@ -96,20 +87,9 @@ pub enum Type<'expr> {
         value: &'expr Type<'expr>,
     },
     Named {
-        name: Name,
+        name: Tag,
     },
-    Any,
-}
-
-#[derive(Debug, Default)]
-pub struct NameSource {
-    unused: usize,
-}
-
-impl NameSource {
-    pub fn fresh(&mut self) -> Name {
-        let index = self.unused;
-        self.unused += 1;
-        Name { index }
-    }
+    Any {
+        metadata: Expr<'expr>,
+    },
 }

@@ -2,30 +2,25 @@ use crate::error::{Error, Result};
 use crate::extract::struct_type;
 use crate::substitute::{Substitute, Substitution};
 use arena_alloc::General;
-use ir::qualified::{self, TagSource, Type};
+use ir::qualified::{self, LocalTagSource, Primitives, Type};
 use ir::typed::{FieldDefinition, Identifier};
 use std::collections::HashMap;
-
-pub struct Primitives<'expr, 'ident> {
-    pub int: Type<'expr, 'ident>,
-    pub bool: Type<'expr, 'ident>,
-}
 
 pub struct QualifiedIdentifier<'expr, 'ident> {
     forall: Vec<qualified::Identifier<'ident>>,
     identifier: Identifier<'expr, 'ident>,
 }
 
-pub struct Env<'expr, 'ident> {
+pub struct Env<'expr, 'ident, 'names> {
     variables: HashMap<qualified::Identifier<'ident>, QualifiedIdentifier<'expr, 'ident>>,
     structs: HashMap<qualified::Identifier<'ident>, &'expr [FieldDefinition<'expr, 'ident>]>,
-    pub primitives: Primitives<'expr, 'ident>,
-    pub tags: TagSource,
+    pub primitives: Primitives<'ident>,
+    pub tags: LocalTagSource<'names>,
 }
 
-impl<'expr, 'ident> Env<'expr, 'ident> {
+impl<'expr, 'ident, 'names> Env<'expr, 'ident, 'names> {
     #[must_use]
-    pub fn new(tags: TagSource, primitives: Primitives<'expr, 'ident>) -> Self {
+    pub fn new(tags: LocalTagSource<'names>, primitives: Primitives<'ident>) -> Self {
         Self {
             primitives,
             variables: HashMap::default(),
@@ -87,7 +82,7 @@ impl<'expr, 'ident> Env<'expr, 'ident> {
             .forall
             .iter()
             .map(|type_var| {
-                let new_type_var = self.tags.fresh_identifier("unification", 0);
+                let new_type_var = self.tags.fresh_identifier("unification");
                 (
                     *type_var,
                     Type::Named {

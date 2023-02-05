@@ -1,11 +1,13 @@
 use crate::qualified::{Identifier, Tag, Type};
 use std::collections::HashMap;
 
+#[derive(Copy, Clone)]
 pub struct Function<'expr, 'ident> {
     pub generic_type: Type<'expr, 'ident>,
     pub generic_args: &'expr [Identifier<'ident>],
 }
 
+#[derive(Copy, Clone)]
 pub struct Struct {
     pub metadata_constructor: Tag,
 }

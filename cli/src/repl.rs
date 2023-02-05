@@ -1,7 +1,7 @@
 use crate::read::ExitStatus;
 use arena_alloc::*;
 use bumpalo::Bump;
-use ir::qualified::{TagSource, Type};
+use ir::qualified::{self, LocalTagSource, Primitives, TagSource, Type};
 use ir::token::*;
 use qualifier::definitions::Local;
 use type_checker::{env::*, infer};
@@ -11,8 +11,12 @@ pub struct Repl<'a> {
     type_check: bool,
     desugar: bool,
 
-    definitions: Local<'a, 'a>,
-    env: Env<'a, 'a>,
+    definitions: Local<'a, 'a, 'a>,
+    env: Env<'a, 'a, 'a>,
+
+    local_tags: LocalTagSource<'a>,
+    primitives: Primitives<'a>,
+    metadata_type: ir::desugared::Type<'a>,
 
     ident_alloc: &'a Bump,
     tree1_alloc: &'a Bump,
@@ -91,25 +95,26 @@ fn parse_command<'a>(tokens: impl IntoIterator<Item = Token<'a>>) -> Option<Comm
 
 impl<'a> Repl<'a> {
     pub fn new(ident_alloc: &'a Bump, tree1_alloc: &'a Bump, tree2_alloc: &'a Bump) -> Self {
-        let tags = TagSource::default();
-        let definitions = Local::new(1, tags.clone());
+        let tags = ident_alloc.alloc(TagSource::default());
         let primitives = Primitives {
-            int: Type::Named {
-                name: definitions.lookup_type("int").unwrap(),
-                span: None,
-            },
-            bool: Type::Named {
-                name: definitions.lookup_type("bool").unwrap(),
-                span: None,
-            },
+            int: tags.fresh_identifier("int", 0),
+            bool: tags.fresh_identifier("bool", 0),
         };
+        let metadata_type = ir::desugared::Type::Named {
+            name: tags.fresh_tag(0),
+        };
+        let definitions = Local::new(LocalTagSource::new(1, tags), primitives);
         Self {
             qualify: true,
             type_check: true,
             desugar: false,
 
-            env: Env::new(tags, primitives),
+            env: Env::new(LocalTagSource::new(0, tags), primitives),
             definitions,
+
+            local_tags: LocalTagSource::new(1, tags),
+            primitives,
+            metadata_type,
 
             ident_alloc,
             tree1_alloc,
@@ -185,7 +190,21 @@ impl<'a> Repl<'a> {
                 }
             };
 
-        println!("{:#?}", typed_program);
+        if !self.desugar {
+            println!("{:#?}", typed_program);
+            return ExitStatus::Okay;
+        }
+
+        let desugar_alloc = General::new(self.tree2_alloc);
+
+        let metadata = metadata::program(typed_program, self.local_tags, &desugar_alloc);
+
+        let mut env = desugar::env::Env::new(&metadata, self.primitives, self.metadata_type);
+
+        let desugared_program =
+            desugar::desugar::program(typed_program, self.local_tags, &mut env, &desugar_alloc);
+
+        println!("{:#?}", desugared_program);
 
         ExitStatus::Okay
     }

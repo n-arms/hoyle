@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 arena_alloc = { path = "../arena_alloc" }
 ir = { path = "../ir" }
+type_checker = { path = "../type_checker" }

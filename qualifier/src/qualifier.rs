@@ -7,9 +7,9 @@ use ir::qualified::{
     PatternField, Program, Statement, Type,
 };
 
-pub fn program<'old, 'new, 'ident>(
+pub fn program<'old, 'new, 'ident, 'names>(
     to_qualify: ast::Program<'old, &'ident str, &'ident str>,
-    definitions: &mut Local<'new, 'ident>,
+    definitions: &mut Local<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'old, 'new, 'ident, Program<'new, 'ident>> {
@@ -25,9 +25,9 @@ pub fn program<'old, 'new, 'ident>(
     })
 }
 
-pub fn definition<'old, 'new, 'ident>(
+pub fn definition<'old, 'new, 'ident, 'names>(
     to_qualify: ast::Definition<'old, &'ident str, &'ident str>,
-    definitions: &mut Local<'new, 'ident>,
+    definitions: &mut Local<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'old, 'new, 'ident, Definition<'new, 'ident>> {
@@ -86,9 +86,9 @@ pub fn definition<'old, 'new, 'ident>(
     }
 }
 
-pub fn generic<'old, 'new, 'ident>(
+pub fn generic<'old, 'new, 'ident, 'names>(
     to_qualify: ast::Generic<&'ident str>,
-    definitions: &mut Local<'new, 'ident>,
+    definitions: &mut Local<'new, 'ident, 'names>,
 ) -> Result<'old, 'new, 'ident, Generic<'ident>> {
     let identifier = definitions.define_local_type(to_qualify.identifier);
 
@@ -98,9 +98,9 @@ pub fn generic<'old, 'new, 'ident>(
     })
 }
 
-pub fn field_definition<'old, 'new, 'ident>(
+pub fn field_definition<'old, 'new, 'ident, 'names>(
     to_qualify: ast::FieldDefinition<'old, &'ident str, &'ident str>,
-    definitions: &mut Local<'new, 'ident>,
+    definitions: &mut Local<'new, 'ident, 'names>,
     general: &General<'new>,
 ) -> Result<'old, 'new, 'ident, FieldDefinition<'new, 'ident>> {
     let qualified_field_type = r#type(to_qualify.field_type, definitions, general)?;
@@ -113,9 +113,9 @@ pub fn field_definition<'old, 'new, 'ident>(
     })
 }
 
-pub fn argument<'old, 'new, 'ident>(
+pub fn argument<'old, 'new, 'ident, 'names>(
     to_qualify: ast::Argument<'old, &'ident str, &'ident str>,
-    definitions: &mut Local<'new, 'ident>,
+    definitions: &mut Local<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'old, 'new, 'ident, Argument<'new, 'ident>> {
@@ -129,9 +129,9 @@ pub fn argument<'old, 'new, 'ident>(
     })
 }
 
-pub fn statement<'old, 'new, 'ident>(
+pub fn statement<'old, 'new, 'ident, 'names>(
     to_qualify: ast::Statement<'old, &'ident str, &'ident str>,
-    definitions: &mut Local<'new, 'ident>,
+    definitions: &mut Local<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'old, 'new, 'ident, Statement<'new, 'ident>> {
@@ -158,10 +158,10 @@ pub fn statement<'old, 'new, 'ident>(
     }
 }
 
-pub fn pattern_field<'old, 'new, 'ident>(
+pub fn pattern_field<'old, 'new, 'ident, 'names>(
     to_qualify: ast::PatternField<'old, &'ident str>,
     target_fields: &'new [FieldDefinition<'new, 'ident>],
-    definitions: &mut Local<'new, 'ident>,
+    definitions: &mut Local<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'old, 'new, 'ident, PatternField<'new, 'ident>> {
@@ -179,9 +179,9 @@ pub fn pattern_field<'old, 'new, 'ident>(
     })
 }
 
-pub fn pattern<'old, 'new, 'ident>(
+pub fn pattern<'old, 'new, 'ident, 'names>(
     to_qualify: ast::Pattern<'old, &'ident str>,
-    definitions: &mut Local<'new, 'ident>,
+    definitions: &mut Local<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'old, 'new, 'ident, Pattern<'new, 'ident>> {
@@ -204,9 +204,9 @@ pub fn pattern<'old, 'new, 'ident>(
     }
 }
 
-pub fn block<'old, 'new, 'ident>(
+pub fn block<'old, 'new, 'ident, 'names>(
     to_qualify: ast::Block<'old, &'ident str, &'ident str>,
-    definitions: &mut Local<'new, 'ident>,
+    definitions: &mut Local<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'old, 'new, 'ident, Block<'new, 'ident>> {
@@ -229,9 +229,9 @@ pub fn block<'old, 'new, 'ident>(
     })
 }
 
-pub fn r#type<'old, 'new, 'ident>(
+pub fn r#type<'old, 'new, 'ident, 'names>(
     to_qualify: ast::Type<'old, &'ident str>,
-    definitions: &mut Local<'new, 'ident>,
+    definitions: &mut Local<'new, 'ident, 'names>,
     general: &General<'new>,
 ) -> Result<'old, 'new, 'ident, Type<'new, 'ident>> {
     match to_qualify {
@@ -265,10 +265,10 @@ pub fn r#type<'old, 'new, 'ident>(
     }
 }
 
-pub fn field<'old, 'new, 'ident>(
+pub fn field<'old, 'new, 'ident, 'names>(
     to_qualify: ast::Field<'old, &'ident str, &'ident str>,
     target_fields: &'new [FieldDefinition<'new, 'ident>],
-    definitions: &mut Local<'new, 'ident>,
+    definitions: &mut Local<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'old, 'new, 'ident, Field<'new, 'ident>> {
@@ -288,9 +288,9 @@ pub fn field<'old, 'new, 'ident>(
     })
 }
 
-pub fn branch<'old, 'new, 'ident>(
+pub fn branch<'old, 'new, 'ident, 'names>(
     to_qualify: ast::Branch<'old, &'ident str, &'ident str>,
-    definitions: &mut Local<'new, 'ident>,
+    definitions: &mut Local<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'old, 'new, 'ident, Branch<'new, 'ident>> {
@@ -304,9 +304,9 @@ pub fn branch<'old, 'new, 'ident>(
     })
 }
 
-pub fn expr<'old, 'new, 'ident>(
+pub fn expr<'old, 'new, 'ident, 'names>(
     to_qualify: ast::Expr<'old, &'ident str, &'ident str>,
-    definitions: &mut Local<'new, 'ident>,
+    definitions: &mut Local<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'old, 'new, 'ident, Expr<'new, 'ident>> {

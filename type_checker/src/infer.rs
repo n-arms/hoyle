@@ -11,9 +11,9 @@ use ir::typed::{
     Argument, Block, Definition, Expr, FieldDefinition, Identifier, Program, Statement,
 };
 
-pub fn program<'old, 'new, 'ident>(
+pub fn program<'old, 'new, 'ident, 'names>(
     to_infer: qualified::Program<'old, 'ident>,
-    env: &mut Env<'new, 'ident>,
+    env: &mut Env<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, Program<'new, 'ident>> {
@@ -62,9 +62,9 @@ where
     }
 }
 
-pub fn definition<'old, 'new, 'ident>(
+pub fn definition<'old, 'new, 'ident, 'names>(
     to_infer: qualified::Definition<'old, 'ident>,
-    env: &mut Env<'new, 'ident>,
+    env: &mut Env<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, Definition<'new, 'ident>> {
@@ -144,9 +144,9 @@ pub fn definition<'old, 'new, 'ident>(
     }
 }
 
-pub fn argument<'old, 'new, 'ident>(
+pub fn argument<'old, 'new, 'ident, 'names>(
     to_infer: qualified::Argument<'old, 'ident>,
-    env: &mut Env<'new, 'ident>,
+    env: &mut Env<'new, 'ident, 'names>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
 ) -> Result<'new, 'ident, Argument<'new, 'ident>> {
@@ -160,9 +160,9 @@ pub fn argument<'old, 'new, 'ident>(
     })
 }
 
-pub fn block<'old, 'new, 'ident>(
+pub fn block<'old, 'new, 'ident, 'names>(
     to_infer: qualified::Block<'old, 'ident>,
-    env: &mut Env<'new, 'ident>,
+    env: &mut Env<'new, 'ident, 'names>,
     substitution: &mut Substitution<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
@@ -188,9 +188,9 @@ pub fn block<'old, 'new, 'ident>(
     })
 }
 
-pub fn statement<'old, 'new, 'ident>(
+pub fn statement<'old, 'new, 'ident, 'names>(
     to_infer: qualified::Statement<'old, 'ident>,
-    env: &mut Env<'new, 'ident>,
+    env: &mut Env<'new, 'ident, 'names>,
     substitution: &mut Substitution<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
@@ -255,9 +255,9 @@ pub fn literal<'old, 'new, 'ident>(
     }
 }
 
-pub fn expr<'old, 'new, 'ident>(
+pub fn expr<'old, 'new, 'ident, 'names>(
     to_infer: qualified::Expr<'old, 'ident>,
-    env: &mut Env<'new, 'ident>,
+    env: &mut Env<'new, 'ident, 'names>,
     substitution: &mut Substitution<'new, 'ident>,
     interner: &Interning<'ident, Specialized>,
     general: &General<'new>,
