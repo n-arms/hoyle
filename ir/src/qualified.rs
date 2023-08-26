@@ -29,13 +29,13 @@ pub struct StructDefinition<'expr> {
     pub span: Span,
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Tag {
     pub module: u32,
     pub key: u32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Identifier {
     pub name: SmartString<LazyCompact>,
     pub tag: Tag,

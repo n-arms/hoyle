@@ -1,43 +1,44 @@
 use crate::pattern::pattern;
-use crate::util::{identifier, list, or_try, propagate, token, Irrecoverable, Result};
+use crate::util::{identifier, list, or_try, propagate, token, Irrecoverable, Recoverable, Result};
 use arena_alloc::{General, Interning, Specialized};
-use ir::ast::{Block, Branch, Expr, Field, Literal, Span, Statement};
+use ir::source::{Block, Branch, Expr, Field, Literal, Span, Statement};
 use ir::token::{Kind, Token};
+use smartstring::{LazyCompact, SmartString};
 use std::iter::Peekable;
 
-fn literal<'src, 'ident, 'expr>(
+fn literal<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-) -> Result<Expr<'expr, &'ident str, &'ident str>> {
+) -> Result<Expr<'expr>> {
     let span = propagate!(token(text, Kind::Number));
-    Ok(Ok(Expr::Literal(
-        Literal::Integer(alloc.alloc_str(span.data)),
-        span.into(),
-    )))
+    Ok(Ok(Expr::Literal {
+        literal: Literal::Number(propagate!(Ok(span
+            .data
+            .parse()
+            .map_err(|_| Recoverable::Expected(vec![Kind::Number], None))))),
+        span: span.into(),
+    }))
 }
 
-fn parens<'src, 'ident, 'expr>(
+fn parens<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, &'ident str, &'ident str>> {
+) -> Result<Expr<'expr>> {
     let _ = propagate!(token(text, Kind::LeftParen));
-    let expr = expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingParens)?;
+    let expr = expr(text, alloc)?.map_err(Irrecoverable::WhileParsingParens)?;
     let _ = token(text, Kind::RightParen)?.map_err(Irrecoverable::WhileParsingParens)?;
     Ok(Ok(expr))
 }
 
-pub fn struct_or_variable<'src, 'ident, 'expr>(
+pub fn struct_or_variable<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, &'ident str, &'ident str>> {
-    let identifier = propagate!(token(text, Kind::Identifier));
+) -> Result<Expr<'expr>> {
+    let (identifier, start) = propagate!(identifier(text));
 
     let struct_list = list(
         text,
         alloc,
-        interner,
         Kind::LeftBrace,
         Kind::RightBrace,
         &mut field,
@@ -46,42 +47,39 @@ pub fn struct_or_variable<'src, 'ident, 'expr>(
 
     if let Ok((fields, end)) = struct_list {
         Ok(Ok(Expr::StructLiteral {
-            name: interner.get_or_intern(identifier.data),
+            name: identifier,
             fields,
-            span: end.union(&identifier.into()),
+            span: end.union(&start),
         }))
     } else {
-        Ok(Ok(Expr::Variable(
-            interner.get_or_intern(identifier.data),
-            identifier.into(),
-        )))
+        Ok(Ok(Expr::Variable {
+            identifier,
+            span: start,
+        }))
     }
 }
 
-pub fn not_application<'src, 'ident, 'expr>(
+pub fn not_application<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, &'ident str, &'ident str>> {
+) -> Result<Expr<'expr>> {
     or_try!(
-        block(text, alloc, interner),
+        block(text, alloc),
         literal(text, alloc),
-        case(text, alloc, interner),
-        parens(text, alloc, interner),
-        struct_or_variable(text, alloc, interner)
+        case(text, alloc),
+        parens(text, alloc),
+        struct_or_variable(text, alloc)
     )
 }
 
-pub fn expr<'src, 'ident, 'expr>(
+pub fn expr<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, &'ident str, &'ident str>> {
-    let first = propagate!(not_application(text, alloc, interner));
+) -> Result<Expr<'expr>> {
+    let first = propagate!(not_application(text, alloc));
     let argument_list = list(
         text,
         alloc,
-        interner,
         Kind::LeftParen,
         Kind::RightParen,
         &mut expr,
@@ -96,12 +94,10 @@ pub fn expr<'src, 'ident, 'expr>(
         };
         Ok(Ok(call))
     } else if token(text, Kind::Dot)?.is_ok() {
-        let func =
-            not_application(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingUfc)?;
+        let func = not_application(text, alloc)?.map_err(Irrecoverable::WhileParsingUfc)?;
         let (arguments, end) = list(
             text,
             alloc,
-            interner,
             Kind::LeftParen,
             Kind::RightParen,
             &mut expr,
@@ -109,11 +105,11 @@ pub fn expr<'src, 'ident, 'expr>(
         )?
         .map_err(Irrecoverable::WhileParsingUfc)?;
 
+        let span = first.span().union(&end);
+
         let mut all_arguments = Vec::with_capacity(1 + arguments.len());
         all_arguments.push(first);
-        all_arguments.extend(arguments);
-
-        let span = first.span().union(&end);
+        all_arguments.extend(arguments.into_iter().cloned());
 
         let call = Expr::Call {
             function: alloc.alloc(func),
@@ -126,53 +122,44 @@ pub fn expr<'src, 'ident, 'expr>(
     }
 }
 
-fn field<'src, 'ident, 'expr>(
+fn field<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Field<'expr, &'ident str, &'ident str>> {
-    let (name, start) = propagate!(identifier(text, interner));
+) -> Result<Field<'expr>> {
+    let (name, start) = propagate!(identifier(text));
 
     let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingField)?;
 
-    let value = expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingField)?;
+    let value = expr(text, alloc)?.map_err(Irrecoverable::WhileParsingField)?;
 
-    Ok(Ok(Field {
-        name,
-        value,
-        span: start.union(&value.span()),
-    }))
+    Ok(Ok(Field { name, value }))
 }
 
-fn branch<'src, 'ident, 'expr>(
+fn branch<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Branch<'expr, &'ident str, &'ident str>> {
-    let pattern = propagate!(pattern(text, alloc, interner));
+) -> Result<Branch<'expr>> {
+    let pattern = propagate!(pattern(text, alloc));
     let _ = token(text, Kind::ThickArrow)?.map_err(Irrecoverable::WhileParsingBranch)?;
-    let body = expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingBranch)?;
+    let body = expr(text, alloc)?.map_err(Irrecoverable::WhileParsingBranch)?;
 
     Ok(Ok(Branch {
+        span: pattern.span().union(&body.span()),
         pattern,
         body,
-        span: pattern.span().union(&body.span()),
     }))
 }
 
-fn case<'src, 'ident, 'expr>(
+fn case<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, &'ident str, &'ident str>> {
+) -> Result<Expr<'expr>> {
     let start = propagate!(token(text, Kind::Case));
-    let predicate =
-        alloc.alloc(expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingCase)?);
+    let predicate = alloc.alloc(expr(text, alloc)?.map_err(Irrecoverable::WhileParsingCase)?);
     let _ = token(text, Kind::Of)?.map_err(Irrecoverable::WhileParsingCase)?;
     let (branches, end) = list(
         text,
         alloc,
-        interner,
         Kind::LeftBrace,
         Kind::RightBrace,
         &mut branch,
@@ -187,47 +174,43 @@ fn case<'src, 'ident, 'expr>(
     }))
 }
 
-fn r#let<'src, 'ident, 'expr>(
+fn r#let<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Statement<'expr, &'ident str, &'ident str>> {
+) -> Result<Statement<'expr>> {
     let start = propagate!(token(text, Kind::Let));
-    let left_side = pattern(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingLet)?;
+    let pattern = pattern(text, alloc)?.map_err(Irrecoverable::WhileParsingLet)?;
     let _ = token(text, Kind::SingleEquals)?.map_err(Irrecoverable::WhileParsingLet)?;
-    let right_side = expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingLet)?;
+    let value = expr(text, alloc)?.map_err(Irrecoverable::WhileParsingLet)?;
 
     Ok(Ok(Statement::Let {
-        left_side,
-        right_side,
-        span: right_side.span().union(&start.into()),
+        span: value.span().union(&start.into()),
+        pattern,
+        value,
     }))
 }
 
-fn raw<'src, 'ident, 'expr>(
+fn raw<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Statement<'expr, &'ident str, &'ident str>> {
-    let expr = propagate!(expr(text, alloc, interner));
+) -> Result<Statement<'expr>> {
+    let expr = propagate!(expr(text, alloc));
 
-    Ok(Ok(Statement::Raw(expr, expr.span())))
+    Ok(Ok(Statement::Raw(expr)))
 }
 
-fn statement<'src, 'ident, 'expr>(
+fn statement<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Statement<'expr, &'ident str, &'ident str>> {
-    or_try!(r#let(text, alloc, interner), r#raw(text, alloc, interner))
+) -> Result<Statement<'expr>> {
+    or_try!(r#let(text, alloc), r#raw(text, alloc))
 }
 
 #[allow(clippy::missing_panics_doc)]
-fn block<'src, 'ident, 'expr>(
+fn block<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Expr<'expr, &'ident str, &'ident str>> {
+) -> Result<Expr<'expr>> {
     let start = propagate!(token(text, Kind::LeftBrace));
     if let Ok(end) = token(text, Kind::RightBrace)? {
         return Ok(Ok(Expr::Block(Block {
@@ -236,7 +219,7 @@ fn block<'src, 'ident, 'expr>(
             span: Span::from(start).union(&end.into()),
         })));
     }
-    let first = statement(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingBlock)?;
+    let first = statement(text, alloc)?.map_err(Irrecoverable::WhileParsingBlock)?;
     let mut rest = vec![first];
 
     loop {
@@ -260,7 +243,7 @@ fn block<'src, 'ident, 'expr>(
                 span: Span::from(start).union(&end.into()),
             })));
         }
-        let stmt = statement(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingBlock)?;
+        let stmt = statement(text, alloc)?.map_err(Irrecoverable::WhileParsingBlock)?;
         rest.push(stmt);
     }
 }

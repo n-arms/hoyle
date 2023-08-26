@@ -3,45 +3,43 @@ use crate::pattern::pattern;
 use crate::types::r#type;
 use crate::util::{identifier, list, or_try, propagate, token, Irrecoverable, Result};
 use arena_alloc::{General, Interning, Specialized};
-use ir::ast::{Argument, Definition, FieldDefinition, Generic, Program, Type};
+use ir::source::{
+    ArgumentDefinition, Definition, FieldDefinition, FunctionDefinition, GenericDefinition,
+    Program, StructDefinition, Type,
+};
 use ir::token::{Kind, Token};
 use std::iter::Peekable;
 
-fn generic<'src, 'ident, 'expr>(
+fn generic<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     _alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Generic<&'ident str>> {
-    let (identifier, span) = propagate!(identifier(text, interner));
-    Ok(Ok(Generic { identifier, span }))
+) -> Result<GenericDefinition> {
+    let (name, _) = propagate!(identifier(text));
+    Ok(Ok(GenericDefinition { name }))
 }
 
-fn argument<'src, 'ident, 'expr>(
+fn argument<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Argument<'expr, &'ident str, &'ident str>> {
-    let pattern = propagate!(pattern(text, alloc, interner));
+) -> Result<ArgumentDefinition<'expr>> {
+    let pattern = propagate!(pattern(text, alloc));
     let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingArgument)?;
-    let type_annotation =
-        r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingArgument)?;
+    let r#type = r#type(text, alloc)?.map_err(Irrecoverable::WhileParsingArgument)?;
 
-    Ok(Ok(Argument {
+    Ok(Ok(ArgumentDefinition {
+        span: pattern.span().union(&r#type.span()),
         pattern,
-        type_annotation,
-        span: pattern.span().union(&type_annotation.span().unwrap()),
+        r#type,
     }))
 }
 
-fn generics<'src, 'ident, 'expr>(
+fn generics<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<&'expr [Generic<&'ident str>]> {
+) -> Result<&'expr [GenericDefinition]> {
     let (generics, _) = propagate!(list(
         text,
         alloc,
-        interner,
         Kind::LeftSquareBracket,
         Kind::RightSquareBracket,
         &mut generic,
@@ -50,15 +48,13 @@ fn generics<'src, 'ident, 'expr>(
     Ok(Ok(generics))
 }
 
-fn arguments<'src, 'ident, 'expr>(
+fn arguments<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<&'expr [Argument<'expr, &'ident str, &'ident str>]> {
+) -> Result<&'expr [ArgumentDefinition<'expr>]> {
     let (arguments, _) = propagate!(list(
         text,
         alloc,
-        interner,
         Kind::LeftParen,
         Kind::RightParen,
         &mut argument,
@@ -67,45 +63,40 @@ fn arguments<'src, 'ident, 'expr>(
     Ok(Ok(arguments))
 }
 
-fn return_type<'src, 'ident, 'expr>(
+fn return_type<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Type<'expr, &'ident str>> {
+) -> Result<Type<'expr>> {
     let _ = propagate!(token(text, Kind::Colon));
-    let r#type = r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingReturnType)?;
+    let r#type = r#type(text, alloc)?.map_err(Irrecoverable::WhileParsingReturnType)?;
     Ok(Ok(r#type))
 }
 
-fn field_definition<'src, 'ident, 'expr>(
+fn field_definition<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<FieldDefinition<'expr, &'ident str, &'ident str>> {
-    let (name, start) = propagate!(identifier(text, interner));
+) -> Result<FieldDefinition<'expr>> {
+    let (field, start) = propagate!(identifier(text));
     let _ = token(text, Kind::Colon)?.map_err(Irrecoverable::WhileParsingFieldDefinition)?;
-    let field_type =
-        r#type(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingFieldDefinition)?;
-    let span = field_type.span().unwrap().union(&start);
+    let r#type = r#type(text, alloc)?.map_err(Irrecoverable::WhileParsingFieldDefinition)?;
+    let span = r#type.span().union(&start);
 
     Ok(Ok(FieldDefinition {
-        name,
-        field_type,
+        field,
+        r#type,
         span,
     }))
 }
 
-fn struct_definition<'src, 'ident, 'expr>(
+fn struct_definition<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Definition<'expr, &'ident str, &'ident str>> {
+) -> Result<StructDefinition<'expr>> {
     let start = propagate!(token(text, Kind::Struct));
-    let (name, _) = identifier(text, interner)?.map_err(Irrecoverable::WhileParsingStruct)?;
+    let (name, _) = identifier(text)?.map_err(Irrecoverable::WhileParsingStruct)?;
     let (fields, end) = list(
         text,
         alloc,
-        interner,
         Kind::LeftBrace,
         Kind::RightBrace,
         &mut field_definition,
@@ -115,52 +106,51 @@ fn struct_definition<'src, 'ident, 'expr>(
 
     let span = end.union(&start.into());
 
-    Ok(Ok(Definition::Struct { name, fields, span }))
+    Ok(Ok(StructDefinition { name, fields, span }))
 }
 
-fn function_definition<'src, 'ident, 'expr>(
+fn function_definition<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Definition<'expr, &'ident str, &'ident str>> {
+) -> Result<FunctionDefinition<'expr>> {
     let start = propagate!(token(text, Kind::Func));
-    let (name, _) = identifier(text, interner)?.map_err(Irrecoverable::WhileParsingFunc)?;
-    let generics = generics(text, alloc, interner)?.unwrap_or_default();
-    let arguments = arguments(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingFunc)?;
-    let return_type = return_type(text, alloc, interner)?.ok();
+    let (name, _) = identifier(text)?.map_err(Irrecoverable::WhileParsingFunc)?;
+    let generics = generics(text, alloc)?.unwrap_or_default();
+    let arguments = arguments(text, alloc)?.map_err(Irrecoverable::WhileParsingFunc)?;
+    let return_type = return_type(text, alloc)?.map_err(Irrecoverable::WhileParsingReturnType)?;
     let _ = token(text, Kind::SingleEquals)?.map_err(Irrecoverable::WhileParsingFunc)?;
-    let body = expr(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingFunc)?;
+    let body = expr(text, alloc)?.map_err(Irrecoverable::WhileParsingFunc)?;
 
-    Ok(Ok(Definition::Function {
+    Ok(Ok(FunctionDefinition {
         name,
         generics,
         arguments,
         return_type,
-        body,
         span: body.span().union(&start.into()),
+        body,
     }))
 }
 
-fn definition<'src, 'ident, 'expr>(
+fn definition<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Definition<'expr, &'ident str, &'ident str>> {
+) -> Result<Definition<'expr>> {
     or_try!(
-        struct_definition(text, alloc, interner),
-        function_definition(text, alloc, interner)
+        struct_definition(text, alloc)
+            .map(|res| res.map(|struct_def| Definition::Struct(struct_def))),
+        function_definition(text, alloc)
+            .map(|res| res.map(|func_def| Definition::Function(func_def)))
     )
 }
 
-pub fn program<'src, 'ident, 'expr>(
+pub fn program<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Program<'expr, &'ident str, &'ident str>> {
+) -> Result<Program<'expr>> {
     let mut defs = Vec::new();
 
     while text.peek().is_some() {
-        let def = definition(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingProgram)?;
+        let def = definition(text, alloc)?.map_err(Irrecoverable::WhileParsingProgram)?;
         defs.push(def);
     }
 

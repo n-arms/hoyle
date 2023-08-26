@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 ir = { path = "../ir" }
 arena_alloc = { path = "../arena_alloc" }
+smartstring = "1.0.1"

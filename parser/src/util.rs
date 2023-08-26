@@ -27,8 +27,9 @@ pub(crate) use or_try;
 pub(crate) use propagate;
 
 use arena_alloc::{General, Interning, Specialized};
-use ir::ast::Span;
+use ir::source::{Identifier, Span};
 use ir::token::{self, Kind, Token};
+use smartstring::{LazyCompact, SmartString};
 use std::iter::Peekable;
 use std::result;
 
@@ -77,17 +78,12 @@ pub enum Irrecoverable {
 
 pub type Result<T> = result::Result<result::Result<T, Recoverable>, Irrecoverable>;
 
-pub fn list<'src, 'ident, 'expr, T, I>(
+pub fn list<'src, 'expr, T, I>(
     text: &mut Peekable<I>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
     start_token: Kind,
     end_token: Kind,
-    element: &mut impl FnMut(
-        &mut Peekable<I>,
-        &General<'expr>,
-        &Interning<'ident, Specialized>,
-    ) -> Result<T>,
+    element: &mut impl FnMut(&mut Peekable<I>, &General<'expr>) -> Result<T>,
     require_trailing_comma: bool,
 ) -> Result<(&'expr [T], Span)>
 where
@@ -102,7 +98,7 @@ where
             end = end_span;
             break;
         }
-        let elem = element(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingList)?;
+        let elem = element(text, alloc)?.map_err(Irrecoverable::WhileParsingList)?;
         elements.push(elem);
 
         if let Err(error) = token(text, Kind::Comma)? {
@@ -154,28 +150,28 @@ pub fn token_hint<'src>(
     }
 }
 
-pub fn identifier<'src, 'ident>(
+pub fn identifier<'src>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<(&'ident str, Span)> {
+) -> Result<(Identifier, Span)> {
     let span = propagate!(token(text, Kind::Identifier));
-    Ok(Ok((interner.get_or_intern(span.data), span.into())))
+    Ok(Ok((
+        Identifier {
+            name: SmartString::from(span.data),
+        },
+        span.into(),
+    )))
 }
 
 #[allow(clippy::missing_panics_doc)]
-pub fn variant_tag<'src, 'ident>(
+pub fn variant_tag<'src>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<(&'ident str, Span)> {
+) -> Result<(SmartString<LazyCompact>, Span)> {
     if let Some(token) = text.peek() {
         assert!(!token.span.data.is_empty());
         if token.kind == Kind::Identifier && token.span.data.chars().next().unwrap().is_uppercase()
         {
             let token = text.next().unwrap();
-            Ok(Ok((
-                interner.get_or_intern(token.span.data),
-                token.span.into(),
-            )))
+            Ok(Ok((SmartString::from(token.span.data), token.span.into())))
         } else {
             Ok(Err(Recoverable::Expected(
                 vec![Kind::Identifier],

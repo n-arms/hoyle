@@ -12,18 +12,16 @@ pub mod types;
 pub mod util;
 
 use arena_alloc::{General, Interning, Specialized};
-use ir::ast::Program;
+use ir::source::Program;
 use ir::token::Token;
 use std::iter::Peekable;
 use util::Irrecoverable;
 
-pub fn parse<'src, 'ident, 'expr>(
+pub fn parse<'src, 'expr>(
     text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
     alloc: &General<'expr>,
-    interner: &Interning<'ident, Specialized>,
-) -> Result<Program<'expr, &'ident str, &'ident str>, util::Irrecoverable> {
-    let program =
-        program::program(text, alloc, interner)?.map_err(Irrecoverable::WhileParsingProgram)?;
+) -> Result<Program<'expr>, util::Irrecoverable> {
+    let program = program::program(text, alloc)?.map_err(Irrecoverable::WhileParsingProgram)?;
 
     Ok(program)
 }

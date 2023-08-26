@@ -1,6 +1,8 @@
 use smartstring::{LazyCompact, SmartString};
 
-#[derive(Clone)]
+use crate::token;
+
+#[derive(Copy, Clone, Debug)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
@@ -100,7 +102,7 @@ pub enum Expr<'expr> {
         span: Span,
     },
     Call {
-        funcion: &'expr Expr<'expr>,
+        function: &'expr Expr<'expr>,
         arguments: &'expr [Expr<'expr>],
         span: Span,
     },
@@ -136,6 +138,8 @@ pub struct Field<'expr> {
 #[derive(Clone)]
 pub struct Block<'expr> {
     pub statements: &'expr [Statement<'expr>],
+    pub result: Option<&'expr Expr<'expr>>,
+    pub span: Span,
 }
 
 #[derive(Clone)]
@@ -157,13 +161,70 @@ pub struct Branch<'expr> {
 
 #[derive(Clone)]
 pub enum Type<'expr> {
-    Named(Identifier),
+    Named {
+        name: Identifier,
+        span: Span,
+    },
     Function {
         arguments: &'expr [Type<'expr>],
+        return_type: &'expr Type<'expr>,
         span: Span,
     },
     Application {
         main: Identifier,
         arguments: &'expr [Type<'expr>],
+        span: Span,
     },
+}
+
+impl Type<'_> {
+    pub fn span(&self) -> Span {
+        match self {
+            Type::Named { span, .. } => *span,
+            Type::Function { span, .. } => *span,
+            Type::Application { span, .. } => *span,
+        }
+    }
+}
+
+impl Span {
+    pub fn union(&self, other: &Self) -> Self {
+        Self {
+            start: self.start.min(other.start),
+            end: self.end.max(other.end),
+        }
+    }
+}
+
+impl From<token::Span<'_>> for Span {
+    fn from(value: token::Span<'_>) -> Self {
+        Self {
+            start: value.offset,
+            end: value.offset + value.data.len(),
+        }
+    }
+}
+
+impl Pattern<'_> {
+    pub fn span(&self) -> Span {
+        match self {
+            Pattern::Variable { span, .. } => *span,
+            Pattern::Struct { span, .. } => *span,
+        }
+    }
+}
+
+impl Expr<'_> {
+    pub fn span(&self) -> Span {
+        match self {
+            Expr::Literal { span, .. } => *span,
+            Expr::Variable { span, .. } => *span,
+            Expr::Call { span, .. } => *span,
+            Expr::Operation { span, .. } => *span,
+            Expr::StructLiteral { span, .. } => *span,
+            Expr::Block(block) => block.span,
+            Expr::Annotated { span, .. } => *span,
+            Expr::Case { span, .. } => *span,
+        }
+    }
 }

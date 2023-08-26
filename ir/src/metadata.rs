@@ -1,26 +1,26 @@
 use crate::qualified::{Identifier, Tag, Type};
 use std::collections::HashMap;
 
-#[derive(Copy, Clone)]
-pub struct Function<'expr, 'ident> {
-    pub generic_type: Type<'expr, 'ident>,
-    pub generic_args: &'expr [Identifier<'ident>],
+#[derive(Clone)]
+pub struct Function<'expr> {
+    pub generic_type: Type<'expr>,
+    pub generic_args: &'expr [Identifier],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct Struct {
     pub metadata_constructor: Tag,
 }
 
 #[derive(Default)]
-pub struct Metadata<'expr, 'ident> {
-    pub functions: HashMap<Identifier<'ident>, Function<'expr, 'ident>>,
-    pub structs: HashMap<Identifier<'ident>, Struct>,
+pub struct Metadata<'expr> {
+    pub functions: HashMap<Identifier, Function<'expr>>,
+    pub structs: HashMap<Identifier, Struct>,
 }
 
-impl<'expr, 'ident> Metadata<'expr, 'ident> {
+impl<'expr> Metadata<'expr> {
     pub fn merge(&mut self, other: &Self) {
-        self.functions.extend(other.functions.iter());
-        self.structs.extend(other.structs.iter());
+        self.functions.extend(other.functions.clone());
+        self.structs.extend(other.structs.clone());
     }
 }
