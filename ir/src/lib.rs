@@ -5,5 +5,6 @@ pub mod ast;
 pub mod desugared;
 pub mod metadata;
 pub mod qualified;
+pub mod source;
 pub mod token;
 pub mod typed;

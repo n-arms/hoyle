@@ -1,5 +1,10 @@
-use crate::source::Span;
 use smartstring::{LazyCompact, SmartString};
+
+#[derive(Clone)]
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
+}
 
 #[derive(Clone)]
 pub struct Program<'expr> {
@@ -30,15 +35,8 @@ pub struct StructDefinition<'expr> {
 }
 
 #[derive(Clone)]
-pub struct Tag {
-    pub module: u32,
-    pub key: u32,
-}
-
-#[derive(Clone)]
 pub struct Identifier {
     pub name: SmartString<LazyCompact>,
-    pub tag: Tag,
 }
 
 #[derive(Clone)]
@@ -160,7 +158,6 @@ pub struct Branch<'expr> {
 #[derive(Clone)]
 pub enum Type<'expr> {
     Named(Identifier),
-    Generic(Identifier),
     Function {
         arguments: &'expr [Type<'expr>],
         span: Span,

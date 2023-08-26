@@ -2,6 +2,7 @@
 members = [
   # Utilities
   "arena_alloc",
+  "macros",
 
   # Public Interface
   "cli",
