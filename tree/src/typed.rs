@@ -1,8 +1,8 @@
 use crate::generic::{self, Stage};
-use crate::parsed::Argument;
+pub use crate::parsed::Argument;
 use crate::String;
 
-pub use generic::{Block, Field, Generic, Literal, Statement, Struct, Type};
+pub use generic::{Field, Generic, Literal, Struct, Type};
 
 pub struct Typed;
 
@@ -21,3 +21,16 @@ impl Stage for Typed {
 pub type Program = generic::Program<Typed>;
 pub type Function = generic::Function<Typed>;
 pub type Expr = generic::Expr<Typed>;
+pub type Block = generic::Block<Typed>;
+pub type Statement = generic::Statement<Typed>;
+
+impl Expr {
+    pub fn get_type(&self) -> Type {
+        match self {
+            generic::Expr::Variable { typ, .. } => typ.clone(),
+            generic::Expr::Literal { .. } => todo!(),
+            generic::Expr::CallDirect { tag, .. } => tag.result.clone(),
+            generic::Expr::Block(block) => block.result.get_type(),
+        }
+    }
+}
