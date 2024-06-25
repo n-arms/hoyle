@@ -3,18 +3,18 @@ use ir::metadata::{Function, Metadata};
 use ir::qualified::{Identifier, Primitives, Tag};
 use std::collections::HashMap;
 
-pub struct Env<'old, 'new, 'ident, 'meta> {
-    metadata: &'meta Metadata<'old, 'ident>,
+pub struct Env<'old, 'new, 'meta> {
+    metadata: &'meta Metadata<'old>,
     rebound_generics: HashMap<Tag, Type<'new>>,
-    pub primitives: Primitives<'ident>,
+    pub primitives: Primitives,
     pub metadata_type: Type<'new>,
 }
 
-impl<'old, 'new, 'ident, 'meta> Env<'old, 'new, 'ident, 'meta> {
+impl<'old, 'new, 'meta> Env<'old, 'new, 'meta> {
     #[must_use]
     pub fn new(
-        metadata: &'meta Metadata<'old, 'ident>,
-        primitives: Primitives<'ident>,
+        metadata: &'meta Metadata<'old>,
+        primitives: Primitives,
         metadata_type: Type<'new>,
     ) -> Self {
         Self {
@@ -26,7 +26,7 @@ impl<'old, 'new, 'ident, 'meta> Env<'old, 'new, 'ident, 'meta> {
     }
 
     #[must_use]
-    pub fn lookup_variable(&self, variable: Identifier<'ident>) -> Option<Function<'old, 'ident>> {
+    pub fn lookup_variable(&self, variable: Identifier) -> Option<Function<'old>> {
         self.metadata.functions.get(&variable).copied()
     }
 

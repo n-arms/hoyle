@@ -4,11 +4,11 @@ use ir::qualified::LocalTagSource;
 use ir::typed;
 
 #[must_use]
-pub fn program<'expr, 'ident>(
-    to_metadata: typed::Program<'expr, 'ident>,
+pub fn program<'expr>(
+    to_metadata: typed::Program<'expr>,
     tags: LocalTagSource,
     alloc: &General<'expr>,
-) -> Metadata<'expr, 'ident> {
+) -> Metadata<'expr> {
     let mut metadata = Metadata::default();
 
     for def in to_metadata.definitions {
@@ -18,30 +18,30 @@ pub fn program<'expr, 'ident>(
     metadata
 }
 
-pub fn definition<'expr, 'ident>(
-    to_metadata: &typed::Definition<'expr, 'ident>,
+pub fn definition<'expr>(
+    to_metadata: &typed::Definition<'expr>,
     tags: LocalTagSource,
     alloc: &General<'expr>,
-    metadata: &mut Metadata<'expr, 'ident>,
+    metadata: &mut Metadata<'expr>,
 ) {
     match to_metadata {
-        typed::Definition::Function { name, generics, .. } => {
+        typed::Definition::Function(typed::FunctionDefinition { name, generics, .. }) => {
             let generic_args =
-                alloc.alloc_slice_fill_iter(generics.iter().map(|generic| generic.identifier));
+                alloc.alloc_slice_fill_iter(generics.iter().map(|generic| generic.name.clone()));
 
             metadata.functions.insert(
-                name.identifier,
+                name.clone(),
                 Function {
-                    generic_type: name.r#type,
+                    generic_type: todo!(),
                     generic_args,
                 },
             );
         }
-        typed::Definition::Struct { name, .. } => {
+        typed::Definition::Struct(typed::StructDefinition { name, .. }) => {
             let metadata_constructor = tags.fresh_tag();
 
             metadata.structs.insert(
-                name.identifier,
+                name.clone(),
                 Struct {
                     metadata_constructor,
                 },

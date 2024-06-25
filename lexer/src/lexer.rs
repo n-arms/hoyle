@@ -33,6 +33,10 @@ pub fn scan_tokens(text: &str) -> (token::List, Errors) {
             '{' => Kind::LeftBrace,
             '}' => Kind::RightBrace,
             '+' => Kind::BinaryOperator(BinaryOperator::Cross),
+            '-' if matches!(chars.peek(), Some((_, '>'))) => {
+                chars.next();
+                Kind::Arrow
+            }
             '-' => Kind::BinaryOperator(BinaryOperator::Dash),
             '*' => Kind::BinaryOperator(BinaryOperator::Star),
             '/' => Kind::BinaryOperator(BinaryOperator::Slash),
@@ -79,7 +83,13 @@ pub fn scan_tokens(text: &str) -> (token::List, Errors) {
                     "let" => Kind::Let,
                     "case" => Kind::Case,
                     "of" => Kind::Of,
-                    _ => Kind::Identifier,
+                    _ => {
+                        if c.is_uppercase() {
+                            Kind::UpperIdentifier
+                        } else {
+                            Kind::Identifier
+                        }
+                    }
                 };
                 tokens.push(kind, span);
                 continue;

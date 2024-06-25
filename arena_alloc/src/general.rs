@@ -35,19 +35,20 @@ impl<'a> General<'a> {
     where
         I: IntoIterator<Item = Result<T, E>>,
         I::IntoIter: ExactSizeIterator,
-        T: Copy,
+        T: Clone,
+        E: Clone,
     {
         let mut iter = into_iter.into_iter();
         let length = iter.len();
         let mut first_element = iter.next();
-        let default = match first_element {
+        let default = match first_element.clone() {
             Some(Ok(elem)) => Some(elem),
             Some(Err(err)) => return Err(err),
             None => None,
         };
         let mut result = Ok(());
         let mem = self.arena.alloc_slice_fill_with(length, |_| {
-            match first_element {
+            match first_element.clone() {
                 Some(Ok(elem)) => {
                     first_element = None;
                     return elem;
@@ -59,7 +60,7 @@ impl<'a> General<'a> {
                 Some(Ok(elem)) => elem,
                 Some(Err(err)) => {
                     result = Err(err);
-                    default.unwrap()
+                    default.clone().unwrap()
                 }
                 None => unreachable!(),
             }

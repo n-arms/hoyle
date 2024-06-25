@@ -9,3 +9,4 @@ edition = "2021"
 im = "15.1.0"
 ir = { path = "../ir" }
 arena_alloc = { path = "../arena_alloc" }
+smartstring = "1.0.1"

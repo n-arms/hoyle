@@ -1,3 +1,58 @@
+use arena_alloc::General;
+use ir::{qualified, typed};
+
+use crate::env::Env;
+use crate::error::{Error, Result};
+
+pub fn pattern<'old, 'new>(
+    to_check: &qualified::Pattern<'old>,
+    against: &typed::Type<'new>,
+    env: &mut Env<'new>,
+    general: &General<'new>,
+) -> Result<'new, typed::Pattern<'new>> {
+    match to_check {
+        qualified::Pattern::Variable { name, span } => Ok(typed::Pattern::Variable {
+            name: name.clone(),
+            r#type: against.clone(),
+        }),
+        qualified::Pattern::Struct { name, fields, span } => {
+            let field_types: &[typed::FieldDefinition] = match against {
+                typed::Type::Named { name, arguments } => env.lookup_struct(name).fields,
+                _ => panic!("expected struct"),
+            };
+            let zipped_fields = field_types.iter().map(|field_def| {
+                (
+                    field_def.field.clone(),
+                    field_def.r#type.clone(),
+                    fields
+                        .iter()
+                        .find_map(|field| {
+                            if field.name == field_def.field {
+                                Some(field.pattern.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap(),
+                )
+            });
+            let typed_fields =
+                general.alloc_slice_try_fill_iter(zipped_fields.map(|(name, r#type, p)| {
+                    Ok(typed::PatternField {
+                        name,
+                        pattern: pattern(&p, &r#type, env, general)?,
+                    })
+                }))?;
+            Ok(typed::Pattern::Struct {
+                name: name.clone(),
+                fields: typed_fields,
+                r#type: against.clone(),
+            })
+        }
+    }
+}
+
+/*
 use crate::env::Env;
 use crate::error::Result;
 use crate::extract::{struct_type, Typeable};
@@ -9,14 +64,14 @@ use arena_alloc::{General, Interning, Specialized};
 use ir::qualified::{self, Type};
 use ir::typed::{Branch, Expr, Field, FieldDefinition, Identifier, Pattern, PatternField};
 
-pub fn expr<'old, 'new, 'ident, 'names>(
-    to_check: qualified::Expr<'old, 'ident>,
-    target: Type<'new, 'ident>,
-    env: &mut Env<'new, 'ident, 'names>,
-    substitution: &mut Substitution<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
+pub fn expr<'old, 'new, 'names>(
+    to_check: qualified::Expr<'old>,
+    target: Type<'new>,
+    env: &mut Env<'new, 'names>,
+    substitution: &mut Substitution<'new>,
+    interner: &Interning<Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Expr<'new, 'ident>> {
+) -> Result<'new, Expr<'new>> {
     let typed_expr = infer::expr(to_check, env, substitution, interner, general)?;
 
     unify::check_types(target, typed_expr.extract(&env.primitives))?;
@@ -24,14 +79,14 @@ pub fn expr<'old, 'new, 'ident, 'names>(
     Ok(typed_expr)
 }
 
-pub fn field<'old, 'new, 'ident, 'names>(
-    to_check: qualified::Field<'old, 'ident>,
-    target_fields: &'new [FieldDefinition<'new, 'ident>],
-    env: &mut Env<'new, 'ident, 'names>,
-    substitution: &mut Substitution<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
+pub fn field<'old, 'new, 'names>(
+    to_check: qualified::Field<'old>,
+    target_fields: &'new [FieldDefinition<'new>],
+    env: &mut Env<'new, 'names>,
+    substitution: &mut Substitution<'new>,
+    interner: &Interning<Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Field<'new, 'ident>> {
+) -> Result<'new, Field<'new>> {
     let target_field = target_fields
         .iter()
         .find(|field| field.name.identifier == to_check.name)
@@ -53,13 +108,13 @@ pub fn field<'old, 'new, 'ident, 'names>(
     })
 }
 
-pub fn pattern_field<'old, 'new, 'ident, 'names>(
-    to_check: qualified::PatternField<'old, 'ident>,
-    target_fields: &'new [FieldDefinition<'new, 'ident>],
-    env: &mut Env<'new, 'ident, 'names>,
-    interner: &Interning<'ident, Specialized>,
+pub fn pattern_field<'old, 'new, 'names>(
+    to_check: qualified::PatternField<'old>,
+    target_fields: &'new [FieldDefinition<'new>],
+    env: &mut Env<'new, 'names>,
+    interner: &Interning<Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, PatternField<'new, 'ident>> {
+) -> Result<'new, PatternField<'new>> {
     let target_field = target_fields
         .iter()
         .find(|field| field.name.identifier == to_check.name)
@@ -80,13 +135,13 @@ pub fn pattern_field<'old, 'new, 'ident, 'names>(
     })
 }
 
-pub fn pattern<'old, 'new, 'ident, 'names>(
-    to_check: qualified::Pattern<'old, 'ident>,
-    target: Type<'new, 'ident>,
-    env: &mut Env<'new, 'ident, 'names>,
-    interner: &Interning<'ident, Specialized>,
+pub fn pattern<'old, 'new, 'names>(
+    to_check: qualified::Pattern<'old>,
+    target: Type<'new>,
+    env: &mut Env<'new, 'names>,
+    interner: &Interning<Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Pattern<'new, 'ident>> {
+) -> Result<'new, Pattern<'new>> {
     match to_check {
         ir::ast::Pattern::Variable(variable, span) => {
             env.bind_unqualified_variable(variable, target);
@@ -115,14 +170,14 @@ pub fn pattern<'old, 'new, 'ident, 'names>(
     }
 }
 
-pub fn branch<'old, 'new, 'ident, 'names>(
-    to_check: qualified::Branch<'old, 'ident>,
-    target_pattern_type: Type<'new, 'ident>,
-    env: &mut Env<'new, 'ident, 'names>,
-    substitution: &mut Substitution<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
+pub fn branch<'old, 'new, 'names>(
+    to_check: qualified::Branch<'old>,
+    target_pattern_type: Type<'new>,
+    env: &mut Env<'new, 'names>,
+    substitution: &mut Substitution<'new>,
+    interner: &Interning<Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Branch<'new, 'ident>> {
+) -> Result<'new, Branch<'new>> {
     let typed_pattern = pattern(
         to_check.pattern,
         target_pattern_type,
@@ -139,3 +194,4 @@ pub fn branch<'old, 'new, 'ident, 'names>(
         span: to_check.span,
     })
 }
+*/

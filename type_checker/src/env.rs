@@ -1,3 +1,54 @@
+use ir::qualified;
+use ir::qualified::Primitives;
+use ir::typed;
+use std::collections::HashMap;
+
+pub struct Scheme<'expr> {
+    pub for_all: Vec<qualified::Identifier>,
+    pub r#type: typed::Type<'expr>,
+}
+
+pub struct Env<'expr> {
+    variables: HashMap<qualified::Identifier, Scheme<'expr>>,
+    structs: HashMap<qualified::Identifier, typed::StructDefinition<'expr>>,
+    pub primitives: Primitives,
+}
+
+fn unwrap_none<A>(value: Option<A>) {
+    assert!(matches!(value, None));
+}
+
+impl<'expr> Env<'expr> {
+    #[must_use]
+    pub fn new(primitives: Primitives) -> Self {
+        Self {
+            variables: HashMap::default(),
+            structs: HashMap::default(),
+            primitives,
+        }
+    }
+
+    pub fn define_variable(&mut self, identifier: qualified::Identifier, scheme: Scheme<'expr>) {
+        unwrap_none(self.variables.insert(identifier, scheme))
+    }
+
+    pub fn define_struct(&mut self, definition: typed::StructDefinition<'expr>) {
+        unwrap_none(self.structs.insert(definition.name.clone(), definition))
+    }
+
+    pub fn lookup_variable(&mut self, identifier: &qualified::Identifier) -> &Scheme<'expr> {
+        self.variables.get(identifier).unwrap()
+    }
+
+    pub fn lookup_struct(
+        &mut self,
+        name: &qualified::Identifier,
+    ) -> &typed::StructDefinition<'expr> {
+        self.structs.get(name).unwrap()
+    }
+}
+
+/*
 use crate::error::{Error, Result};
 use crate::extract::struct_type;
 use crate::substitute::{Substitute, Substitution};
@@ -6,21 +57,21 @@ use ir::qualified::{self, LocalTagSource, Primitives, Type};
 use ir::typed::{FieldDefinition, Identifier};
 use std::collections::HashMap;
 
-pub struct QualifiedIdentifier<'expr, 'ident> {
-    forall: Vec<qualified::Identifier<'ident>>,
-    identifier: Identifier<'expr, 'ident>,
+pub struct QualifiedIdentifier<'expr, > {
+    forall: Vec<qualified::Identifier<>>,
+    identifier: Identifier<'expr, >,
 }
 
-pub struct Env<'expr, 'ident, 'names> {
-    variables: HashMap<qualified::Identifier<'ident>, QualifiedIdentifier<'expr, 'ident>>,
-    structs: HashMap<qualified::Identifier<'ident>, &'expr [FieldDefinition<'expr, 'ident>]>,
-    pub primitives: Primitives<'ident>,
+pub struct Env<'expr, , 'names> {
+    variables: HashMap<qualified::Identifier<>, QualifiedIdentifier<'expr, >>,
+    structs: HashMap<qualified::Identifier<>, &'expr [FieldDefinition<'expr, >]>,
+    pub primitives: Primitives<>,
     pub tags: LocalTagSource<'names>,
 }
 
-impl<'expr, 'ident, 'names> Env<'expr, 'ident, 'names> {
+impl<'expr, , 'names> Env<'expr, , 'names> {
     #[must_use]
-    pub fn new(tags: LocalTagSource<'names>, primitives: Primitives<'ident>) -> Self {
+    pub fn new(tags: LocalTagSource<'names>, primitives: Primitives<>) -> Self {
         Self {
             primitives,
             variables: HashMap::default(),
@@ -31,17 +82,17 @@ impl<'expr, 'ident, 'names> Env<'expr, 'ident, 'names> {
 
     pub fn bind_unqualified_variable(
         &mut self,
-        variable: qualified::Identifier<'ident>,
-        r#type: Type<'expr, 'ident>,
+        variable: qualified::Identifier<>,
+        r#type: Type<'expr, >,
     ) {
         self.bind_qualified_variable(variable, r#type, Vec::default());
     }
 
     pub fn bind_qualified_variable(
         &mut self,
-        variable: qualified::Identifier<'ident>,
-        r#type: Type<'expr, 'ident>,
-        forall: Vec<qualified::Identifier<'ident>>,
+        variable: qualified::Identifier<>,
+        r#type: Type<'expr, >,
+        forall: Vec<qualified::Identifier<>>,
     ) {
         let typed = Identifier {
             identifier: variable,
@@ -56,9 +107,9 @@ impl<'expr, 'ident, 'names> Env<'expr, 'ident, 'names> {
 
     pub fn bind_struct(
         &mut self,
-        name: qualified::Identifier<'ident>,
-        fields: &'expr [FieldDefinition<'expr, 'ident>],
-    ) -> Identifier<'expr, 'ident> {
+        name: qualified::Identifier<>,
+        fields: &'expr [FieldDefinition<'expr, >],
+    ) -> Identifier<'expr, > {
         self.structs.insert(name, fields);
 
         Identifier {
@@ -70,9 +121,9 @@ impl<'expr, 'ident, 'names> Env<'expr, 'ident, 'names> {
     #[must_use]
     pub fn lookup_variable(
         &mut self,
-        variable: qualified::Identifier<'ident>,
+        variable: qualified::Identifier<>,
         alloc: &General<'expr>,
-    ) -> Identifier<'expr, 'ident> {
+    ) -> Identifier<'expr, > {
         let qualified = self
             .variables
             .get(&variable)
@@ -99,18 +150,18 @@ impl<'expr, 'ident, 'names> Env<'expr, 'ident, 'names> {
     #[must_use]
     pub fn lookup_struct(
         &self,
-        name: qualified::Identifier<'ident>,
-    ) -> &'expr [FieldDefinition<'expr, 'ident>] {
+        name: qualified::Identifier<>,
+    ) -> &'expr [FieldDefinition<'expr, >] {
         self.structs
             .get(&name)
             .expect("the qualifier pass should have caught undefined structs")
     }
 }
 
-pub fn substitute_types<'expr, 'ident>(
-    general: Type<'expr, 'ident>,
-    specific: Type<'expr, 'ident>,
-) -> Result<'expr, 'ident, Substitution<'expr, 'ident>> {
+pub fn substitute_types<'expr, >(
+    general: Type<'expr, >,
+    specific: Type<'expr, >,
+) -> Result<'expr, , Substitution<'expr, >> {
     match (general, specific) {
         (
             Type::Named { name, .. },
@@ -147,3 +198,4 @@ pub fn substitute_types<'expr, 'ident>(
 pub fn is_unification(identifier: qualified::Identifier) -> bool {
     identifier.name == "unification"
 }
+*/

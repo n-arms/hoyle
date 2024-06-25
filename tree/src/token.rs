@@ -1,5 +1,3 @@
-use core::fmt;
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Span<'a> {
     pub data: &'a str,
@@ -30,7 +28,6 @@ pub enum Kind {
     Struct,
     Case,
     Of,
-    Arrow,
     ThickArrow,
     Let,
     LeftParen,
@@ -98,11 +95,5 @@ impl<'a> IntoIterator for &'a List<'a> {
             tokens: self,
             offset: 0,
         }
-    }
-}
-
-impl fmt::Display for Token<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        <Self as fmt::Debug>::fmt(self, f)
     }
 }

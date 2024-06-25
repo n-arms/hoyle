@@ -1,12 +1,10 @@
+/*
 use crate::env::is_unification;
 use crate::error::{Error, Result};
 use crate::substitute::Substitution;
 use ir::qualified::Type;
 
-pub fn check_types<'expr, 'ident>(
-    to_check: Type<'expr, 'ident>,
-    target: Type<'expr, 'ident>,
-) -> Result<'expr, 'ident, ()> {
+pub fn check_types<'expr>(to_check: Type<'expr>, target: Type<'expr>) -> Result<'expr, ()> {
     let sub = substitute_types(to_check, target)?;
 
     if sub.is_empty() {
@@ -16,18 +14,18 @@ pub fn check_types<'expr, 'ident>(
     }
 }
 
-pub fn substitute_types<'expr, 'ident>(
-    general: Type<'expr, 'ident>,
-    specific: Type<'expr, 'ident>,
-) -> Result<'expr, 'ident, Substitution<'expr, 'ident>> {
+pub fn substitute_types<'expr>(
+    general: Type<'expr>,
+    specific: Type<'expr>,
+) -> Result<'expr, Substitution<'expr>> {
     match (general, specific) {
         (
-            Type::Arrow {
+            Type::Function {
                 arguments,
                 return_type,
                 ..
             },
-            Type::Arrow {
+            Type::Function {
                 arguments: specific_arguments,
                 return_type: specific_return_type,
                 ..
@@ -55,3 +53,4 @@ pub fn substitute_types<'expr, 'ident>(
         }),
     }
 }
+*/

@@ -1,12 +1,12 @@
 use ir::qualified::Type;
 use std::result;
 
-#[derive(Debug)]
-pub enum Error<'expr, 'ident> {
+#[derive(Clone, Debug)]
+pub enum Error<'expr> {
     TypeMismatch {
-        expected: Type<'expr, 'ident>,
-        found: Type<'expr, 'ident>,
+        expected: Type<'expr>,
+        found: Type<'expr>,
     },
 }
 
-pub type Result<'expr, 'ident, T> = result::Result<T, Error<'expr, 'ident>>;
+pub type Result<'expr, T> = result::Result<T, Error<'expr>>;

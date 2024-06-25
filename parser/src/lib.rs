@@ -5,23 +5,14 @@
     clippy::redundant_else
 )]
 
-pub mod expr;
-pub mod pattern;
-pub mod program;
-pub mod types;
+#[macro_use]
 pub mod util;
+pub mod program;
 
-use arena_alloc::{General, Interning, Specialized};
-use ir::source::Program;
+use chumsky::{error::Simple, Parser};
 use ir::token::Token;
-use std::iter::Peekable;
-use util::Irrecoverable;
+use tree::parsed::*;
 
-pub fn parse<'src, 'expr>(
-    text: &mut Peekable<impl Iterator<Item = Token<'src>> + Clone>,
-    alloc: &General<'expr>,
-) -> Result<Program<'expr>, util::Irrecoverable> {
-    let program = program::program(text, alloc)?.map_err(Irrecoverable::WhileParsingProgram)?;
-
-    Ok(program)
+pub fn parse<'src>(tokens: &[Token<'src>]) -> Result<Program, Vec<Simple<Token<'src>>>> {
+    program::program().parse(tokens)
 }

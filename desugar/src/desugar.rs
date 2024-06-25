@@ -6,13 +6,12 @@ use ir::desugared::{
     StructDefinition, Type,
 };
 use ir::qualified::{self, LocalTagSource};
-use ir::typed;
 use type_checker::extract::Typeable;
 
-pub fn program<'old, 'new, 'names, 'ident, 'meta>(
-    to_desugar: typed::Program<'old, 'ident>,
+pub fn program<'old, 'new, 'names, 'meta>(
+    to_desugar: qualified::Program<'old>,
     tags: LocalTagSource<'names>,
-    env: &mut Env<'old, 'new, 'ident, 'meta>,
+    env: &mut Env<'old, 'new, 'meta>,
     alloc: &General<'new>,
 ) -> Program<'new> {
     let mut program = builder::Program::new(tags);
@@ -24,31 +23,32 @@ pub fn program<'old, 'new, 'names, 'ident, 'meta>(
     program.build(alloc)
 }
 
-pub fn definition<'old, 'new, 'names, 'ident, 'meta>(
-    to_desugar: typed::Definition<'old, 'ident>,
+pub fn definition<'old, 'new, 'names, 'meta>(
+    to_desugar: qualified::Definition<'old>,
     program: &mut builder::Program<'names, 'new>,
-    env: &mut Env<'old, 'new, 'ident, 'meta>,
+    env: &mut Env<'old, 'new, 'meta>,
     alloc: &General<'new>,
 ) {
     match to_desugar {
-        ir::ast::Definition::Function {
+        qualified::Definition::Function(qualified::FunctionDefinition {
             name,
             generics,
             arguments,
+            return_type,
             body,
-            ..
-        } => {
+            span,
+        }) => {
             let mut desugared_arguments = Vec::new();
 
             for generic in generics {
                 desugared_arguments.push(Argument {
-                    name: generic.identifier.tag,
+                    name: generic.name.tag,
                     r#type: env.metadata_type,
                 });
                 env.bind_generic(
-                    generic.identifier.tag,
+                    generic.name.tag,
                     Type::Any {
-                        metadata: Expr::Atom(Atom::Variable(generic.identifier.tag)),
+                        metadata: Expr::Atom(Atom::Variable(generic.name.tag)),
                     },
                 );
             }
@@ -56,10 +56,10 @@ pub fn definition<'old, 'new, 'names, 'ident, 'meta>(
             let mut block = builder::Block::new(program.names);
 
             for argument in arguments {
-                if let typed::Pattern::Variable(identifier, ..) = argument.pattern {
+                if let qualified::Pattern::Variable { name, .. } = argument.pattern {
                     desugared_arguments.push(Argument {
-                        name: identifier.identifier.tag,
-                        r#type: r#type(argument.type_annotation, env, alloc),
+                        name: name.tag,
+                        r#type: r#type(argument.r#type, env, alloc),
                     });
                 } else {
                     todo!()
@@ -68,13 +68,13 @@ pub fn definition<'old, 'new, 'names, 'ident, 'meta>(
 
             let result = expr(body, &mut block, env, alloc);
             let function = FunctionDefinition {
-                label: name.identifier.tag,
+                label: name.tag,
                 arguments: alloc.alloc_slice_fill_iter(desugared_arguments),
                 body: block.build(result, alloc),
             };
             program.with_function(function);
         }
-        ir::ast::Definition::Struct { name, fields, .. } => {
+        qualified::Definition::Struct { name, fields, .. } => {
             let desugared_fields =
                 alloc.alloc_slice_fill_iter(fields.iter().map(|field| FieldDefinition {
                     name: field.name.identifier.tag,
@@ -89,27 +89,30 @@ pub fn definition<'old, 'new, 'names, 'ident, 'meta>(
     }
 }
 
-pub fn expr<'old, 'new, 'names, 'ident, 'meta>(
-    to_desugar: typed::Expr<'old, 'ident>,
+pub fn expr<'old, 'new, 'names, 'meta>(
+    to_desugar: qualified::Expr<'old>,
     block: &mut builder::Block<'names, 'new>,
-    env: &mut Env<'old, 'new, 'ident, 'meta>,
+    env: &mut Env<'old, 'new, 'meta>,
     alloc: &General<'new>,
 ) -> Atom {
     match to_desugar {
-        ir::ast::Expr::Variable(variable, _) => {
-            if let Some(function) = env.lookup_variable(variable.identifier) {
+        qualified::Expr::Variable { identifier, span } => {
+            if let Some(function) = env.lookup_variable(identifier) {
                 todo!()
             } else {
-                Atom::Variable(variable.identifier.tag)
+                Atom::Variable {
+                    name: identifier.tag,
+                }
             }
         }
-        ir::ast::Expr::Literal(ir::ast::Literal::Integer(int), _) => {
-            Atom::Literal(Literal::Integer(
-                int.parse()
-                    .expect("the parser should have caught improper integer literals"),
-            ))
-        }
-        ir::ast::Expr::Call {
+        qualified::Expr::Literal {
+            literal: Literal::Integer(int),
+            span,
+        } => Atom::Literal(Literal::Integer(
+            int.parse()
+                .expect("the parser should have caught improper integer literals"),
+        )),
+        qualified::Expr::Call {
             function,
             arguments,
             ..
@@ -136,12 +139,12 @@ pub fn expr<'old, 'new, 'names, 'ident, 'meta>(
             });
             Atom::Variable(result_name)
         }
-        ir::ast::Expr::Operation {
+        qualified::Expr::Operation {
             operator,
             arguments,
             ..
         } => todo!(),
-        ir::ast::Expr::StructLiteral { name, fields, .. } => {
+        qualified::Expr::StructLiteral { name, fields, .. } => {
             let desugared_fields = alloc.alloc_slice_fill_iter(
                 fields
                     .iter()
@@ -160,7 +163,7 @@ pub fn expr<'old, 'new, 'names, 'ident, 'meta>(
             });
             Atom::Variable(result_name)
         }
-        ir::ast::Expr::Block(ir::ast::Block {
+        qualified::Expr::Block(qualified::Block {
             statements, result, ..
         }) => {
             for stmt in statements {
@@ -172,10 +175,10 @@ pub fn expr<'old, 'new, 'names, 'ident, 'meta>(
                 todo!()
             }
         }
-        ir::ast::Expr::Annotated {
+        qualified::Expr::Annotated {
             expr, annotation, ..
         } => todo!(),
-        ir::ast::Expr::Case {
+        qualified::Expr::Case {
             predicate,
             branches,
             ..
@@ -183,22 +186,22 @@ pub fn expr<'old, 'new, 'names, 'ident, 'meta>(
     }
 }
 
-pub fn bind_pattern<'old, 'new, 'names, 'ident, 'meta>(
-    to_bind: typed::Pattern<'old, 'ident>,
+pub fn bind_pattern<'old, 'new, 'names, 'meta>(
+    to_bind: qualified::Pattern<'old>,
     bound_value: Atom,
     block: &mut builder::Block<'names, 'new>,
-    env: &mut Env<'old, 'new, 'ident, 'meta>,
+    env: &mut Env<'old, 'new, 'meta>,
     alloc: &General<'new>,
 ) {
     match to_bind {
-        ir::ast::Pattern::Variable(name, _) => {
+        qualified::Pattern::Variable(name, _) => {
             block.with_statement(Statement {
                 variable: name.identifier.tag,
                 r#type: r#type(name.r#type, env, alloc),
                 value: Expr::Atom(bound_value),
             });
         }
-        ir::ast::Pattern::Struct { fields, .. } => {
+        qualified::Pattern::Struct { fields, .. } => {
             for field in fields {
                 let field_tag = block.fresh_tag();
                 block.with_statement(Statement {
@@ -214,14 +217,14 @@ pub fn bind_pattern<'old, 'new, 'names, 'ident, 'meta>(
     }
 }
 
-pub fn statement<'old, 'new, 'names, 'ident, 'meta>(
-    to_desugar: typed::Statement<'old, 'ident>,
+pub fn statement<'old, 'new, 'names, 'meta>(
+    to_desugar: qualified::Statement<'old>,
     block: &mut builder::Block<'names, 'new>,
-    env: &mut Env<'old, 'new, 'ident, 'meta>,
+    env: &mut Env<'old, 'new, 'meta>,
     alloc: &General<'new>,
 ) {
     match to_desugar {
-        ir::ast::Statement::Let {
+        qualified::Statement::Let {
             left_side,
             right_side,
             ..
@@ -229,16 +232,16 @@ pub fn statement<'old, 'new, 'names, 'ident, 'meta>(
             let right_side_result = expr(right_side, block, env, alloc);
             bind_pattern(left_side, right_side_result, block, env, alloc);
         }
-        ir::ast::Statement::Raw(raw, _) => {
+        qualified::Statement::Raw(raw, _) => {
             expr(raw, block, env, alloc);
         }
     }
 }
 
-pub fn field_literal<'old, 'new, 'names, 'ident, 'meta>(
-    to_desugar: typed::Field<'old, 'ident>,
+pub fn field_literal<'old, 'new, 'names, 'meta>(
+    to_desugar: qualified::Field<'old>,
     block: &mut builder::Block<'names, 'new>,
-    env: &mut Env<'old, 'new, 'ident, 'meta>,
+    env: &mut Env<'old, 'new, 'meta>,
     alloc: &General<'new>,
 ) -> Field {
     let name = to_desugar.name.identifier.tag;
@@ -246,14 +249,14 @@ pub fn field_literal<'old, 'new, 'names, 'ident, 'meta>(
     Field { name, value }
 }
 
-fn r#type<'old, 'new, 'ident, 'meta>(
-    to_desugar: qualified::Type<'old, 'ident>,
-    env: &mut Env<'old, 'new, 'ident, 'meta>,
+fn r#type<'old, 'new, 'meta>(
+    to_desugar: qualified::Type<'old>,
+    env: &mut Env<'old, 'new, 'meta>,
     alloc: &General<'new>,
 ) -> Type<'new> {
     match to_desugar {
-        ir::ast::Type::Named { name, .. } => env.lookup_generic(name.tag),
-        ir::ast::Type::Arrow {
+        qualified::Type::Named { name, .. } => env.lookup_generic(name.tag),
+        qualified::Type::Arrow {
             arguments,
             return_type,
             ..

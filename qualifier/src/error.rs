@@ -1,21 +1,16 @@
-use ir::ast::{self, PatternField};
 use ir::qualified::{Field, FieldDefinition};
+use ir::source::{self, PatternField};
+use smartstring::{LazyCompact, SmartString};
 use std::result;
 
-#[derive(Debug)]
-pub enum Error<'old, 'new, 'ident> {
-    UndefinedVariable(&'ident str),
-    UndefinedType(&'ident str),
-    UndefinedStruct(&'ident str),
-    StructLiteralMissingField(FieldDefinition<'new, 'ident>, &'new [Field<'new, 'ident>]),
-    StructLiteralContainsExtraField(
-        ast::Field<'old, &'ident str, &'ident str>,
-        &'new [FieldDefinition<'new, 'ident>],
-    ),
-    StructPatternMissingField(
-        PatternField<'old, &'ident str>,
-        &'new [FieldDefinition<'new, 'ident>],
-    ),
+#[derive(Clone, Debug)]
+pub enum Error<'old, 'new> {
+    UndefinedVariable(source::Identifier),
+    UndefinedType(source::Identifier),
+    UndefinedStruct(source::Identifier),
+    StructLiteralMissingField(FieldDefinition<'new>, &'new [Field<'new>]),
+    StructLiteralContainsExtraField(source::Field<'old>, &'new [FieldDefinition<'new>]),
+    StructPatternMissingField(PatternField<'old>, &'new [FieldDefinition<'new>]),
 }
 
-pub type Result<'old, 'new, 'ident, T> = result::Result<T, Error<'old, 'new, 'ident>>;
+pub type Result<'old, 'new, T> = result::Result<T, Error<'old, 'new>>;

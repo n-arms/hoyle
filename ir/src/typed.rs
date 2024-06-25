@@ -1,3 +1,4 @@
+use crate::qualified::Identifier;
 use smartstring::{LazyCompact, SmartString};
 
 #[derive(Clone)]
@@ -24,18 +25,6 @@ pub struct FunctionDefinition<'expr> {
 pub struct StructDefinition<'expr> {
     pub name: Identifier,
     pub fields: &'expr [FieldDefinition<'expr>],
-}
-
-#[derive(Clone)]
-pub struct Tag {
-    pub module: u32,
-    pub key: u32,
-}
-
-#[derive(Clone)]
-pub struct Identifier {
-    pub name: SmartString<LazyCompact>,
-    pub tag: Tag,
 }
 
 #[derive(Clone)]
@@ -77,7 +66,7 @@ pub struct PatternField<'expr> {
 #[derive(Clone)]
 pub enum Literal {
     Boolean(bool),
-    Number(f64),
+    Integer(i64),
 }
 
 #[derive(Clone)]
@@ -98,13 +87,14 @@ pub enum Expr<'expr> {
         specialized_to: &'expr [Type<'expr>],
     },
     Call {
-        funcion: &'expr Expr<'expr>,
+        function: &'expr Expr<'expr>,
         arguments: &'expr [Expr<'expr>],
         r#type: Type<'expr>,
     },
     Operation {
-        operator: Type<'expr>,
+        operation: Operation,
         arguments: &'expr [Expr<'expr>],
+        r#type: Type<'expr>,
     },
     StructLiteral {
         name: Identifier,
@@ -131,6 +121,7 @@ pub struct Field<'expr> {
 #[derive(Clone)]
 pub struct Block<'expr> {
     pub statements: &'expr [Statement<'expr>],
+    pub result: Option<&'expr Expr<'expr>>,
 }
 
 #[derive(Clone)]
@@ -150,13 +141,15 @@ pub struct Branch<'expr> {
 
 #[derive(Clone)]
 pub enum Type<'expr> {
-    Named(Identifier),
-    Generic(Identifier),
-    Function {
+    Named {
+        name: Identifier,
         arguments: &'expr [Type<'expr>],
     },
-    Application {
-        main: Identifier,
+    Generic {
+        name: Identifier,
+    },
+    Function {
         arguments: &'expr [Type<'expr>],
+        return_type: &'expr Type<'expr>,
     },
 }

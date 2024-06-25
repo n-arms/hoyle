@@ -7,19 +7,23 @@ members = [
   # Public Interface
   "cli",
 
-  # Intermediate Representations
+  # Intermediate Representations for the frontend
+  "tree",
+
+  # Intermediate Representations for the backend
   "ir",
+
 
   # Frontend
   "lexer",
   "parser",
-  "qualifier",
-  "type_checker",
-
-  # Backend
-  "metadata",
-  "desugar",
-  
-  # Internal
-  "tests-integration"
+#  "qualifier",
+#  "type_checker",
+#
+#  # Backend
+#  "metadata",
+#  "desugar",
+#  
+#  # Internal
+#  "tests-integration"
 ]

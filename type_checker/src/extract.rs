@@ -1,46 +1,40 @@
-use ir::ast::Literal;
-use ir::qualified::{self, Primitives, Type};
-use ir::typed::Expr;
+use ir::qualified::Primitives;
+use ir::typed::{Expr, Literal, Type};
 
-pub trait Typeable<'expr, 'ident> {
+pub trait Typeable<'expr> {
     #[must_use]
-    fn extract(&self, primitives: &Primitives<'ident>) -> Type<'expr, 'ident>;
+    fn extract(&self, primitives: &Primitives) -> Type<'expr>;
 }
 
-impl<'expr, 'ident> Typeable<'expr, 'ident> for Literal<'expr> {
-    fn extract(&self, primitives: &Primitives<'ident>) -> Type<'expr, 'ident> {
+impl<'expr> Typeable<'expr> for Literal {
+    fn extract(&self, primitives: &Primitives) -> Type<'expr> {
         match self {
             Literal::Integer(_) => Type::Named {
-                name: primitives.int,
-                span: None,
+                name: primitives.integer.clone(),
+                arguments: &[],
+            },
+            Literal::Boolean(_) => Type::Named {
+                name: primitives.boolean.clone(),
+                arguments: &[],
             },
         }
     }
 }
 
-impl<'expr, 'ident> Typeable<'expr, 'ident> for Expr<'expr, 'ident> {
-    fn extract(&self, primitives: &Primitives<'ident>) -> Type<'expr, 'ident> {
+impl<'expr> Typeable<'expr> for Expr<'expr> {
+    fn extract(&self, primitives: &Primitives) -> Type<'expr> {
         match self {
-            ir::ast::Expr::Variable(id, _) => id.r#type,
-            ir::ast::Expr::Literal(literal, _) => literal.extract(primitives),
-            ir::ast::Expr::Call { function, .. } => match function.extract(primitives) {
-                Type::Arrow { return_type, .. } => *return_type,
-                Type::Named { .. } => {
-                    panic!("illegal function call: {function:?} is not an arrow type")
-                }
+            Expr::Variable { r#type, .. } => r#type.clone(),
+            Expr::Literal { literal, .. } => literal.extract(primitives),
+            Expr::Call { r#type, .. } => r#type.clone(),
+            Expr::Operation { .. } => todo!(),
+            Expr::StructLiteral { name, .. } => Type::Named {
+                name: name.clone(),
+                arguments: todo!(),
             },
-            ir::ast::Expr::Operation { .. } => todo!(),
-            ir::ast::Expr::StructLiteral { name, .. } => struct_type(name.identifier),
-            ir::ast::Expr::Block(block) => block.result.expect("todo").extract(primitives),
-            ir::ast::Expr::Annotated { annotation, .. } => *annotation,
-            ir::ast::Expr::Case { branches, .. } => {
-                branches.iter().next().unwrap().body.extract(primitives)
-            }
+            Expr::Block(block) => block.result.expect("todo").extract(primitives),
+            Expr::Annotated { annotation, .. } => annotation.clone(),
+            Expr::Case { branches, .. } => branches.iter().next().unwrap().body.extract(primitives),
         }
     }
-}
-
-#[must_use]
-pub const fn struct_type<'new, 'ident>(name: qualified::Identifier<'ident>) -> Type<'new, 'ident> {
-    Type::Named { name, span: None }
 }

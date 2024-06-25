@@ -1,29 +1,30 @@
+/*
 use arena_alloc::General;
 use ir::qualified::{self, Type};
 use ir::typed::{Block, Branch, Expr, Field, Identifier, Pattern, PatternField, Statement};
 use std::collections::HashMap;
 
 #[derive(Default)]
-pub struct Substitution<'expr, 'ident>(HashMap<qualified::Identifier<'ident>, Type<'expr, 'ident>>);
+pub struct Substitution<'expr>(HashMap<qualified::Identifier, Type<'expr>>);
 
-impl<'expr, 'ident> Substitution<'expr, 'ident> {
+impl<'expr> Substitution<'expr> {
     #[must_use]
-    pub fn unit(from: qualified::Identifier<'ident>, to: Type<'expr, 'ident>) -> Self {
+    pub fn unit(from: qualified::Identifier, to: Type<'expr>) -> Self {
         let mut sub = Substitution::default();
         sub.substitute(from, to);
         sub
     }
 
-    pub fn substitute(&mut self, from: qualified::Identifier<'ident>, to: Type<'expr, 'ident>) {
+    pub fn substitute(&mut self, from: qualified::Identifier, to: Type<'expr>) {
         self.0.insert(from, to);
     }
 
-    pub fn union(&mut self, other: &Substitution<'expr, 'ident>) {
+    pub fn union(&mut self, other: &Substitution<'expr>) {
         self.0.extend(&other.0);
     }
 
     #[must_use]
-    pub fn lookup(&self, from: &qualified::Identifier<'ident>) -> Option<Type<'expr, 'ident>> {
+    pub fn lookup(&self, from: &qualified::Identifier) -> Option<Type<'expr>> {
         self.0.get(from).copied()
     }
 
@@ -33,16 +34,14 @@ impl<'expr, 'ident> Substitution<'expr, 'ident> {
     }
 }
 
-impl<'expr, 'ident> From<HashMap<qualified::Identifier<'ident>, Type<'expr, 'ident>>>
-    for Substitution<'expr, 'ident>
-{
-    fn from(map: HashMap<qualified::Identifier<'ident>, Type<'expr, 'ident>>) -> Self {
+impl<'expr> From<HashMap<qualified::Identifier, Type<'expr>>> for Substitution<'expr> {
+    fn from(map: HashMap<qualified::Identifier, Type<'expr>>) -> Self {
         Self(map)
     }
 }
 
-impl<'expr, 'ident> Substitute<'expr, 'ident> for Identifier<'expr, 'ident> {
-    fn apply(&self, sub: &Substitution<'expr, 'ident>, alloc: &General<'expr>) -> Self {
+impl<'expr> Substitute<'expr> for Identifier {
+    fn apply(&self, sub: &Substitution<'expr>, alloc: &General<'expr>) -> Self {
         Identifier {
             identifier: self.identifier,
             r#type: self.r#type.apply(sub, alloc),
@@ -50,8 +49,8 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for Identifier<'expr, 'ident> {
     }
 }
 
-impl<'expr, 'ident> Substitute<'expr, 'ident> for Type<'expr, 'ident> {
-    fn apply(&self, sub: &Substitution<'expr, 'ident>, alloc: &General<'expr>) -> Self {
+impl<'expr> Substitute<'expr> for Type<'expr> {
+    fn apply(&self, sub: &Substitution<'expr>, alloc: &General<'expr>) -> Self {
         match self {
             qualified::Type::Named { name, .. } => sub.lookup(name).unwrap_or(*self),
             qualified::Type::Arrow {
@@ -68,14 +67,14 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for Type<'expr, 'ident> {
     }
 }
 
-impl<'expr, 'ident> Substitute<'expr, 'ident> for Expr<'expr, 'ident> {
-    fn apply(&self, sub: &Substitution<'expr, 'ident>, alloc: &General<'expr>) -> Self {
+impl<'expr> Substitute<'expr> for Expr<'expr> {
+    fn apply(&self, sub: &Substitution<'expr>, alloc: &General<'expr>) -> Self {
         match self {
-            ir::ast::Expr::Variable(identifier, span) => {
+            ir::source::Expr::Variable(identifier, span) => {
                 Expr::Variable(identifier.apply(sub, alloc), *span)
             }
-            ir::ast::Expr::Literal(literal, span) => Expr::Literal(*literal, *span),
-            ir::ast::Expr::Call {
+            ir::source::Expr::Literal(literal, span) => Expr::Literal(*literal, *span),
+            ir::source::Expr::Call {
                 function,
                 arguments,
                 span,
@@ -85,7 +84,7 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for Expr<'expr, 'ident> {
                     .alloc_slice_fill_iter(arguments.iter().map(|arg| arg.apply(sub, alloc))),
                 span: *span,
             },
-            ir::ast::Expr::Operation {
+            ir::source::Expr::Operation {
                 operator,
                 arguments,
                 span,
@@ -95,14 +94,14 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for Expr<'expr, 'ident> {
                     .alloc_slice_fill_iter(arguments.iter().map(|arg| arg.apply(sub, alloc))),
                 span: *span,
             },
-            ir::ast::Expr::StructLiteral { name, fields, span } => Expr::StructLiteral {
+            ir::source::Expr::StructLiteral { name, fields, span } => Expr::StructLiteral {
                 name: name.apply(sub, alloc),
                 fields: alloc
                     .alloc_slice_fill_iter(fields.iter().map(|field| field.apply(sub, alloc))),
                 span: *span,
             },
-            ir::ast::Expr::Block(block) => Expr::Block(block.apply(sub, alloc)),
-            ir::ast::Expr::Annotated {
+            ir::source::Expr::Block(block) => Expr::Block(block.apply(sub, alloc)),
+            ir::source::Expr::Annotated {
                 expr,
                 annotation,
                 span,
@@ -111,7 +110,7 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for Expr<'expr, 'ident> {
                 annotation: annotation.apply(sub, alloc),
                 span: *span,
             },
-            ir::ast::Expr::Case {
+            ir::source::Expr::Case {
                 predicate,
                 branches,
                 span,
@@ -125,8 +124,8 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for Expr<'expr, 'ident> {
     }
 }
 
-impl<'expr, 'ident> Substitute<'expr, 'ident> for Field<'expr, 'ident> {
-    fn apply(&self, sub: &Substitution<'expr, 'ident>, alloc: &General<'expr>) -> Self {
+impl<'expr> Substitute<'expr> for Field<'expr> {
+    fn apply(&self, sub: &Substitution<'expr>, alloc: &General<'expr>) -> Self {
         Field {
             name: self.name,
             value: self.value.apply(sub, alloc),
@@ -135,8 +134,8 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for Field<'expr, 'ident> {
     }
 }
 
-impl<'expr, 'ident> Substitute<'expr, 'ident> for Branch<'expr, 'ident> {
-    fn apply(&self, sub: &Substitution<'expr, 'ident>, alloc: &General<'expr>) -> Self {
+impl<'expr> Substitute<'expr> for Branch<'expr> {
+    fn apply(&self, sub: &Substitution<'expr>, alloc: &General<'expr>) -> Self {
         Branch {
             pattern: self.pattern.apply(sub, alloc),
             body: self.body.apply(sub, alloc),
@@ -145,8 +144,8 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for Branch<'expr, 'ident> {
     }
 }
 
-impl<'expr, 'ident> Substitute<'expr, 'ident> for PatternField<'expr, 'ident> {
-    fn apply(&self, sub: &Substitution<'expr, 'ident>, alloc: &General<'expr>) -> Self {
+impl<'expr> Substitute<'expr> for PatternField<'expr> {
+    fn apply(&self, sub: &Substitution<'expr>, alloc: &General<'expr>) -> Self {
         Self {
             name: self.name.apply(sub, alloc),
             pattern: self.pattern.apply(sub, alloc),
@@ -155,13 +154,13 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for PatternField<'expr, 'ident> {
     }
 }
 
-impl<'expr, 'ident> Substitute<'expr, 'ident> for Pattern<'expr, 'ident> {
-    fn apply(&self, sub: &Substitution<'expr, 'ident>, alloc: &General<'expr>) -> Self {
+impl<'expr> Substitute<'expr> for Pattern<'expr> {
+    fn apply(&self, sub: &Substitution<'expr>, alloc: &General<'expr>) -> Self {
         match self {
-            ir::ast::Pattern::Variable(identifier, span) => {
+            ir::source::Pattern::Variable(identifier, span) => {
                 Pattern::Variable(identifier.apply(sub, alloc), *span)
             }
-            ir::ast::Pattern::Struct { name, fields, span } => {
+            ir::source::Pattern::Struct { name, fields, span } => {
                 let sub_name = name.apply(sub, alloc);
                 let sub_fields =
                     alloc.alloc_slice_fill_iter(fields.iter().map(|f| f.apply(sub, alloc)));
@@ -175,8 +174,8 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for Pattern<'expr, 'ident> {
     }
 }
 
-impl<'expr, 'ident> Substitute<'expr, 'ident> for Block<'expr, 'ident> {
-    fn apply(&self, sub: &Substitution<'expr, 'ident>, alloc: &General<'expr>) -> Self {
+impl<'expr> Substitute<'expr> for Block<'expr> {
+    fn apply(&self, sub: &Substitution<'expr>, alloc: &General<'expr>) -> Self {
         Block {
             statements: alloc
                 .alloc_slice_fill_iter(self.statements.iter().map(|stmt| stmt.apply(sub, alloc))),
@@ -188,10 +187,10 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for Block<'expr, 'ident> {
     }
 }
 
-impl<'expr, 'ident> Substitute<'expr, 'ident> for Statement<'expr, 'ident> {
-    fn apply(&self, sub: &Substitution<'expr, 'ident>, alloc: &General<'expr>) -> Self {
+impl<'expr> Substitute<'expr> for Statement<'expr> {
+    fn apply(&self, sub: &Substitution<'expr>, alloc: &General<'expr>) -> Self {
         match self {
-            ir::ast::Statement::Let {
+            ir::source::Statement::Let {
                 left_side,
                 right_side,
                 span,
@@ -200,12 +199,13 @@ impl<'expr, 'ident> Substitute<'expr, 'ident> for Statement<'expr, 'ident> {
                 right_side: right_side.apply(sub, alloc),
                 span: *span,
             },
-            ir::ast::Statement::Raw(expr, span) => Statement::Raw(expr.apply(sub, alloc), *span),
+            ir::source::Statement::Raw(expr) => Statement::Raw(expr.apply(sub, alloc)),
         }
     }
 }
 
-pub trait Substitute<'expr, 'ident> {
+pub trait Substitute<'expr> {
     #[must_use]
-    fn apply(&self, sub: &Substitution<'expr, 'ident>, alloc: &General<'expr>) -> Self;
+    fn apply(&self, sub: &Substitution<'expr>, alloc: &General<'expr>) -> Self;
 }
+*/

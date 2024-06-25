@@ -1,3 +1,285 @@
+use crate::{check, env::Env, error::Result, extract::Typeable};
+use arena_alloc::General;
+use ir::{qualified, typed};
+
+pub fn program<'old, 'new>(
+    to_infer: qualified::Program<'old>,
+    env: &mut Env<'new>,
+    general: &General<'new>,
+) -> Result<'new, typed::Program<'new>> {
+    let typed_definitions = general.alloc_slice_try_fill_iter(
+        to_infer
+            .definitions
+            .iter()
+            .map(|def| definition(def, env, general)),
+    )?;
+
+    Ok(typed::Program {
+        definitions: typed_definitions,
+    })
+}
+
+pub fn definition<'old, 'new>(
+    to_infer: &qualified::Definition<'old>,
+    env: &mut Env<'new>,
+    general: &General<'new>,
+) -> Result<'new, typed::Definition<'new>> {
+    match to_infer {
+        qualified::Definition::Function(function) => {
+            let typed_definition = function_definition(function, env, general)?;
+            Ok(typed::Definition::Function(typed_definition))
+        }
+        qualified::Definition::Struct(r#struct) => {
+            let typed_definition = struct_definition(r#struct, env, general)?;
+            Ok(typed::Definition::Struct(typed_definition))
+        }
+    }
+}
+
+pub fn function_definition<'old, 'new>(
+    to_infer: &qualified::FunctionDefinition<'old>,
+    env: &mut Env<'new>,
+    general: &General<'new>,
+) -> Result<'new, typed::FunctionDefinition<'new>> {
+    let typed_generics = general.alloc_slice_fill_iter(to_infer.generics.iter().map(|generic| {
+        typed::GenericDefinition {
+            name: generic.name.clone(),
+        }
+    }));
+    let typed_arguments = general.alloc_slice_try_fill_iter(
+        to_infer
+            .arguments
+            .iter()
+            .map(|arg| argument_definition(arg, env, general)),
+    )?;
+    let return_type = r#type(&to_infer.return_type, env, general)?;
+    let body = expr(&to_infer.body, env, general)?;
+    Ok(typed::FunctionDefinition {
+        name: to_infer.name.clone(),
+        generics: typed_generics,
+        arguments: typed_arguments,
+        return_type,
+        body,
+    })
+}
+
+pub fn struct_definition<'old, 'new>(
+    to_infer: &qualified::StructDefinition<'old>,
+    env: &mut Env<'new>,
+    general: &General<'new>,
+) -> Result<'new, typed::StructDefinition<'new>> {
+    todo!()
+}
+
+pub fn argument_definition<'old, 'new>(
+    to_infer: &qualified::ArgumentDefinition<'old>,
+    env: &mut Env<'new>,
+    general: &General<'new>,
+) -> Result<'new, typed::ArgumentDefinition<'new>> {
+    let typed_type = r#type(&to_infer.r#type, env, general)?;
+    let typed_pattern = check::pattern(&to_infer.pattern, &typed_type, env, general)?;
+    Ok(typed::ArgumentDefinition {
+        pattern: typed_pattern,
+        r#type: typed_type,
+    })
+}
+
+pub fn r#type<'old, 'new>(
+    to_infer: &qualified::Type<'old>,
+    env: &mut Env<'new>,
+    general: &General<'new>,
+) -> Result<'new, typed::Type<'new>> {
+    match to_infer {
+        qualified::Type::Named { name, span } => Ok(typed::Type::Named {
+            name: name.clone(),
+            arguments: &[],
+        }),
+        qualified::Type::Generic { name, span } => Ok(typed::Type::Generic { name: name.clone() }),
+        qualified::Type::Function {
+            arguments,
+            return_type,
+            span,
+        } => {
+            let typed_arguments = general
+                .alloc_slice_try_fill_iter(arguments.iter().map(|arg| r#type(arg, env, general)))?;
+            let typed_return_type = r#type(return_type, env, general)?;
+            Ok(typed::Type::Function {
+                arguments: typed_arguments,
+                return_type: general.alloc(typed_return_type),
+            })
+        }
+        qualified::Type::Application {
+            main,
+            arguments,
+            span,
+        } => {
+            todo!()
+        }
+    }
+}
+
+pub fn expr<'old, 'new>(
+    to_infer: &qualified::Expr<'old>,
+    env: &mut Env<'new>,
+    general: &General<'new>,
+) -> Result<'new, typed::Expr<'new>> {
+    match to_infer {
+        qualified::Expr::Literal { literal, span } => {
+            let typed_literal = match literal {
+                qualified::Literal::Boolean(bool) => typed::Literal::Boolean(*bool),
+                qualified::Literal::Integer(int) => typed::Literal::Integer(*int),
+            };
+            Ok(typed::Expr::Literal {
+                literal: typed_literal,
+            })
+        }
+        qualified::Expr::Variable { identifier, span } => {
+            let scheme = env.lookup_variable(identifier);
+
+            assert!(scheme.for_all.is_empty()); // todo: handle generics :)
+
+            Ok(typed::Expr::Variable {
+                identifier: identifier.clone(),
+                r#type: scheme.r#type.clone(),
+                specialized_to: &[],
+            })
+        }
+        qualified::Expr::Call {
+            function,
+            arguments,
+            span,
+        } => {
+            let typed_function = general.alloc(expr(function, env, general)?);
+            let typed_arguments = general
+                .alloc_slice_try_fill_iter(arguments.iter().map(|arg| expr(arg, env, general)))?;
+            let argument_types = general.alloc_slice_fill_iter(
+                typed_arguments
+                    .iter()
+                    .map(|arg| arg.extract(&env.primitives)),
+            );
+            let return_type = match typed_function.extract(&env.primitives) {
+                typed::Type::Function { return_type, .. } => return_type.clone(),
+                r#type => return Err(todo!()),
+            };
+            let typed_type = typed::Type::Function {
+                arguments: argument_types,
+                return_type: general.alloc(return_type),
+            };
+            Ok(typed::Expr::Call {
+                function: typed_function,
+                arguments: typed_arguments,
+                r#type: typed_type,
+            })
+        }
+        qualified::Expr::Operation {
+            operator,
+            arguments,
+            span,
+        } => {
+            let typed_operation = match operator {
+                qualified::Operation::Add => typed::Operation::Add,
+            };
+            let typed_arguments = general
+                .alloc_slice_try_fill_iter(arguments.iter().map(|arg| expr(arg, env, general)))?;
+            let return_type = match operator {
+                qualified::Operation::Add => typed::Type::Named {
+                    name: env.primitives.integer.clone(),
+                    arguments: &[],
+                },
+            };
+            Ok(typed::Expr::Operation {
+                operation: typed_operation,
+                arguments: typed_arguments,
+                r#type: return_type,
+            })
+        }
+        qualified::Expr::StructLiteral { name, fields, span } => {
+            let typed_fields =
+                general.alloc_slice_try_fill_iter(fields.iter().map(|f| field(f, env, general)))?;
+
+            let struct_name = env.lookup_struct(name).name.clone();
+            let r#type = typed::Type::Named {
+                name: struct_name,
+                arguments: todo!(),
+            };
+
+            Ok(typed::Expr::StructLiteral {
+                name: name.clone(),
+                fields: typed_fields,
+                r#type,
+            })
+        }
+        qualified::Expr::Block(b) => Ok(typed::Expr::Block(block(b, env, general)?)),
+        qualified::Expr::Annotated {
+            expr: e,
+            annotation,
+            span,
+        } => Ok(typed::Expr::Annotated {
+            expr: general.alloc(expr(e, env, general)?),
+            annotation: r#type(annotation, env, general)?,
+        }),
+        qualified::Expr::Case {
+            predicate,
+            branches,
+            span,
+        } => todo!(),
+    }
+}
+
+pub fn field<'old, 'new>(
+    to_infer: &qualified::Field<'old>,
+    env: &mut Env<'new>,
+    general: &General<'new>,
+) -> Result<'new, typed::Field<'new>> {
+    let typed_value = expr(&to_infer.value, env, general)?;
+    Ok(typed::Field {
+        name: to_infer.name.clone(),
+        value: typed_value,
+    })
+}
+
+pub fn block<'old, 'new>(
+    to_infer: &qualified::Block<'old>,
+    env: &mut Env<'new>,
+    general: &General<'new>,
+) -> Result<'new, typed::Block<'new>> {
+    let result: Option<&_> = if let Some(result) = to_infer.result {
+        Some(general.alloc(expr(result, env, general)?))
+    } else {
+        None
+    };
+    Ok(typed::Block {
+        statements: general.alloc_slice_try_fill_iter(
+            to_infer
+                .statements
+                .iter()
+                .map(|stmt| statement(stmt, env, general)),
+        )?,
+        result,
+    })
+}
+
+pub fn statement<'old, 'new>(
+    to_infer: &qualified::Statement<'old>,
+    env: &mut Env<'new>,
+    general: &General<'new>,
+) -> Result<'new, typed::Statement<'new>> {
+    match to_infer {
+        qualified::Statement::Raw(inner) => Ok(typed::Statement::Raw(expr(inner, env, general)?)),
+        qualified::Statement::Let {
+            pattern: p,
+            value,
+            span,
+        } => {
+            let typed_value = expr(value, env, general)?;
+            Ok(typed::Statement::Let {
+                pattern: check::pattern(p, &typed_value.extract(&env.primitives), env, general)?,
+                value: typed_value,
+            })
+        }
+    }
+}
+/*
 use crate::check::{branch, field, pattern};
 use crate::env::Env;
 use crate::error::Result;
@@ -11,12 +293,12 @@ use ir::typed::{
     Argument, Block, Definition, Expr, FieldDefinition, Identifier, Program, Statement,
 };
 
-pub fn program<'old, 'new, 'ident, 'names>(
-    to_infer: qualified::Program<'old, 'ident>,
-    env: &mut Env<'new, 'ident, 'names>,
-    interner: &Interning<'ident, Specialized>,
+pub fn program<'old, 'new, 'names>(
+    to_infer: qualified::Program<'old>,
+    env: &mut Env<'new, 'names>,
+    interner: &Interning<Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Program<'new, 'ident>> {
+) -> Result<'new, Program<'new>> {
     let typed_definitions = general.alloc_slice_try_fill_iter(
         to_infer
             .definitions
@@ -29,10 +311,10 @@ pub fn program<'old, 'new, 'ident, 'names>(
     })
 }
 
-pub fn field_definition<'old, 'new, 'ident>(
-    to_infer: qualified::FieldDefinition<'old, 'ident>,
+pub fn field_definition<'old, 'new>(
+    to_infer: qualified::FieldDefinition<'old>,
     general: &General<'new>,
-) -> Result<'new, 'ident, FieldDefinition<'new, 'ident>> {
+) -> Result<'new, FieldDefinition<'new>> {
     let typed_field_type = r#type(to_infer.field_type, general);
     let name = Identifier {
         identifier: to_infer.name,
@@ -46,13 +328,13 @@ pub fn field_definition<'old, 'new, 'ident>(
     })
 }
 
-fn arrow_type<'expr, 'ident, I>(
+fn arrow_type<'expr, I>(
     arguments: I,
-    r#return: Type<'expr, 'ident>,
+    r#return: Type<'expr>,
     general: &General<'expr>,
-) -> Type<'expr, 'ident>
+) -> Type<'expr>
 where
-    I: IntoIterator<Item = Type<'expr, 'ident>>,
+    I: IntoIterator<Item = Type<'expr>>,
     I::IntoIter: ExactSizeIterator,
 {
     Type::Arrow {
@@ -62,12 +344,12 @@ where
     }
 }
 
-pub fn definition<'old, 'new, 'ident, 'names>(
-    to_infer: qualified::Definition<'old, 'ident>,
-    env: &mut Env<'new, 'ident, 'names>,
-    interner: &Interning<'ident, Specialized>,
+pub fn definition<'old, 'new, 'names>(
+    to_infer: qualified::Definition<'old>,
+    env: &mut Env<'new, 'names>,
+    interner: &Interning<Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Definition<'new, 'ident>> {
+) -> Result<'new, Definition<'new>> {
     match to_infer {
         ir::ast::Definition::Function {
             name,
@@ -144,12 +426,12 @@ pub fn definition<'old, 'new, 'ident, 'names>(
     }
 }
 
-pub fn argument<'old, 'new, 'ident, 'names>(
-    to_infer: qualified::Argument<'old, 'ident>,
-    env: &mut Env<'new, 'ident, 'names>,
-    interner: &Interning<'ident, Specialized>,
+pub fn argument<'old, 'new, 'names>(
+    to_infer: qualified::Argument<'old>,
+    env: &mut Env<'new, 'names>,
+    interner: &Interning<Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Argument<'new, 'ident>> {
+) -> Result<'new, Argument<'new>> {
     let type_annotation = r#type(to_infer.type_annotation, general);
     let typed_pattern = pattern(to_infer.pattern, type_annotation, env, interner, general)?;
 
@@ -160,13 +442,13 @@ pub fn argument<'old, 'new, 'ident, 'names>(
     })
 }
 
-pub fn block<'old, 'new, 'ident, 'names>(
-    to_infer: qualified::Block<'old, 'ident>,
-    env: &mut Env<'new, 'ident, 'names>,
-    substitution: &mut Substitution<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
+pub fn block<'old, 'new, 'names>(
+    to_infer: qualified::Block<'old>,
+    env: &mut Env<'new, 'names>,
+    substitution: &mut Substitution<'new>,
+    interner: &Interning<Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Block<'new, 'ident>> {
+) -> Result<'new, Block<'new>> {
     let typed_statements = general.alloc_slice_try_fill_iter(
         to_infer
             .statements
@@ -188,13 +470,13 @@ pub fn block<'old, 'new, 'ident, 'names>(
     })
 }
 
-pub fn statement<'old, 'new, 'ident, 'names>(
-    to_infer: qualified::Statement<'old, 'ident>,
-    env: &mut Env<'new, 'ident, 'names>,
-    substitution: &mut Substitution<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
+pub fn statement<'old, 'new, 'names>(
+    to_infer: qualified::Statement<'old>,
+    env: &mut Env<'new, 'names>,
+    substitution: &mut Substitution<'new>,
+    interner: &Interning<Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Statement<'new, 'ident>> {
+) -> Result<'new, Statement<'new>> {
     match to_infer {
         ir::ast::Statement::Let {
             left_side,
@@ -226,10 +508,7 @@ pub fn statement<'old, 'new, 'ident, 'names>(
 }
 
 #[must_use]
-pub fn r#type<'old, 'new, 'ident>(
-    to_infer: qualified::Type<'old, 'ident>,
-    general: &General<'new>,
-) -> Type<'new, 'ident> {
+pub fn r#type<'old, 'new>(to_infer: qualified::Type<'old>, general: &General<'new>) -> Type<'new> {
     match to_infer {
         qualified::Type::Named { name, span } => Type::Named { name, span },
         qualified::Type::Arrow {
@@ -245,23 +524,23 @@ pub fn r#type<'old, 'new, 'ident>(
     }
 }
 
-pub fn literal<'old, 'new, 'ident>(
+pub fn literal<'old, 'new>(
     to_infer: Literal<'old>,
-    _interner: &Interning<'ident, Specialized>,
+    _interner: &Interning<Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Literal<'new>> {
+) -> Result<'new, Literal<'new>> {
     match to_infer {
         Literal::Integer(integer) => Ok(Literal::Integer(general.alloc_str(integer))),
     }
 }
 
-pub fn expr<'old, 'new, 'ident, 'names>(
-    to_infer: qualified::Expr<'old, 'ident>,
-    env: &mut Env<'new, 'ident, 'names>,
-    substitution: &mut Substitution<'new, 'ident>,
-    interner: &Interning<'ident, Specialized>,
+pub fn expr<'old, 'new, 'names>(
+    to_infer: qualified::Expr<'old>,
+    env: &mut Env<'new, 'names>,
+    substitution: &mut Substitution<'new>,
+    interner: &Interning<Specialized>,
     general: &General<'new>,
-) -> Result<'new, 'ident, Expr<'new, 'ident>> {
+) -> Result<'new, Expr<'new>> {
     match to_infer {
         ir::ast::Expr::Variable(variable, span) => {
             let typed_variable = env.lookup_variable(variable, general);
@@ -366,3 +645,4 @@ pub fn expr<'old, 'new, 'ident, 'names>(
         }
     }
 }
+*/
