@@ -22,7 +22,6 @@ pub struct Variable {
     pub name: String,
     pub typ: Type,
     pub size: Size,
-    pub offset: Size,
     pub witness: Option<Box<Variable>>,
 }
 
@@ -39,10 +38,21 @@ pub struct Block {
 
 #[derive(Clone)]
 pub enum Instr {
-    CallDirect { function: String },
-    Copy { target: Variable, value: Variable },
-    Destory { value: Variable },
-    Set { target: Variable, expr: Expr },
+    CallDirect {
+        function: String,
+        arguments: Vec<Variable>,
+    },
+    Copy {
+        target: Variable,
+        value: Variable,
+    },
+    Destory {
+        value: Variable,
+    },
+    Set {
+        target: Variable,
+        expr: Expr,
+    },
 }
 
 #[derive(Clone)]
@@ -108,13 +118,9 @@ impl fmt::Display for Function {
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.typ == Type::typ() {
-            write!(f, "{}: {:?} |off {}", self.name, self.typ, self.offset)
+            write!(f, "{}: {:?}", self.name, self.typ)
         } else {
-            write!(
-                f,
-                "{}: {:?} |size {} |off {}",
-                self.name, self.typ, self.size, self.offset
-            )?;
+            write!(f, "{}: {:?} |size {}", self.name, self.typ, self.size)?;
             if let Some(witness) = self.witness.as_ref() {
                 write!(f, " |wit ({})", witness.as_ref())
             } else {
@@ -126,7 +132,7 @@ impl fmt::Display for Variable {
 
 impl fmt::Display for Size {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.static_size != 0 {
+        if self.static_size != 0 || self.dynamic.is_empty() {
             write!(f, "{}", self.static_size)?;
         }
         let mut first = true;
@@ -153,7 +159,21 @@ impl fmt::Display for Block {
 impl fmt::Display for Instr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Instr::CallDirect { function } => write!(f, "call {}", function),
+            Instr::CallDirect {
+                function,
+                arguments,
+            } => {
+                write!(f, "call {} with ", function)?;
+                let mut first = true;
+                for arg in arguments {
+                    if !first {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{arg}")?;
+                    first = false;
+                }
+                Ok(())
+            }
             Instr::Copy { target, value } => write!(f, "{} <- copy {}", target, value),
             Instr::Destory { value } => write!(f, "destroy {}", value),
             Instr::Set { target, expr } => write!(f, "{} = {}", target, expr),

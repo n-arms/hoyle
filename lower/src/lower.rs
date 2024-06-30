@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::env::Env;
 use ir::bridge::{Block, Expr, Function, Instr, Program, Size, Variable};
 use tree::sized::{self};
@@ -21,12 +23,12 @@ fn function(to_lower: &sized::Function) -> Function {
         .map(|arg| {
             let size = lower_size(&mut env, &arg.size, &mut instrs);
             let witness = expr(&mut env, &arg.witness, &mut instrs);
-            env.allocate_variable(arg.name, arg.typ, size, Some(witness))
+            env.allocate_variable(arg.name.clone(), arg.typ, size, Some(witness))
         })
         .collect();
     let result = expr(&mut env, &to_lower.body, &mut instrs);
     instrs.push(Instr::Copy {
-        target: lowered_arguments[0].clone(),
+        target: lowered_arguments.last().unwrap().clone(),
         value: result,
     });
     let body = Block { instrs };
@@ -54,7 +56,7 @@ fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &mut Vec<Instr>) -> Varia
             arguments,
             tag,
         } => {
-            let lowered_arguments: Vec<_> = arguments
+            let mut lowered_arguments: Vec<_> = arguments
                 .iter()
                 .map(|to_lower| expr(env, to_lower, instrs))
                 .collect();
@@ -62,26 +64,11 @@ fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &mut Vec<Instr>) -> Varia
             let witness = tag.witness.clone().map(|e| expr(env, e.as_ref(), instrs));
             let size = lower_size(env, &tag.size, instrs);
             let result = env.allocate_variable(name, tag.result.clone(), size, witness);
-            let mut offset = result.offset.clone() + result.size.clone();
-            let argument_offsets = lowered_arguments.iter().map(|arg| {
-                let slot = offset.clone();
-                offset += arg.size.clone();
-                slot
-            });
-            for (i, (arg, offset)) in lowered_arguments.iter().zip(argument_offsets).enumerate() {
-                instrs.push(Instr::Copy {
-                    value: arg.clone(),
-                    target: Variable {
-                        name: String::from(format!("_{}", i)),
-                        typ: arg.typ.clone(),
-                        size: arg.size.clone(),
-                        offset,
-                        witness: arg.witness.clone(),
-                    },
-                });
-            }
+            lowered_arguments.push(result.clone());
+
             instrs.push(Instr::CallDirect {
                 function: function.clone(),
+                arguments: lowered_arguments,
             });
 
             result

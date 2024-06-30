@@ -1,3 +1,6 @@
+use std::cell::Cell;
+use std::rc::Rc;
+
 use im::HashMap;
 use ir::bridge::{Size, Variable};
 use tree::typed::Type;
@@ -5,19 +8,21 @@ use tree::String;
 
 #[derive(Clone)]
 pub struct Env {
-    next_var: Size,
-    next_name: usize,
+    pub next_name: Rc<Cell<usize>>,
     variables: HashMap<String, Variable>,
 }
 
 impl Env {
     pub fn new() -> Self {
         Self {
-            next_var: Size {
-                static_size: 0,
-                dynamic: Vec::new(),
-            },
-            next_name: 0,
+            next_name: Rc::new(Cell::new(0)),
+            variables: HashMap::new(),
+        }
+    }
+
+    pub fn from_name(name: Rc<Cell<usize>>) -> Self {
+        Self {
+            next_name: name,
             variables: HashMap::new(),
         }
     }
@@ -29,27 +34,30 @@ impl Env {
         size: Size,
         witness: Option<Variable>,
     ) -> Variable {
-        let offset = self.next_var.clone();
-        self.next_var.static_size += size.static_size;
-        self.next_var.dynamic.extend(size.dynamic.iter().cloned());
         let var = Variable {
             name: name.clone(),
             typ,
             size,
-            offset,
             witness: witness.map(Box::new),
         };
         self.variables.insert(name, var.clone());
         var
     }
 
+    pub fn define_variable(&mut self, name: String, variable: Variable) {
+        self.variables.insert(name, variable);
+    }
+
     pub fn lookup_variable(&self, name: &String) -> Variable {
-        self.variables.get(name).cloned().unwrap()
+        self.variables
+            .get(name)
+            .cloned()
+            .expect(&format!("Unknown variable {}", name))
     }
 
     pub fn fresh_name(&mut self) -> String {
-        let name = self.next_name;
-        self.next_name += 1;
+        let name = self.next_name.take();
+        self.next_name.set(name + 1);
         String::from(format!("_{}", name))
     }
 }
