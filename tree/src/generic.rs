@@ -1,9 +1,26 @@
+use core::fmt;
+
 use crate::String;
 
 pub trait Stage {
     type Argument: Clone;
     type Call: Clone;
     type Type: Clone;
+    type Variable: Clone;
+}
+
+pub trait DisplayStage:
+    Stage<
+    Argument = <Self as DisplayStage>::Argument,
+    Call = <Self as DisplayStage>::Call,
+    Type = <Self as DisplayStage>::Type,
+    Variable = <Self as DisplayStage>::Variable,
+>
+{
+    type Argument: Clone + fmt::Debug;
+    type Call: Clone + fmt::Display;
+    type Type: Clone + fmt::Display;
+    type Variable: Clone + fmt::Display;
 }
 
 #[derive(Clone)]
@@ -39,7 +56,7 @@ pub enum Type {
     },
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Generic {
     pub name: String,
 }
@@ -57,11 +74,18 @@ pub struct Function<S: Stage> {
 pub enum Literal {
     Float(f64),
 }
+impl Literal {
+    pub fn get_type(&self) -> Type {
+        match self {
+            Literal::Float(_) => Type::float(),
+        }
+    }
+}
 
 #[derive(Clone)]
 pub enum Expr<S: Stage> {
     Variable {
-        name: String,
+        name: S::Variable,
         typ: S::Type,
     },
     Literal {
@@ -78,7 +102,7 @@ pub enum Expr<S: Stage> {
 #[derive(Clone)]
 pub enum Statement<S: Stage> {
     Let {
-        name: String,
+        name: S::Variable,
         typ: S::Type,
         value: Expr<S>,
     },
@@ -103,5 +127,140 @@ impl<S: Stage> Program<S> {
             structs: Vec::new(),
             functions: vec![function_def],
         }
+    }
+}
+
+impl Type {
+    pub fn typ() -> Self {
+        Self::Named {
+            name: String::from("Type"),
+            arguments: Vec::new(),
+        }
+    }
+    pub fn float() -> Self {
+        Self::Named {
+            name: String::from("F64"),
+            arguments: Vec::new(),
+        }
+    }
+    pub fn bool() -> Self {
+        Self::Named {
+            name: String::from("Bool"),
+            arguments: Vec::new(),
+        }
+    }
+}
+
+impl<S: DisplayStage> fmt::Display for Program<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for s in &self.structs {
+            write!(f, "{}", s)?;
+        }
+        for func in &self.functions {
+            write!(f, "{}", func)?;
+        }
+        Ok(())
+    }
+}
+
+impl<S: DisplayStage> fmt::Display for Function<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "func {}", self.name)?;
+        f.debug_list().entries(self.generics.iter()).finish()?;
+        write!(f, "(")?;
+        for (i, arg) in self.arguments.iter().enumerate() {
+            if i != 0 {
+                write!(f, ",\n\t")?;
+            } else {
+                write!(f, "\n\t")?;
+            }
+            write!(f, "{:?}", arg)?;
+        }
+        write!(f, "\n): {:?} = {}", self.result, self.body)
+    }
+}
+
+impl<S: DisplayStage> fmt::Display for Expr<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expr::Variable { name, typ } => write!(f, "({}: {})", name, typ),
+            Expr::Literal { literal } => write!(f, "{}", literal),
+            Expr::CallDirect {
+                function,
+                arguments,
+                tag,
+            } => {
+                write!(f, "{}[{}](", function, tag)?;
+                for (i, arg) in arguments.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{:?}", arg)?;
+                }
+                write!(f, ")")
+            }
+            Expr::Block(_) => todo!(),
+        }
+    }
+}
+
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Literal::Float(float) => write!(f, "{}", float),
+        }
+    }
+}
+
+impl<S: Stage> fmt::Debug for Expr<S>
+where
+    Expr<S>: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl fmt::Display for Struct {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = f.debug_struct(&format!("struct {}", self.name));
+        for field in &self.fields {
+            s.field(&field.name, &field.typ);
+        }
+        s.finish()
+    }
+}
+
+impl fmt::Debug for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Type::Named { name, arguments } => {
+                write!(f, "{}", name)?;
+                if !arguments.is_empty() {
+                    f.debug_list().entries(arguments.iter()).finish()
+                } else {
+                    Ok(())
+                }
+            }
+            Type::Generic { name } => write!(f, "{}", name),
+            Type::Function { arguments, result } => {
+                if arguments.len() == 1 {
+                    write!(f, "{:?}", arguments[0])?;
+                } else {
+                    let mut tuple = f.debug_tuple("");
+                    for arg in arguments {
+                        tuple.field(arg);
+                    }
+                    tuple.finish()?;
+                }
+                write!(f, " -> {:?}", result.as_ref())
+            }
+        }
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }

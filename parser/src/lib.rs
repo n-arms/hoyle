@@ -9,10 +9,11 @@
 pub mod util;
 pub mod program;
 
+use chumsky::primitive::end;
 use chumsky::{error::Simple, Parser};
-use ir::token::Token;
 use tree::parsed::*;
+use tree::token::Token;
 
 pub fn parse<'src>(tokens: &[Token<'src>]) -> Result<Program, Vec<Simple<Token<'src>>>> {
-    program::program().parse(tokens)
+    program::program().then_ignore(end()).parse(tokens)
 }

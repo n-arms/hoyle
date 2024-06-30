@@ -17,8 +17,11 @@ members = [
   # Frontend
   "lexer",
   "parser",
+  "type_checker",
+  "type_passing",
+  "sizer",
+  "lower"
 #  "qualifier",
-#  "type_checker",
 #
 #  # Backend
 #  "metadata",

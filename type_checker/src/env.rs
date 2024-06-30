@@ -5,7 +5,7 @@ use tree::{typed::*, String};
 
 pub type Result<T> = result::Result<T, Error>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Error {
     UnknownVariable(String),
     UnknownFunction(String),

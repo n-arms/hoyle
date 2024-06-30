@@ -1,5 +1,5 @@
 use crate::span_source::SpanSource;
-use ir::token::{self, BinaryOperator, Kind};
+use tree::token::{self, BinaryOperator, Kind};
 
 #[derive(Debug, Default)]
 pub struct Errors {

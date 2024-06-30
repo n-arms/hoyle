@@ -1,7 +1,7 @@
 use chumsky::recursive::recursive;
 use chumsky::{error::Simple, primitive::filter_map, Parser};
-use ir::token::{Kind, Token};
 use tree::parsed::*;
+use tree::token::{Kind, Token};
 use tree::String;
 
 pub fn token<'src>(kind: Kind) -> parser!('src, Token<'src>) {

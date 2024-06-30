@@ -4,26 +4,25 @@ use crate::String;
 
 pub use generic::{Field, Generic, Literal, Struct, Type};
 
-pub struct Typed;
+pub struct TypePassing;
 
 #[derive(Clone)]
 pub struct Call {
     pub result: Type,
-    pub generics: Vec<Type>,
 }
 
-impl Stage for Typed {
+impl Stage for TypePassing {
     type Variable = String;
     type Argument = Argument;
     type Call = Call;
     type Type = Type;
 }
 
-pub type Program = generic::Program<Typed>;
-pub type Function = generic::Function<Typed>;
-pub type Expr = generic::Expr<Typed>;
-pub type Block = generic::Block<Typed>;
-pub type Statement = generic::Statement<Typed>;
+pub type Program = generic::Program<TypePassing>;
+pub type Function = generic::Function<TypePassing>;
+pub type Expr = generic::Expr<TypePassing>;
+pub type Block = generic::Block<TypePassing>;
+pub type Statement = generic::Statement<TypePassing>;
 
 impl Expr {
     pub fn get_type(&self) -> Type {

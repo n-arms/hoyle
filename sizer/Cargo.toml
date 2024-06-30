@@ -1,5 +1,5 @@
 [package]
-name = "desugar"
+name = "sizer"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 arena_alloc = { path = "../arena_alloc" }
-ir = { path = "../ir" }
+tree = { path = "../tree" }
 type_checker = { path = "../type_checker" }
+im = "15.1.0"

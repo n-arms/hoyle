@@ -1,7 +1,7 @@
 use std::io::{self, BufRead, Result, Write};
 
-use ir::token::{List, Token};
 use lexer::{scan_tokens, Errors};
+use tree::token::{self, List, Token};
 
 pub enum ExitStatus {
     Okay,
@@ -16,12 +16,12 @@ fn is_balanced<'a>(tokens: impl IntoIterator<Item = Token<'a>>) -> bool {
 
     for token in tokens {
         match token.kind {
-            ir::token::Kind::LeftParen => parens += 1,
-            ir::token::Kind::RightParen => parens -= 1,
-            ir::token::Kind::LeftBrace => braces += 1,
-            ir::token::Kind::RightBrace => braces -= 1,
-            ir::token::Kind::LeftSquareBracket => squares += 1,
-            ir::token::Kind::RightSquareBracket => squares -= 1,
+            token::Kind::LeftParen => parens += 1,
+            token::Kind::RightParen => parens -= 1,
+            token::Kind::LeftBrace => braces += 1,
+            token::Kind::RightBrace => braces -= 1,
+            token::Kind::LeftSquareBracket => squares += 1,
+            token::Kind::RightSquareBracket => squares -= 1,
             _ => {}
         }
     }

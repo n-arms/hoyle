@@ -7,12 +7,10 @@ edition = "2021"
 
 [dependencies]
 bumpalo = "3.11.1"
-infinite-iterator = "0.1.0"
-ir = { path = "../ir" }
 lexer = { path = "../lexer" }
 parser = { path = "../parser" }
 type_checker = { path = "../type_checker" }
-arena_alloc = { path = "../arena_alloc" }
-qualifier = { path = "../qualifier" }
-metadata = { path = "../metadata" }
-desugar = { path = "../desugar" }
+type_passing = { path = "../type_passing" }
+sizer = { path = "../sizer" }
+tree = { path = "../tree" }
+lower = { path = "../lower" }

@@ -1,5 +1,5 @@
 [package]
-name = "qualifier"
+name = "lower"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 im = "15.1.0"
 ir = { path = "../ir" }
+tree = { path = "../tree" }
 arena_alloc = { path = "../arena_alloc" }
 smartstring = "1.0.1"

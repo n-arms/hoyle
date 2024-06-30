@@ -1,9 +1,11 @@
 [package]
-name = "lexer"
+name = "type_passing"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+arena_alloc = { path = "../arena_alloc" }
 tree = { path = "../tree" }
+type_checker = { path = "../type_checker" }

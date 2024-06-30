@@ -45,18 +45,18 @@ fn specialize(env: &Env, general: &Type, specific: &Type) -> Result<HashMap<Stri
         (
             Type::Named { name, arguments },
             Type::Named {
-                name: newName,
-                arguments: newArguments,
+                name: new_name,
+                arguments: new_arguments,
             },
         ) => {
-            if name != newName {
+            if name != new_name {
                 Err(Error::NamedTypeMismatch {
                     expected: name.clone(),
-                    got: newName.clone(),
+                    got: new_name.clone(),
                 })
             } else {
                 let mut spec = HashMap::new();
-                for (old, new) in arguments.iter().zip(newArguments) {
+                for (old, new) in arguments.iter().zip(new_arguments) {
                     spec = union(spec, specialize(env, old, new)?)?;
                 }
                 Ok(spec)
@@ -66,12 +66,12 @@ fn specialize(env: &Env, general: &Type, specific: &Type) -> Result<HashMap<Stri
         (
             Type::Function { arguments, result },
             Type::Function {
-                arguments: newArguments,
-                result: newResult,
+                arguments: new_arguments,
+                result: new_result,
             },
         ) => {
-            let mut spec = specialize(env, &result, &newResult)?;
-            for (old, new) in arguments.iter().zip(newArguments) {
+            let mut spec = specialize(env, &result, &new_result)?;
+            for (old, new) in arguments.iter().zip(new_arguments) {
                 spec = union(spec, specialize(env, old, new)?)?;
             }
             Ok(spec)

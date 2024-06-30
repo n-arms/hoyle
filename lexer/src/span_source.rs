@@ -1,4 +1,4 @@
-use ir::token::Span;
+use tree::token::Span;
 
 #[derive(Debug)]
 pub struct SpanSource<'a> {

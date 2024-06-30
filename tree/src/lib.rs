@@ -3,6 +3,9 @@
 
 mod generic;
 pub mod parsed;
+pub mod sized;
+pub mod token;
+pub mod type_passing;
 pub mod typed;
 
 use smartstring::{LazyCompact, SmartString};

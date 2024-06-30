@@ -13,6 +13,7 @@ pub struct Argument {
 }
 
 impl Stage for Parsed {
+    type Variable = String;
     type Argument = Argument;
     type Call = ();
     type Type = ();
