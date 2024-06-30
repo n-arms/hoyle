@@ -21,8 +21,6 @@ pub struct Function {
 pub struct Variable {
     pub name: String,
     pub typ: Type,
-    pub size: Size,
-    pub witness: Option<Box<Variable>>,
 }
 
 #[derive(Clone)]
@@ -45,6 +43,7 @@ pub enum Instr {
     Copy {
         target: Variable,
         value: Variable,
+        witness: Option<Variable>,
     },
     Destory {
         value: Variable,
@@ -120,12 +119,7 @@ impl fmt::Display for Variable {
         if self.typ == Type::typ() {
             write!(f, "{}: {:?}", self.name, self.typ)
         } else {
-            write!(f, "{}: {:?} |size {}", self.name, self.typ, self.size)?;
-            if let Some(witness) = self.witness.as_ref() {
-                write!(f, " |wit ({})", witness.as_ref())
-            } else {
-                Ok(())
-            }
+            write!(f, "{}: {:?}", self.name, self.typ)
         }
     }
 }
@@ -174,7 +168,17 @@ impl fmt::Display for Instr {
                 }
                 Ok(())
             }
-            Instr::Copy { target, value } => write!(f, "{} <- copy {}", target, value),
+            Instr::Copy {
+                target,
+                value,
+                witness,
+            } => {
+                write!(f, "{} <- copy {}", target, value)?;
+                if let Some(witness) = witness {
+                    write!(f, " using {}", witness)?;
+                }
+                Ok(())
+            }
             Instr::Destory { value } => write!(f, "destroy {}", value),
             Instr::Set { target, expr } => write!(f, "{} = {}", target, expr),
         }

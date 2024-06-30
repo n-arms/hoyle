@@ -6,7 +6,11 @@ pub fn insert_counts(block: Block) -> Block {
     let mut instrs = Vec::new();
     for instr in block.instrs {
         match instr.clone() {
-            Instr::Copy { target, value } => {
+            Instr::Copy {
+                target,
+                value,
+                witness,
+            } => {
                 if seen.contains(&target.name) {
                     seen.insert(value.name.clone());
                     if !seen.contains(&value.name) {
@@ -15,7 +19,14 @@ pub fn insert_counts(block: Block) -> Block {
                         });
                         seen.insert(value.name.clone());
                     }
-                    instrs.push(Instr::Copy { target, value });
+                    if let Some(witness) = witness.as_ref() {
+                        seen.insert(witness.name.clone());
+                    }
+                    instrs.push(Instr::Copy {
+                        target,
+                        value,
+                        witness,
+                    });
                 }
             }
             Instr::Set { target, .. } => {

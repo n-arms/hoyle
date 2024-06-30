@@ -4,12 +4,19 @@ use std::rc::Rc;
 use im::HashMap;
 use ir::bridge::{Size, Variable};
 use tree::typed::Type;
-use tree::String;
+use tree::{sized, String};
 
 #[derive(Clone)]
 pub struct Env {
     pub next_name: Rc<Cell<usize>>,
-    variables: HashMap<String, Variable>,
+    variables: HashMap<String, VariableScheme>,
+}
+
+#[derive(Clone)]
+pub struct VariableScheme {
+    pub variable: Variable,
+    pub size: sized::Size,
+    pub witness: Option<sized::Expr>,
 }
 
 impl Env {
@@ -31,33 +38,39 @@ impl Env {
         &mut self,
         name: String,
         typ: Type,
-        size: Size,
-        witness: Option<Variable>,
+        size: sized::Size,
+        witness: Option<sized::Expr>,
     ) -> Variable {
-        let var = Variable {
+        let variable = Variable {
             name: name.clone(),
             typ,
-            size,
-            witness: witness.map(Box::new),
         };
-        self.variables.insert(name, var.clone());
-        var
+        let scheme = VariableScheme {
+            variable: variable.clone(),
+            size,
+            witness,
+        };
+        self.variables.insert(name, scheme);
+        variable
     }
 
-    pub fn define_variable(&mut self, name: String, variable: Variable) {
-        self.variables.insert(name, variable);
+    pub fn lookup_variable_scheme(&self, name: &String) -> &VariableScheme {
+        self.variables
+            .get(name)
+            .expect(&format!("Unknown variable {}", name))
     }
 
     pub fn lookup_variable(&self, name: &String) -> Variable {
-        self.variables
-            .get(name)
-            .cloned()
-            .expect(&format!("Unknown variable {}", name))
+        self.lookup_variable_scheme(name).variable.clone()
     }
 
     pub fn fresh_name(&mut self) -> String {
         let name = self.next_name.take();
         self.next_name.set(name + 1);
         String::from(format!("_{}", name))
+    }
+
+    pub fn lookup_witness(&self, name: &String) -> Option<sized::Expr> {
+        self.lookup_variable_scheme(name).witness.clone()
     }
 }

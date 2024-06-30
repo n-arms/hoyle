@@ -23,14 +23,14 @@ fn function(env: &Env, to_pass: &typed::Function) -> Function {
         name: String::from("_result"),
         typ: to_pass.result.clone(),
     };
+    arguments.push(result_arg);
+    arguments.extend(to_pass.arguments.iter().cloned());
     for generic in &to_pass.generics {
         arguments.push(Argument {
             name: generic.name.clone(),
             typ: Type::typ(),
         });
     }
-    arguments.extend(to_pass.arguments.iter().cloned());
-    arguments.push(result_arg);
     Function {
         name: to_pass.name.clone(),
         generics: Vec::new(),
@@ -55,11 +55,11 @@ fn expr(env: &Env, to_pass: &typed::Expr) -> Expr {
             tag,
         } => {
             let mut passed_args = Vec::new();
-            for arg in &tag.generics {
-                passed_args.push(typ(env, arg));
-            }
             for arg in arguments {
                 passed_args.push(expr(env, arg));
+            }
+            for arg in &tag.generics {
+                passed_args.push(typ(env, arg));
             }
             Expr::CallDirect {
                 function: function.clone(),

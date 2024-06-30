@@ -20,16 +20,16 @@ fn function(to_lower: &sized::Function) -> Function {
         .arguments
         .iter()
         .cloned()
-        .map(|arg| {
-            let size = lower_size(&mut env, &arg.size, &mut instrs);
-            let witness = expr(&mut env, &arg.witness, &mut instrs);
-            env.allocate_variable(arg.name.clone(), arg.typ, size, Some(witness))
-        })
+        .map(|arg| env.allocate_variable(arg.name.clone(), arg.typ, arg.size, Some(arg.witness)))
         .collect();
     let result = expr(&mut env, &to_lower.body, &mut instrs);
+    let variable = lowered_arguments[0].clone();
+    let witness_expr = env.lookup_witness(&variable.name);
+    let witness = witness_expr.map(|e| expr(&mut env, &e, &mut instrs));
     instrs.push(Instr::Copy {
-        target: lowered_arguments.last().unwrap().clone(),
+        target: variable,
         value: result,
+        witness,
     });
     let body = Block { instrs };
     Function {
@@ -44,7 +44,8 @@ fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &mut Vec<Instr>) -> Varia
         sized::Expr::Variable { name, .. } => env.lookup_variable(&name.name),
         sized::Expr::Literal { literal } => {
             let name = env.fresh_name();
-            let result = env.allocate_variable(name, Type::float(), Size::new_static(8), None);
+            let result =
+                env.allocate_variable(name, Type::float(), sized::Size::new_static(8), None);
             instrs.push(Instr::Set {
                 target: result.clone(),
                 expr: Expr::Literal(literal.clone()),
@@ -61,10 +62,9 @@ fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &mut Vec<Instr>) -> Varia
                 .map(|to_lower| expr(env, to_lower, instrs))
                 .collect();
             let name = env.fresh_name();
-            let witness = tag.witness.clone().map(|e| expr(env, e.as_ref(), instrs));
-            let size = lower_size(env, &tag.size, instrs);
-            let result = env.allocate_variable(name, tag.result.clone(), size, witness);
-            lowered_arguments.push(result.clone());
+            let witness = tag.witness.as_ref().map(AsRef::as_ref).map(Clone::clone);
+            let result = env.allocate_variable(name, tag.result.clone(), tag.size.clone(), witness);
+            lowered_arguments.insert(0, result.clone());
 
             instrs.push(Instr::CallDirect {
                 function: function.clone(),
@@ -77,30 +77,22 @@ fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &mut Vec<Instr>) -> Varia
     }
 }
 
-fn lower_size(env: &mut Env, size: &sized::Size, instrs: &mut Vec<Instr>) -> Size {
-    let dynamic = size
-        .dynamic
-        .iter()
-        .map(|to_lower| expr(env, to_lower, instrs))
-        .collect();
-    Size {
-        static_size: size.static_size,
-        dynamic,
-    }
-}
-
 fn block(env: &mut Env, to_lower: &sized::Block, instrs: &mut Vec<Instr>) -> Variable {
     for stmt in &to_lower.stmts {
         match stmt {
             sized::Statement::Let { name, typ, value } => {
                 let lowered_value = expr(env, value, instrs);
-                let size = lower_size(env, &name.size, instrs);
-                let witness = expr(env, name.witness.as_ref(), instrs);
-                let variable =
-                    env.allocate_variable(name.name.clone(), typ.clone(), size, Some(witness));
+                let variable = env.allocate_variable(
+                    name.name.clone(),
+                    typ.clone(),
+                    name.size.clone(),
+                    Some(*name.witness.clone()),
+                );
+                let witness = expr(env, &name.witness, instrs);
                 instrs.push(Instr::Copy {
                     target: variable,
                     value: lowered_value,
+                    witness: Some(witness),
                 });
             }
         }
