@@ -10,13 +10,13 @@ use tree::{sized, String};
 pub struct Env {
     pub next_name: Rc<Cell<usize>>,
     variables: HashMap<String, VariableScheme>,
+    witnesses: HashMap<String, Variable>,
 }
 
 #[derive(Clone)]
 pub struct VariableScheme {
     pub variable: Variable,
     pub size: sized::Size,
-    pub witness: Option<sized::Expr>,
 }
 
 impl Env {
@@ -24,23 +24,11 @@ impl Env {
         Self {
             next_name: Rc::new(Cell::new(0)),
             variables: HashMap::new(),
+            witnesses: HashMap::new(),
         }
     }
 
-    pub fn from_name(name: Rc<Cell<usize>>) -> Self {
-        Self {
-            next_name: name,
-            variables: HashMap::new(),
-        }
-    }
-
-    pub fn allocate_variable(
-        &mut self,
-        name: String,
-        typ: Type,
-        size: sized::Size,
-        witness: Option<sized::Expr>,
-    ) -> Variable {
+    pub fn allocate_variable(&mut self, name: String, typ: Type, size: sized::Size) -> Variable {
         let variable = Variable {
             name: name.clone(),
             typ,
@@ -48,10 +36,13 @@ impl Env {
         let scheme = VariableScheme {
             variable: variable.clone(),
             size,
-            witness,
         };
         self.variables.insert(name, scheme);
         variable
+    }
+
+    pub fn set_witness(&mut self, name: String, witness: Variable) {
+        self.witnesses.insert(name, witness);
     }
 
     pub fn lookup_variable_scheme(&self, name: &String) -> &VariableScheme {
@@ -70,7 +61,7 @@ impl Env {
         String::from(format!("_{}", name))
     }
 
-    pub fn lookup_witness(&self, name: &String) -> Option<sized::Expr> {
-        self.lookup_variable_scheme(name).witness.clone()
+    pub fn lookup_witness(&self, name: &String) -> Option<Variable> {
+        self.witnesses.get(name).cloned()
     }
 }

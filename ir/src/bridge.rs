@@ -47,6 +47,7 @@ pub enum Instr {
     },
     Destory {
         value: Variable,
+        witness: Option<Variable>,
     },
     Set {
         target: Variable,
@@ -179,7 +180,13 @@ impl fmt::Display for Instr {
                 }
                 Ok(())
             }
-            Instr::Destory { value } => write!(f, "destroy {}", value),
+            Instr::Destory { value, witness } => {
+                write!(f, "destroy {}", value)?;
+                if let Some(witness) = witness {
+                    write!(f, " using {}", witness)?;
+                }
+                Ok(())
+            }
             Instr::Set { target, expr } => write!(f, "{} = {}", target, expr),
         }
     }
