@@ -1,8 +1,6 @@
-use std::rc::Rc;
-
 use crate::env::Env;
 use crate::refcount::count_function;
-use ir::bridge::{Block, Expr, Function, Instr, Program, Size, Variable};
+use ir::bridge::{Block, Expr, Function, Instr, Program, Variable};
 use tree::sized::{self};
 use tree::typed::Type;
 use tree::String;
@@ -28,6 +26,10 @@ fn function(to_lower: &sized::Function) -> Function {
             let witness = expr(&mut env, &arg.witness, &mut instrs);
             env.set_witness(arg.name.clone(), witness)
         };
+    }
+    println!("after loading arguments");
+    for ele in &instrs {
+        println!("{}", ele);
     }
     let result = expr(&mut env, &to_lower.body, &mut instrs);
     let variable = lowered_arguments[0].clone();
@@ -71,8 +73,16 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &mut Vec<Instr>) -> V
                 .collect();
             let name = env.fresh_name();
             if let Some(witness) = tag.witness.as_ref() {
-                let lowered_witness = expr(env, witness, instrs);
-                env.set_witness(name.clone(), lowered_witness);
+                let should_witness =
+                    if let sized::Expr::CallDirect { function, .. } = witness.as_ref() {
+                        function != "Type"
+                    } else {
+                        true
+                    };
+                if should_witness {
+                    let lowered_witness = expr(env, witness, instrs);
+                    env.set_witness(name.clone(), lowered_witness);
+                }
             }
             let result = env.allocate_variable(name, tag.result.clone(), tag.size.clone());
             lowered_arguments.insert(0, result.clone());
