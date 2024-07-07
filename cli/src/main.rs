@@ -26,6 +26,7 @@ fn run(tokens: token::List) -> read::ExitStatus {
             return read::ExitStatus::Error;
         }
     };
+    println!("parsed");
     let typed = match type_checker::infer::program(&parsed) {
         Ok(t) => t,
         Err(error) => {

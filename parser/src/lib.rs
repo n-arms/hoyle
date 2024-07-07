@@ -17,3 +17,7 @@ use tree::token::Token;
 pub fn parse<'src>(tokens: &[Token<'src>]) -> Result<Program, Vec<Simple<Token<'src>>>> {
     program::program().then_ignore(end()).parse(tokens)
 }
+
+pub fn parse_expr<'src>(tokens: &[Token<'src>]) -> Result<Expr, Vec<Simple<Token<'src>>>> {
+    program::expr().then_ignore(end()).parse(tokens)
+}

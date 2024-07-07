@@ -38,11 +38,11 @@ pub fn event_loop(name: &str, mut callback: impl FnMut(List, Errors) -> ExitStat
     print!("> ");
     io::stdout().flush().unwrap();
     for line in stdin.lock().lines() {
-        working_line.push_str(&line?);
+        let line = line?;
+        working_line.push_str(&line);
 
         let (tokens, errors) = scan_tokens(&working_line);
-
-        if is_balanced(&tokens) {
+        if line.strip_prefix("[ \t\n]*") == Some("") || line.is_empty() {
             if let ExitStatus::Quit = callback(tokens, errors) {
                 break;
             }

@@ -123,23 +123,34 @@ fn function_definition<'src>() -> parser!('src, Program) {
         .map(Program::from_function)
 }
 
-fn expr<'src>() -> parser!('src, Expr) {
+pub fn expr<'src>() -> parser!('src, Expr) {
     recursive(terminal)
 }
 
+fn comma_list<'src, T>(element: parser!('src, T)) -> parser!('src, Vec<T>) {
+    element
+        .clone()
+        .then(token(Kind::Comma).ignore_then(element).repeated())
+        .map(|(first, mut rest)| {
+            rest.insert(0, first);
+            rest
+        })
+        .or_not()
+        .map(|list| list.unwrap_or_default())
+}
+
 fn terminal<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
-    ident()
-        .map(|name| Expr::Variable { name, typ: () })
-        .or(literal_expr())
+    literal_expr()
         .or(ident()
             .then_ignore(token(Kind::LeftParen))
-            .then(expr.clone().separated_by(token(Kind::Comma)))
+            .then(comma_list(expr.clone()))
             .then_ignore(token(Kind::RightParen))
             .map(|(function, arguments)| Expr::CallDirect {
                 function,
                 arguments,
                 tag: (),
             }))
+        .or(ident().map(|name| Expr::Variable { name, typ: () }))
         .or(block(expr).map(|block| Expr::Block(block)))
 }
 
@@ -154,14 +165,18 @@ fn literal_expr<'src>() -> parser!('src, Expr) {
 }
 
 fn block<'src>(expr: parser!('src, Expr)) -> parser!('src, Block) {
-    statement(expr.clone())
-        .then_ignore(token(Kind::Semicolon))
-        .repeated()
+    token(Kind::LeftBrace)
+        .ignore_then(
+            statement(expr.clone())
+                .then_ignore(token(Kind::Semicolon))
+                .repeated(),
+        )
         .then(expr)
         .map(|(stmts, result)| Block {
             stmts,
             result: Box::new(result),
         })
+        .then_ignore(token(Kind::RightBrace))
 }
 
 fn statement<'src>(expr: parser!('src, Expr)) -> parser!('src, Statement) {
