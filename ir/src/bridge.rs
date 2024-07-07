@@ -24,14 +24,14 @@ pub struct Variable {
 }
 
 #[derive(Clone)]
-pub struct Size {
-    pub static_size: usize,
-    pub dynamic: Vec<Variable>,
+pub struct Block {
+    pub instrs: Vec<Instr>,
 }
 
 #[derive(Clone)]
-pub struct Block {
-    pub instrs: Vec<Instr>,
+pub enum Witness {
+    Trivial { size: usize },
+    Dynamic { location: Variable },
 }
 
 #[derive(Clone)]
@@ -43,11 +43,11 @@ pub enum Instr {
     Copy {
         target: Variable,
         value: Variable,
-        witness: Option<Variable>,
+        witness: Witness,
     },
     Destory {
         value: Variable,
-        witness: Option<Variable>,
+        witness: Witness,
     },
     Set {
         target: Variable,
@@ -55,37 +55,19 @@ pub enum Instr {
     },
 }
 
+impl Witness {
+    pub fn trivial(size: usize) -> Self {
+        Self::Trivial { size }
+    }
+
+    pub fn is_trivial(&self) -> bool {
+        matches!(self, Self::Trivial { .. })
+    }
+}
+
 #[derive(Clone)]
 pub enum Expr {
     Literal(Literal),
-}
-
-impl Size {
-    pub fn new_static(static_size: usize) -> Self {
-        Self {
-            static_size,
-            dynamic: Vec::new(),
-        }
-    }
-}
-
-impl Add<Size> for Size {
-    type Output = Size;
-
-    fn add(self, rhs: Size) -> Self::Output {
-        let mut dynamic = self.dynamic;
-        dynamic.extend(rhs.dynamic);
-        Self {
-            static_size: self.static_size + rhs.static_size,
-            dynamic,
-        }
-    }
-}
-
-impl AddAssign<Size> for Size {
-    fn add_assign(&mut self, rhs: Size) {
-        *self = self.clone() + rhs;
-    }
 }
 
 impl fmt::Display for Program {
@@ -125,29 +107,21 @@ impl fmt::Display for Variable {
     }
 }
 
-impl fmt::Display for Size {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.static_size != 0 || self.dynamic.is_empty() {
-            write!(f, "{}", self.static_size)?;
-        }
-        let mut first = true;
-        for d in &self.dynamic {
-            if !(first && self.static_size == 0) {
-                write!(f, " + ")?;
-            }
-            write!(f, "({})", d)?;
-            first = false;
-        }
-        Ok(())
-    }
-}
-
 impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for instr in &self.instrs {
             write!(f, "\t{}\n", instr)?;
         }
         Ok(())
+    }
+}
+
+impl fmt::Display for Witness {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Witness::Trivial { size } => write!(f, "trivial {}", size),
+            Witness::Dynamic { location } => location.name.fmt(f),
+        }
     }
 }
 
@@ -174,18 +148,10 @@ impl fmt::Display for Instr {
                 value,
                 witness,
             } => {
-                write!(f, "{} <- copy {}", target, value)?;
-                if let Some(witness) = witness {
-                    write!(f, " using {}", witness)?;
-                }
-                Ok(())
+                write!(f, "{} <- copy {} using {}", target, value, witness)
             }
             Instr::Destory { value, witness } => {
-                write!(f, "destroy {}", value)?;
-                if let Some(witness) = witness {
-                    write!(f, " using {}", witness)?;
-                }
-                Ok(())
+                write!(f, "destroy {} using {}", value, witness)
             }
             Instr::Set { target, expr } => write!(f, "{} = {}", target, expr),
         }

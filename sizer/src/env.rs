@@ -1,5 +1,6 @@
 use im::HashMap;
 
+use im::HashSet;
 use tree::sized::*;
 use tree::String;
 
@@ -7,16 +8,16 @@ use tree::String;
 pub struct Env {
     variables: HashMap<String, Variable>,
     structs: HashMap<String, Struct>,
+    trivial_types: HashSet<String>,
 }
 
 impl Env {
-    pub fn define_variable(&mut self, variable: String, size: Size, witness: Expr) {
+    pub fn define_variable(&mut self, variable: String, witness: Witness) {
         self.variables.insert(
             variable.clone(),
             Variable {
                 name: variable,
-                size,
-                witness: Box::new(witness),
+                witness,
             },
         );
     }

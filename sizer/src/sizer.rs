@@ -25,13 +25,11 @@ fn function(env: &Env, to_size: &type_passing::Function) -> Function {
         .arguments
         .iter()
         .map(|arg| {
-            let size = typ(&env, &arg.typ);
             let witness = type_witness(&env, &arg.typ);
-            env.define_variable(arg.name.clone(), size.clone(), witness.clone());
+            env.define_variable(arg.name.clone(), witness.clone());
             Argument {
                 name: arg.name.clone(),
                 typ: arg.typ.clone(),
-                size,
                 witness,
             }
         })
@@ -69,8 +67,7 @@ fn expr(env: &Env, to_size: &type_passing::Expr) -> Expr {
                 arguments: sized_args,
                 tag: Call {
                     result: tag.result.clone(),
-                    size: typ(env, &tag.result),
-                    witness: Some(Box::new(type_witness(env, &tag.result))),
+                    witness: type_witness(env, &tag.result),
                 },
             }
         }
@@ -89,13 +86,11 @@ fn block(env: &Env, to_size: &type_passing::Block) -> Block {
                 typ: let_type,
                 value,
             } => {
-                let size = typ(&env, let_type);
-                env.define_variable(name.clone(), size.clone(), type_witness(&env, let_type));
+                env.define_variable(name.clone(), type_witness(&env, let_type));
                 Statement::Let {
                     name: Variable {
                         name: name.clone(),
-                        size,
-                        witness: Box::new(type_witness(&env, &let_type)),
+                        witness: type_witness(&env, &let_type),
                     },
                     typ: let_type.clone(),
                     value: expr(&env, value),
@@ -109,83 +104,29 @@ fn block(env: &Env, to_size: &type_passing::Block) -> Block {
     }
 }
 
-fn typ(env: &Env, to_size: &Type) -> Size {
-    match to_size {
+fn type_witness(env: &Env, to_witness: &Type) -> Witness {
+    match to_witness {
         Type::Named { name, arguments } => {
-            let sizes = hashmap![
-                String::from("Type") => 24,
-                String::from("F64") => 8,
-                String::from("Bool") => 8,
-            ];
-            if let Some(size) = sizes.get(name) {
-                return Size {
-                    static_size: *size,
-                    dynamic: Vec::new(),
-                };
-            }
-            let struct_def = env.lookup_struct(name);
             if !arguments.is_empty() {
-                todo!()
+                unimplemented!("argument types");
             }
-            let mut total_size = Size {
-                static_size: 0,
-                dynamic: Vec::new(),
-            };
-            for field in struct_def.fields {
-                let size = typ(env, &field.typ);
-                total_size.static_size += size.static_size;
-                total_size.dynamic.extend(size.dynamic);
+            Witness::Trivial {
+                size: match name.as_str() {
+                    "F64" => 8,
+                    "Bool" => 1,
+                    "Type" => 24,
+                    _ => unimplemented!("other structs :p"),
+                },
             }
-            total_size
         }
-        Type::Generic { name } => Size {
-            static_size: 0,
-            dynamic: vec![Expr::Variable {
+        Type::Generic { name } => Witness::Dynamic {
+            value: Box::new(Expr::Variable {
                 name: Variable {
                     name: name.clone(),
-                    size: Size::new_static(24),
-                    witness: Box::new(type_witness_table()),
+                    witness: Witness::typ(),
                 },
                 typ: Type::typ(),
-            }],
-        },
-        Type::Function { .. } => Size::new_static(16),
-    }
-}
-
-fn type_witness_table() -> Expr {
-    Expr::CallDirect {
-        function: String::from("Type"),
-        arguments: Vec::new(),
-        tag: Call {
-            result: Type::typ(),
-            size: Size::new_static(24),
-            witness: None,
-        },
-    }
-}
-
-fn type_witness(env: &Env, to_witness: &Type) -> Expr {
-    match to_witness {
-        Type::Named { name, arguments } => Expr::CallDirect {
-            function: name.clone(),
-            arguments: arguments
-                .iter()
-                .map(|to_witness| type_witness(env, to_witness))
-                .collect(),
-            tag: Call {
-                result: Type::typ(),
-                size: Size::new_static(24),
-                witness: Some(Box::new(type_witness_table())),
-            },
-        },
-        Type::Generic { name } => Expr::Variable {
-            name: Variable {
-                name: name.clone(),
-                size: Size::new_static(24),
-                witness: Box::new(type_witness_table()),
-            },
-            typ: Type::typ(),
+            }),
         },
         Type::Function { arguments, result } => todo!(),
     }

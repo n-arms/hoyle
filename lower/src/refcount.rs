@@ -1,9 +1,8 @@
 use im::HashSet;
-use ir::bridge::{Block, Function, Instr};
+use ir::bridge::{Block, Function, Instr, Witness};
 use tree::String;
 
 use crate::env::Env;
-use crate::lower::expr;
 
 pub fn count_function(env: &mut Env, function: Function) -> Function {
     let (mut body, seen) = count_block(env, function.body);
@@ -35,20 +34,22 @@ fn count_block(env: &Env, block: Block) -> (Block, HashSet<String>) {
                 witness,
             } => {
                 if seen.contains(&target.name) || target.name == "_result" {
-                    if let Some(witness) = witness.as_ref() {
+                    if let Witness::Dynamic { location: witness } = &witness {
                         if !seen.contains(&witness.name) {
                             instrs.push(Instr::Destory {
                                 value: witness.clone(),
-                                witness: None,
+                                witness: Witness::Trivial { size: 24 },
                             });
                             seen.insert(witness.name.clone());
                         }
                     }
                     if !seen.contains(&value.name) {
-                        instrs.push(Instr::Destory {
-                            value: value.clone(),
-                            witness: witness.clone(),
-                        });
+                        if !witness.is_trivial() {
+                            instrs.push(Instr::Destory {
+                                value: value.clone(),
+                                witness: witness.clone(),
+                            });
+                        }
                         seen.insert(value.name.clone());
                     }
                     instrs.push(Instr::Copy {
@@ -70,10 +71,12 @@ fn count_block(env: &Env, block: Block) -> (Block, HashSet<String>) {
                 for arg in &arguments {
                     if !seen.contains(&arg.name) {
                         let witness = env.lookup_witness(&arg.name);
-                        instrs.push(Instr::Destory {
-                            value: arg.clone(),
-                            witness,
-                        });
+                        if !witness.is_trivial() {
+                            instrs.push(Instr::Destory {
+                                value: arg.clone(),
+                                witness,
+                            });
+                        }
                         seen.insert(arg.name.clone());
                     }
                 }

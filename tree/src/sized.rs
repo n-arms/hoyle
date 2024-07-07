@@ -10,31 +10,28 @@ pub use generic::{Field, Generic, Literal, Struct, Type};
 pub struct Sized;
 
 #[derive(Clone)]
-pub struct Call {
-    pub result: Type,
-    pub size: Size,
-    pub witness: Option<Box<Expr>>,
+pub enum Witness {
+    Trivial { size: usize },
+    Dynamic { value: Box<Expr> },
 }
 
 #[derive(Clone)]
-pub struct Size {
-    pub static_size: usize,
-    pub dynamic: Vec<Expr>,
+pub struct Call {
+    pub result: Type,
+    pub witness: Witness,
 }
 
 #[derive(Clone)]
 pub struct Argument {
     pub name: String,
     pub typ: Type,
-    pub size: Size,
-    pub witness: Expr,
+    pub witness: Witness,
 }
 
 #[derive(Clone)]
 pub struct Variable {
     pub name: String,
-    pub size: Size,
-    pub witness: Box<Expr>,
+    pub witness: Witness,
 }
 
 impl Stage for Sized {
@@ -68,76 +65,35 @@ impl Expr {
     }
 }
 
-impl Size {
-    pub fn new_static(static_size: usize) -> Self {
-        Self {
-            static_size,
-            dynamic: Vec::new(),
-        }
-    }
-}
-
-impl Add<Size> for Size {
-    type Output = Size;
-
-    fn add(mut self, rhs: Size) -> Self::Output {
-        self.dynamic.extend_from_slice(&rhs.dynamic);
-        Size {
-            static_size: self.static_size + rhs.static_size,
-            dynamic: self.dynamic,
-        }
+impl Witness {
+    pub fn typ() -> Self {
+        Self::Trivial { size: 24 }
     }
 }
 
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Expr::CallDirect { function, .. } = self.witness.as_ref() {
-            if function == "Type" {
-                return write!(f, "{}", self.name);
-            }
+        write!(f, "{}@{}", self.name, self.witness)
+    }
+}
+
+impl fmt::Display for Witness {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Witness::Trivial { size } => write!(f, "{}", size),
+            Witness::Dynamic { value } => write!(f, "[{}]", value.as_ref()),
         }
-        write!(f, "{} |size {} |wit {}", self.name, self.size, self.witness)
     }
 }
 
 impl fmt::Debug for Argument {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Expr::CallDirect { function, .. } = &self.witness {
-            if function == "Type" {
-                return write!(f, "{}: Type", self.name);
-            }
-        }
-        write!(
-            f,
-            "{}: {} |size {} |wit {}",
-            self.name, self.typ, self.size, self.witness
-        )
-    }
-}
-
-impl fmt::Display for Size {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.static_size != 0 {
-            write!(f, "{}", self.static_size)?;
-        }
-        let mut first = true;
-        for d in &self.dynamic {
-            if !(first && self.static_size == 0) {
-                write!(f, " + ")?;
-            }
-            write!(f, "{}", d)?;
-            first = false;
-        }
-        Ok(())
+        write!(f, "{}@{}: {}", self.name, self.witness, self.typ)
     }
 }
 
 impl fmt::Display for Call {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?} |size {}", self.result, self.size)?;
-        if let Some(wit) = self.witness.as_ref() {
-            write!(f, " |wit {}", wit.as_ref())?;
-        }
-        Ok(())
+        write!(f, "{:?}@{}", self.result, self.witness)
     }
 }
