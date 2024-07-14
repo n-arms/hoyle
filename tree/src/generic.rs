@@ -71,13 +71,30 @@ pub struct Function<S: Stage> {
 }
 
 #[derive(Clone)]
+pub enum Primitive {
+    Add,
+    Sub,
+}
+
+impl Primitive {
+    pub fn arity(&self) -> Option<usize> {
+        use Primitive::*;
+        match self {
+            Add | Sub => Some(2),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum Literal {
     Float(f64),
+    Integer(i64),
 }
 impl Literal {
     pub fn get_type(&self) -> Type {
         match self {
             Literal::Float(_) => Type::float(),
+            Literal::Integer(_) => Type::integer(),
         }
     }
 }
@@ -149,6 +166,13 @@ impl Type {
             arguments: Vec::new(),
         }
     }
+
+    pub fn integer() -> Type {
+        Self::Named {
+            name: String::from("I64"),
+            arguments: Vec::new(),
+        }
+    }
 }
 
 impl<S: DisplayStage> fmt::Display for Program<S> {
@@ -208,7 +232,18 @@ impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Literal::Float(float) => write!(f, "{}", float),
+            Literal::Integer(integer) => write!(f, "{}", integer),
         }
+    }
+}
+
+impl fmt::Display for Primitive {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Primitive::Add => "+",
+            Primitive::Sub => "-",
+        }
+        .fmt(f)
     }
 }
 

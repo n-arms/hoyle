@@ -4,7 +4,7 @@ use std::ops::{Add, AddAssign};
 use crate::generic::{self, DisplayStage, Stage};
 use crate::String;
 
-pub use generic::{Field, Generic, Literal, Struct, Type};
+pub use generic::{Field, Generic, Literal, Primitive, Struct, Type};
 
 #[derive(Clone)]
 pub struct Sized;

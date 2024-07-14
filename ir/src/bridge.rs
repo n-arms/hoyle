@@ -1,7 +1,6 @@
 use core::fmt;
-use std::ops::{Add, AddAssign};
 
-use tree::sized::{Literal, Struct, Type};
+use tree::sized::{Literal, Primitive, Struct, Type};
 use tree::String;
 
 #[derive(Clone)]
@@ -67,6 +66,7 @@ impl Witness {
 
 #[derive(Clone)]
 pub enum Expr {
+    Primitive(Primitive, Vec<Variable>),
     Literal(Literal),
 }
 
@@ -161,8 +161,19 @@ impl fmt::Display for Instr {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Literal(literal) => match literal {
-                Literal::Float(float) => float.fmt(f),
+            Expr::Literal(literal) => literal.fmt(f),
+            Expr::Primitive(prim, terms) => match prim.arity() {
+                Some(2) => {
+                    assert_eq!(terms.len(), 2);
+                    write!(f, "{} {} {}", terms[0], prim, terms[1])
+                }
+                _ => {
+                    write!(f, "{}", prim)?;
+                    for term in terms {
+                        write!(f, " {}", term)?;
+                    }
+                    Ok(())
+                }
             },
         }
     }

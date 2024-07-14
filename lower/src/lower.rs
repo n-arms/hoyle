@@ -33,14 +33,17 @@ fn function(to_lower: &sized::Function) -> Function {
         witness,
     });
     let body = Block { instrs };
-    count_function(
+    let mut func = count_function(
         &mut env,
         Function {
             name: to_lower.name.clone(),
             arguments: lowered_arguments,
             body,
         },
-    )
+    );
+    let offsets = crate::offset::function(&mut env, &mut func);
+    println!("{:?}", offsets);
+    func
 }
 
 pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &mut Vec<Instr>) -> Variable {
