@@ -13,6 +13,8 @@ pub struct Program {
 pub struct Function {
     pub name: String,
     pub arguments: Vec<Variable>,
+    pub witnesses: Block,
+    pub offsets: Block,
     pub body: Block,
 }
 
@@ -93,7 +95,11 @@ impl fmt::Display for Function {
             }
             write!(f, "{}", arg)?;
         }
-        write!(f, "\n) = {{\n{}}}", self.body)
+        write!(
+            f,
+            "\n) = witnesses {{\n{}}} offsets {{\n {}}} body {{\n {}}}",
+            self.witnesses, self.offsets, self.body
+        )
     }
 }
 
@@ -176,5 +182,11 @@ impl fmt::Display for Expr {
                 }
             },
         }
+    }
+}
+
+impl fmt::Debug for Instr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }

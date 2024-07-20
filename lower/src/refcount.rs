@@ -6,6 +6,8 @@ use crate::env::Env;
 
 pub fn count_function(env: &mut Env, function: Function) -> Function {
     let (mut body, seen) = count_block(env, function.body);
+    let (offsets, seen) = count_block_with(env, function.offsets, seen);
+    let (witnesses, seen) = count_block_with(env, function.witnesses, seen);
     for arg in &function.arguments {
         if !seen.contains(&arg.name) && arg.name != "_result" {
             let witness = env.lookup_witness(&arg.name);
@@ -20,11 +22,19 @@ pub fn count_function(env: &mut Env, function: Function) -> Function {
         name: function.name,
         arguments: function.arguments,
         body,
+        witnesses,
+        offsets,
     }
 }
 
 fn count_block(env: &Env, block: Block) -> (Block, HashSet<String>) {
-    let mut seen = HashSet::new();
+    count_block_with(env, block, HashSet::new())
+}
+fn count_block_with(
+    env: &Env,
+    block: Block,
+    mut seen: HashSet<String>,
+) -> (Block, HashSet<String>) {
     let mut instrs = Vec::new();
     for instr in block.instrs.into_iter().rev() {
         match instr.clone() {
