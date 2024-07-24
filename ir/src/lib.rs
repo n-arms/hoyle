@@ -2,3 +2,4 @@
 #![allow(clippy::missing_panics_doc)]
 
 pub mod bridge;
+pub mod tas;

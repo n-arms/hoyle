@@ -5,6 +5,9 @@ use tree::String;
 use crate::env::Env;
 
 pub fn count_function(env: &mut Env, function: Function) -> Function {
+    todo!()
+}
+/*
     let (mut body, seen) = count_block(env, function.body);
     let (offsets, seen) = count_block_with(env, function.offsets, seen);
     let (witnesses, seen) = count_block_with(env, function.witnesses, seen);
@@ -103,3 +106,4 @@ fn count_block_with(
     instrs.reverse();
     (Block { instrs }, seen)
 }
+*/

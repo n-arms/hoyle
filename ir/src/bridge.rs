@@ -36,24 +36,9 @@ pub enum Witness {
 }
 
 #[derive(Clone)]
-pub enum Instr {
-    CallDirect {
-        function: String,
-        arguments: Vec<Variable>,
-    },
-    Copy {
-        target: Variable,
-        value: Variable,
-        witness: Witness,
-    },
-    Destory {
-        value: Variable,
-        witness: Witness,
-    },
-    Set {
-        target: Variable,
-        expr: Expr,
-    },
+pub struct Instr {
+    pub target: Variable,
+    pub value: Expr,
 }
 
 impl Witness {
@@ -67,9 +52,42 @@ impl Witness {
 }
 
 #[derive(Clone)]
-pub enum Expr {
-    Primitive(Primitive, Vec<Variable>),
+pub enum Atom {
     Literal(Literal),
+    Variable(Variable),
+}
+
+#[derive(Clone)]
+pub enum Expr {
+    Atom(Atom),
+    Primitive(Primitive, Vec<Atom>),
+    CallDirect {
+        function: String,
+        arguments: Vec<CallArgument>,
+    },
+    Move {
+        source: Variable,
+        witness: Witness,
+    },
+    Copy {
+        source: Variable,
+        witness: Witness,
+    },
+    Destory {
+        witness: Witness,
+    },
+}
+
+#[derive(Clone)]
+pub struct CallArgument {
+    pub value: Atom,
+    pub convention: Convention,
+}
+
+#[derive(Copy, Clone)]
+pub enum Convention {
+    In,
+    Inout,
 }
 
 impl fmt::Display for Program {
@@ -133,41 +151,13 @@ impl fmt::Display for Witness {
 
 impl fmt::Display for Instr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Instr::CallDirect {
-                function,
-                arguments,
-            } => {
-                write!(f, "call {} with ", function)?;
-                let mut first = true;
-                for arg in arguments {
-                    if !first {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{arg}")?;
-                    first = false;
-                }
-                Ok(())
-            }
-            Instr::Copy {
-                target,
-                value,
-                witness,
-            } => {
-                write!(f, "{} <- copy {} using {}", target, value, witness)
-            }
-            Instr::Destory { value, witness } => {
-                write!(f, "destroy {} using {}", value, witness)
-            }
-            Instr::Set { target, expr } => write!(f, "{} = {}", target, expr),
-        }
+        write!(f, "{} = {}", self.target, self.value)
     }
 }
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Literal(literal) => literal.fmt(f),
             Expr::Primitive(prim, terms) => match prim.arity() {
                 Some(2) => {
                     assert_eq!(terms.len(), 2);
@@ -181,11 +171,55 @@ impl fmt::Display for Expr {
                     Ok(())
                 }
             },
+            Expr::Atom(atom) => write!(f, "{atom}"),
+            Expr::CallDirect {
+                function,
+                arguments,
+            } => {
+                let mut tuple = f.debug_tuple(function.as_str());
+                for arg in arguments {
+                    tuple.field(arg);
+                }
+                Ok(())
+            }
+            Expr::Move { source, witness } => write!(f, "move {source} using {witness}"),
+            Expr::Copy { source, witness } => write!(f, "copy {source} using {witness}"),
+            Expr::Destory { witness } => write!(f, "destory using {witness}"),
         }
     }
 }
 
 impl fmt::Debug for Instr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl fmt::Display for Atom {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Atom::Literal(literal) => write!(f, "{literal}"),
+            Atom::Variable(variable) => write!(f, "{variable}"),
+        }
+    }
+}
+
+impl fmt::Display for CallArgument {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}", self.convention, self.value)
+    }
+}
+
+impl fmt::Display for Convention {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Convention::In => write!(f, "in"),
+            Convention::Inout => write!(f, "inout"),
+        }
+    }
+}
+
+impl fmt::Debug for CallArgument {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
     }
