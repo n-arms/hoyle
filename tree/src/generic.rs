@@ -41,7 +41,7 @@ pub struct Field {
     pub typ: Type,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     Named {
         name: String,

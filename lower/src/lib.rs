@@ -7,5 +7,4 @@
 
 pub mod env;
 pub mod lower;
-pub mod offset;
 pub mod refcount;

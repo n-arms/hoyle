@@ -13,8 +13,6 @@ pub struct Program {
 pub struct Function {
     pub name: String,
     pub arguments: Vec<Variable>,
-    pub witnesses: Block,
-    pub offsets: Block,
     pub body: Block,
 }
 
@@ -27,6 +25,7 @@ pub struct Variable {
 #[derive(Clone)]
 pub struct Block {
     pub instrs: Vec<Instr>,
+    pub result: Atom,
 }
 
 #[derive(Clone)]
@@ -39,6 +38,12 @@ pub enum Witness {
 pub struct Instr {
     pub target: Variable,
     pub value: Expr,
+}
+
+impl Instr {
+    pub fn new(target: Variable, value: Expr) -> Self {
+        Self { target, value }
+    }
 }
 
 impl Witness {
@@ -113,11 +118,7 @@ impl fmt::Display for Function {
             }
             write!(f, "{}", arg)?;
         }
-        write!(
-            f,
-            "\n) = witnesses {{\n{}}} offsets {{\n {}}} body {{\n {}}}",
-            self.witnesses, self.offsets, self.body
-        )
+        write!(f, "\n) = body {{\n {}}}", self.body)
     }
 }
 
@@ -136,7 +137,7 @@ impl fmt::Display for Block {
         for instr in &self.instrs {
             write!(f, "\t{}\n", instr)?;
         }
-        Ok(())
+        write!(f, "\t{}\n", self.result)
     }
 }
 

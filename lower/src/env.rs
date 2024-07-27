@@ -7,9 +7,15 @@ use tree::typed::Type;
 use tree::{sized, String};
 
 #[derive(Clone)]
+pub struct GlobalEnv {
+    function_signatures: 
+}
+
+#[derive(Clone)]
 pub struct Env {
     pub next_name: Rc<Cell<usize>>,
     witnesses: HashMap<String, Witness>,
+    type_cache: HashMap<Type, Witness>,
 }
 
 impl Env {
@@ -17,7 +23,13 @@ impl Env {
         Self {
             next_name: Rc::new(Cell::new(0)),
             witnesses: HashMap::new(),
+            type_cache: HashMap::new(),
         }
+    }
+
+    pub fn try_define_variable(&mut self, name: String, typ: Type) -> Option<Variable> {
+        let witness = self.type_cache.get(&name)?;
+        Some(self.define_variable(name, typ, witness.clone()))
     }
 
     pub fn define_variable(&mut self, name: String, typ: Type, witness: Witness) -> Variable {
