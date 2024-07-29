@@ -2,13 +2,18 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use im::HashMap;
-use ir::bridge::{Variable, Witness};
+use ir::bridge::{Convention, Variable, Witness};
 use tree::typed::Type;
-use tree::{sized, String};
+use tree::String;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct GlobalEnv {
-    function_signatures: 
+    function_signatures: HashMap<String, Vec<Convention>>,
+}
+impl GlobalEnv {
+    pub fn define_function(&mut self, name: String, convention: Vec<Convention>) {
+        self.function_signatures.insert(name, convention);
+    }
 }
 
 #[derive(Clone)]
@@ -16,19 +21,21 @@ pub struct Env {
     pub next_name: Rc<Cell<usize>>,
     witnesses: HashMap<String, Witness>,
     type_cache: HashMap<Type, Witness>,
+    global: GlobalEnv,
 }
 
 impl Env {
-    pub fn new() -> Self {
+    pub fn new(global: GlobalEnv) -> Self {
         Self {
             next_name: Rc::new(Cell::new(0)),
             witnesses: HashMap::new(),
             type_cache: HashMap::new(),
+            global,
         }
     }
 
     pub fn try_define_variable(&mut self, name: String, typ: Type) -> Option<Variable> {
-        let witness = self.type_cache.get(&name)?;
+        let witness = self.type_cache.get(&typ)?;
         Some(self.define_variable(name, typ, witness.clone()))
     }
 
@@ -49,5 +56,13 @@ impl Env {
 
     pub fn lookup_witness(&self, name: &String) -> Witness {
         self.witnesses.get(name).cloned().unwrap()
+    }
+
+    pub fn lookup_convention(&self, function: &String) -> &[Convention] {
+        self.global
+            .function_signatures
+            .get(function)
+            .unwrap()
+            .as_slice()
     }
 }

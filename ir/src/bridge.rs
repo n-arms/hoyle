@@ -25,7 +25,6 @@ pub struct Variable {
 #[derive(Clone)]
 pub struct Block {
     pub instrs: Vec<Instr>,
-    pub result: Atom,
 }
 
 #[derive(Clone)]
@@ -57,15 +56,9 @@ impl Witness {
 }
 
 #[derive(Clone)]
-pub enum Atom {
-    Literal(Literal),
-    Variable(Variable),
-}
-
-#[derive(Clone)]
 pub enum Expr {
-    Atom(Atom),
-    Primitive(Primitive, Vec<Atom>),
+    Literal(Literal),
+    Primitive(Primitive, Vec<Variable>),
     CallDirect {
         function: String,
         arguments: Vec<CallArgument>,
@@ -78,21 +71,22 @@ pub enum Expr {
         source: Variable,
         witness: Witness,
     },
-    Destory {
+    Destroy {
         witness: Witness,
     },
 }
 
 #[derive(Clone)]
 pub struct CallArgument {
-    pub value: Atom,
+    pub value: Variable,
     pub convention: Convention,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Convention {
     In,
     Inout,
+    Out,
 }
 
 impl fmt::Display for Program {
@@ -137,7 +131,7 @@ impl fmt::Display for Block {
         for instr in &self.instrs {
             write!(f, "\t{}\n", instr)?;
         }
-        write!(f, "\t{}\n", self.result)
+        Ok(())
     }
 }
 
@@ -172,7 +166,6 @@ impl fmt::Display for Expr {
                     Ok(())
                 }
             },
-            Expr::Atom(atom) => write!(f, "{atom}"),
             Expr::CallDirect {
                 function,
                 arguments,
@@ -181,11 +174,12 @@ impl fmt::Display for Expr {
                 for arg in arguments {
                     tuple.field(arg);
                 }
-                Ok(())
+                tuple.finish()
             }
             Expr::Move { source, witness } => write!(f, "move {source} using {witness}"),
             Expr::Copy { source, witness } => write!(f, "copy {source} using {witness}"),
-            Expr::Destory { witness } => write!(f, "destory using {witness}"),
+            Expr::Destroy { witness } => write!(f, "destroy using {witness}"),
+            Expr::Literal(literal) => write!(f, "{}", literal),
         }
     }
 }
@@ -193,15 +187,6 @@ impl fmt::Display for Expr {
 impl fmt::Debug for Instr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
-    }
-}
-
-impl fmt::Display for Atom {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Atom::Literal(literal) => write!(f, "{literal}"),
-            Atom::Variable(variable) => write!(f, "{variable}"),
-        }
     }
 }
 
@@ -216,6 +201,7 @@ impl fmt::Display for Convention {
         match self {
             Convention::In => write!(f, "in"),
             Convention::Inout => write!(f, "inout"),
+            Convention::Out => write!(f, "out"),
         }
     }
 }

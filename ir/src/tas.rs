@@ -58,13 +58,20 @@ pub enum Instr {
     },
     Set {
         target: Target,
+        value: Expr,
     },
+}
+
+#[derive(Clone)]
+pub enum Expr {
+    Atom(Atom),
 }
 
 #[derive(Clone)]
 pub enum Target {
     Variable(Variable),
     Deref(Variable),
+    Field(Variable, Atom),
 }
 
 #[derive(Clone)]

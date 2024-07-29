@@ -3,6 +3,7 @@ use std::io::{self, BufRead, Result, Write};
 use lexer::{scan_tokens, Errors};
 use tree::token::{self, List, Token};
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Debug)]
 pub enum ExitStatus {
     Okay,
     Error,
@@ -33,13 +34,12 @@ pub fn event_loop(name: &str, mut callback: impl FnMut(List, Errors) -> ExitStat
     let mut working_line = String::new();
     let stdin = io::stdin();
 
-    println!("{}", name);
-
     print!("> ");
     io::stdout().flush().unwrap();
     for line in stdin.lock().lines() {
         let line = line?;
         working_line.push_str(&line);
+        working_line.push('\n');
 
         let (tokens, errors) = scan_tokens(&working_line);
         if line.strip_prefix("[ \t\n]*") == Some("") || line.is_empty() {
@@ -55,4 +55,10 @@ pub fn event_loop(name: &str, mut callback: impl FnMut(List, Errors) -> ExitStat
     }
 
     Ok(())
+}
+
+pub fn test_loop(text: &str, mut callback: impl FnMut(List) -> ExitStatus) {
+    let (tokens, errors) = scan_tokens(text);
+    assert!(errors.success());
+    assert_eq!(callback(tokens), ExitStatus::Okay);
 }

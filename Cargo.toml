@@ -20,7 +20,8 @@ members = [
   "type_checker",
   "type_passing",
   "sizer",
-  "lower"
+  "lower",
+  "emit"
 #  "qualifier",
 #
 #  # Backend

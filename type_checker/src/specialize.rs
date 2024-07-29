@@ -17,7 +17,7 @@ pub fn union(first: Spec, second: Spec) -> Result<Spec> {
                 second: typ,
             }
         });
-    if !errors.is_empty() {
+    if errors.is_empty() {
         Ok(first.union(second))
     } else {
         Err(errors.values().next().unwrap().clone())

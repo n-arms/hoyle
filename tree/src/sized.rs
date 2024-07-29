@@ -73,7 +73,8 @@ impl Witness {
 
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}@{}", self.name, self.witness)
+        //write!(f, "{}@{}", self.name, self.witness)
+        write!(f, "{}@", self.name)
     }
 }
 
@@ -88,12 +89,15 @@ impl fmt::Display for Witness {
 
 impl fmt::Debug for Argument {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}@{}: {}", self.name, self.witness, self.typ)
+        //write!(f, "{}@{}: {}", self.name, self.witness, self.typ)
+        //write!(f, "{}: {}", self.name, self.typ)
+        write!(f, "{}", self.name)
     }
 }
 
 impl fmt::Display for Call {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}@{}", self.result, self.witness)
+        //write!(f, "{:?}@{}", self.result, self.witness)
+        write!(f, "{:?}", self.result)
     }
 }

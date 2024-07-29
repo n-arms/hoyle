@@ -181,7 +181,7 @@ impl<S: DisplayStage> fmt::Display for Program<S> {
             write!(f, "{}", s)?;
         }
         for func in &self.functions {
-            write!(f, "{}", func)?;
+            writeln!(f, "{}", func)?;
         }
         Ok(())
     }
@@ -189,6 +189,7 @@ impl<S: DisplayStage> fmt::Display for Program<S> {
 
 impl<S: DisplayStage> fmt::Display for Function<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        println!("printing function {}", self.name);
         write!(f, "func {}", self.name)?;
         f.debug_list().entries(self.generics.iter()).finish()?;
         write!(f, "(")?;
@@ -219,11 +220,31 @@ impl<S: DisplayStage> fmt::Display for Expr<S> {
                     if i != 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{:?}", arg)?;
+                    write!(f, "{}", arg)?;
                 }
                 write!(f, ")")
             }
-            Expr::Block(_) => todo!(),
+            Expr::Block(block) => block.fmt(f),
+        }
+    }
+}
+
+impl<S: DisplayStage> fmt::Display for Block<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{")?;
+        for stmt in &self.stmts {
+            write!(f, "\n\t{stmt}")?;
+        }
+        write!(f, "\n}}")
+    }
+}
+
+impl<S: DisplayStage> fmt::Display for Statement<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Statement::Let { name, typ, value } => {
+                write!(f, "let {name}: {typ} = {value}")
+            }
         }
     }
 }
@@ -252,7 +273,7 @@ where
     Expr<S>: fmt::Display,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{}", self)
     }
 }
 

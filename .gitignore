@@ -13,3 +13,7 @@ Cargo.lock
 # Added by cargo
 
 /target
+
+# generated c files
+/gen
+/.ccls-cache

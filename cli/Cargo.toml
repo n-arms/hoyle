@@ -14,3 +14,4 @@ type_passing = { path = "../type_passing" }
 sizer = { path = "../sizer" }
 tree = { path = "../tree" }
 lower = { path = "../lower" }
+emit = { path = "../emit" }

@@ -1,11 +1,13 @@
 mod read;
 mod repl;
 
+use std::fs;
+
 use bumpalo::Bump;
 use lower::lower;
+use read::test_loop;
 use sizer::sizer;
 use tree::token;
-
 fn main() {
     read::event_loop("Welcome to the Hoyle repl", |tokens, errors| {
         if errors.success() {
@@ -18,7 +20,20 @@ fn main() {
     .unwrap()
 }
 
+/*
+fn main() {
+    test_loop(
+        r#"
+            func id[t](x: t): t = x
+            func a(): F64 = id(3)
+        "#,
+        run,
+    )
+}
+*/
+
 fn run(tokens: token::List) -> read::ExitStatus {
+    println!("tokens: {:?}", tokens);
     let parsed = match parser::parse(&tokens.into_iter().collect::<Vec<_>>()) {
         Ok(p) => p,
         Err(error) => {
@@ -37,8 +52,12 @@ fn run(tokens: token::List) -> read::ExitStatus {
     println!("okay");
     let passed = type_passing::pass::program(&typed);
     let sized = sizer::program(&passed);
+    println!("sized");
     println!("{}", sized);
-    let bridged = lower::program(&sized);
+    println!("printed size");
+    let (bridged, mut envs) = lower::program(&sized);
     println!("{}", bridged);
+    let c_source = emit::program(bridged, &mut envs);
+    fs::write("gen/out.c", c_source.to_string()).unwrap();
     read::ExitStatus::Okay
 }
