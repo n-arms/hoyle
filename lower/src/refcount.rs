@@ -19,7 +19,7 @@ pub fn count_function(env: &mut Env, function: Function) -> Function {
         })
         .collect();
     let mut body = count_block(env, function.body, &mut seen);
-    for arg in &function.arguments {
+    for arg in function.arguments.iter().rev() {
         count_variable(
             env,
             &Variable {
@@ -82,6 +82,7 @@ fn count_witness(
     match witness {
         Witness::Trivial { .. } => {}
         Witness::Dynamic { location } => count_variable(env, location, instrs, seen),
+        Witness::Type => {}
     }
 }
 

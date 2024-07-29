@@ -75,6 +75,9 @@ impl Bank {
                 "void *{} = malloc(((_witness *) {}) -> size);",
                 name, location.name
             )),
+            Witness::Type => {
+                source.pushln(&format!("char {}[sizeof(_witness)];", name));
+            }
         }
         self.seen.insert(name);
     }
@@ -84,19 +87,58 @@ pub fn program(program: Program, envs: &mut [Env]) -> Source {
     let mut source = Source::default();
     source.pushln(
         r#"#include <string.h>
+#include <limits.h>
+#include <stdlib.h>
 typedef struct _witness {
+  unsigned long long size;
   void (*move)(void *, void *, void *);
+  void (*copy)(void *, void *, void *);
+  void (*destroy)(void *, void *);
   void *extra;
 } _witness;
 
-void move_F64(void *dest, void *src, void *extra) {
+void _move_F64(void *dest, void *src, void *extra) {
   memmove(dest, src, 8);
 }
 
+void _destroy_F64(void *dest, void *extra) {}
+
 void F64(void *_result) {
   _witness *result = _result;
-  result -> move = move_F64;
+  result -> size = 8;
+  result -> move = _move_F64;
+  result -> copy = _move_F64;
+  result -> destroy = _destroy_F64;
   result -> extra = NULL;
+}
+
+void _move_type(void *dest, void *src) {
+    memmove(dest, src, 32);
+}
+
+void _copy_type(void *dest, void *src) {
+    _witness *typ = src;
+    if (typ -> extra != NULL) {
+        unsigned long long *counter = typ -> extra;
+        if (*counter == ULONG_MAX) {
+            exit(1);
+        } else {
+            *counter += 1;
+        }
+    }
+    memmove(dest, src, 32);
+}
+
+void _destroy_type(void *src) {
+    _witness *typ = src;
+    if (typ -> extra != NULL) {
+        unsigned long long *counter = typ -> extra;
+        if (*counter == 0) {
+            free(typ -> extra);
+        } else {
+            *counter -= 1;
+        }
+    }
 }
 "#,
     );
@@ -141,6 +183,7 @@ fn copy(dest: &Variable, src: &Variable, witness: &Witness, source: &mut Source)
             "(((_witness *) {}) -> copy)({}, {}, ((_witness *) {}) -> extra);",
             location.name, dest.name, src.name, location.name
         )),
+        Witness::Type => source.pushln(&format!("_copy_type({}, {});", dest.name, src.name)),
     }
 }
 
@@ -219,6 +262,7 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, env: &mut Env) {
                 "(((_witness *) {}) -> move)({}, {}, ((_witness *) {}) -> extra);",
                 location.name, var, src.name, location.name
             )),
+            Witness::Type => source.pushln(&format!("_move_type({}, {});", var, src.name)),
         },
         Expr::Copy {
             source: src,
@@ -227,9 +271,10 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, env: &mut Env) {
         Expr::Destroy { witness } => match witness {
             Witness::Trivial { .. } => {}
             Witness::Dynamic { location } => source.pushln(&format!(
-                "(((_witness *) {}) -> destory)({}, ((_witness *) {}) -> extra);",
+                "(((_witness *) {}) -> destroy)({}, ((_witness *) {}) -> extra);",
                 location.name, var, location.name
             )),
+            Witness::Type => source.pushln(&format!("_destroy_type({});", var)),
         },
     }
 }

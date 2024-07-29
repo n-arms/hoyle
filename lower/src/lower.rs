@@ -169,6 +169,7 @@ fn witness(env: &mut Env, to_lower: &sized::Witness, instrs: &BlockBuilder) -> W
         sized::Witness::Dynamic { value } => Witness::Dynamic {
             location: expr(env, value.as_ref(), instrs),
         },
+        sized::Witness::Type => Witness::Type,
     }
 }
 

@@ -1,5 +1,6 @@
 mod read;
 mod repl;
+mod test;
 
 use std::fs;
 

@@ -15,3 +15,4 @@ sizer = { path = "../sizer" }
 tree = { path = "../tree" }
 lower = { path = "../lower" }
 emit = { path = "../emit" }
+fastrand = "2.1.0"

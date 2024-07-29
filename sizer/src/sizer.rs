@@ -114,7 +114,7 @@ fn type_witness(env: &Env, to_witness: &Type) -> Witness {
                 size: match name.as_str() {
                     "F64" => 8,
                     "Bool" => 1,
-                    "Type" => 24,
+                    "Type" => return Witness::Type,
                     _ => unimplemented!("other structs :p"),
                 },
             }
@@ -123,7 +123,7 @@ fn type_witness(env: &Env, to_witness: &Type) -> Witness {
             value: Box::new(Expr::Variable {
                 name: Variable {
                     name: name.clone(),
-                    witness: Witness::typ(),
+                    witness: Witness::Type,
                 },
                 typ: Type::typ(),
             }),

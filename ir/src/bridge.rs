@@ -31,6 +31,7 @@ pub struct Block {
 pub enum Witness {
     Trivial { size: usize },
     Dynamic { location: Variable },
+    Type,
 }
 
 #[derive(Clone)]
@@ -140,6 +141,7 @@ impl fmt::Display for Witness {
         match self {
             Witness::Trivial { size } => write!(f, "trivial {}", size),
             Witness::Dynamic { location } => location.name.fmt(f),
+            Witness::Type => write!(f, "Type"),
         }
     }
 }

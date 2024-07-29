@@ -189,7 +189,6 @@ impl<S: DisplayStage> fmt::Display for Program<S> {
 
 impl<S: DisplayStage> fmt::Display for Function<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        println!("printing function {}", self.name);
         write!(f, "func {}", self.name)?;
         f.debug_list().entries(self.generics.iter()).finish()?;
         write!(f, "(")?;

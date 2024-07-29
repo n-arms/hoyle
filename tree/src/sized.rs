@@ -13,6 +13,7 @@ pub struct Sized;
 pub enum Witness {
     Trivial { size: usize },
     Dynamic { value: Box<Expr> },
+    Type,
 }
 
 #[derive(Clone)]
@@ -65,12 +66,6 @@ impl Expr {
     }
 }
 
-impl Witness {
-    pub fn typ() -> Self {
-        Self::Trivial { size: 24 }
-    }
-}
-
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         //write!(f, "{}@{}", self.name, self.witness)
@@ -83,6 +78,7 @@ impl fmt::Display for Witness {
         match self {
             Witness::Trivial { size } => write!(f, "{}", size),
             Witness::Dynamic { value } => write!(f, "[{}]", value.as_ref()),
+            Witness::Type => write!(f, "Type"),
         }
     }
 }
