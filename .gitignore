@@ -17,3 +17,5 @@ Cargo.lock
 # generated c files
 /gen
 /.ccls-cache
+
+/cli/target/
