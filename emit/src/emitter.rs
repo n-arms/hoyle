@@ -128,6 +128,21 @@ void F64(void *_result) {
   result -> extra = NULL;
 }
 
+void _move_Bool(void *dest, void *src, void *extra) {
+  memmove(dest, src, 8);
+}
+
+void _destroy_Bool(void *dest, void *extra) {}
+
+void Bool(void *_result) {
+  _witness *result = _result;
+  result -> size = 8;
+  result -> move = _move_Bool;
+  result -> copy = _move_Bool;
+  result -> destroy = _destroy_Bool;
+  result -> extra = NULL;
+}
+
 void _move_type(void *dest, void *src) {
     memmove(dest, src, sizeof(_witness));
 }
@@ -317,6 +332,10 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, env: &mut Env) {
             source.push(&match to_emit {
                 Literal::Float(float) => format!("*(double *) {var} = {float}"),
                 Literal::Integer(integer) => format!("*(signed long long *) {var} = {integer}ll"),
+                Literal::Boolean(boolean) => format!(
+                    "*(signed long long *) {var} = {}ll",
+                    if boolean { "1" } else { "0" }
+                ),
             });
             source.pushln(";");
         }

@@ -83,6 +83,8 @@ pub fn scan_tokens(text: &str) -> (token::List, Errors) {
                     "let" => Kind::Let,
                     "case" => Kind::Case,
                     "of" => Kind::Of,
+                    "True" => Kind::True,
+                    "False" => Kind::False,
                     _ => {
                         if c.is_uppercase() {
                             Kind::UpperIdentifier

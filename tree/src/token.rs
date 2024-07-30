@@ -45,6 +45,8 @@ pub enum Kind {
     SingleEquals,
     SingleBar,
     Dot,
+    True,
+    False,
     BinaryOperator(BinaryOperator),
 }
 

@@ -128,12 +128,14 @@ impl Primitive {
 pub enum Literal {
     Float(f64),
     Integer(i64),
+    Boolean(bool),
 }
 impl Literal {
     pub fn get_type(&self) -> Type {
         match self {
             Literal::Float(_) => Type::float(),
             Literal::Integer(_) => Type::integer(),
+            Literal::Boolean(_) => Type::bool(),
         }
     }
 }
@@ -329,6 +331,7 @@ impl fmt::Display for Literal {
         match self {
             Literal::Float(float) => write!(f, "{}", float),
             Literal::Integer(integer) => write!(f, "{}", integer),
+            Literal::Boolean(boolean) => write!(f, "{}", boolean),
         }
     }
 }

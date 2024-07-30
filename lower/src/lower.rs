@@ -23,6 +23,7 @@ pub fn program(
         global.define_function(func.name.clone(), convention);
     }
     global.define_function(String::from("F64"), vec![Convention::Out]);
+    global.define_function(String::from("Bool"), vec![Convention::Out]);
     let (structs, struct_envs) = to_lower
         .structs
         .iter()
@@ -156,7 +157,7 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Var
         },
         sized::Expr::Literal { literal } => {
             let name = env.fresh_name();
-            let var = env.define_variable(name, Type::float(), Witness::Trivial { size: 8 });
+            let var = env.define_variable(name, literal.get_type(), Witness::Trivial { size: 8 });
             instrs.push(Instr::new(var.clone(), Expr::Literal(literal.clone())));
             var
         }

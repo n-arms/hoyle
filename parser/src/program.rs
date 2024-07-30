@@ -199,6 +199,7 @@ fn struct_pack<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
 
 fn terminal<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
     literal_expr()
+        .or(boolean_literal())
         .or(struct_pack(expr.clone()))
         .or(ident()
             .then_ignore(token(Kind::LeftParen))
@@ -211,6 +212,13 @@ fn terminal<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
             }))
         .or(ident().map(|name| Expr::Variable { name, typ: () }))
         .or(block(expr).map(|block| Expr::Block(block)))
+}
+
+fn boolean_literal<'src>() -> parser!('src, Expr) {
+    token(Kind::True)
+        .map(|_| Literal::Boolean(true))
+        .or(token(Kind::False).map(|_| Literal::Boolean(false)))
+        .map(|literal| Expr::Literal { literal })
 }
 
 fn literal_expr<'src>() -> parser!('src, Expr) {

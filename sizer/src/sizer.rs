@@ -180,7 +180,7 @@ fn type_witness(env: &Env, to_witness: &Type) -> Witness {
             Witness::Trivial {
                 size: match name.as_str() {
                     "F64" => 8,
-                    "Bool" => 1,
+                    "Bool" => 8,
                     "Type" => return Witness::Type,
                     _ => return struct_witness(env, &env.lookup_struct(&name)),
                 },
