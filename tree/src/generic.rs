@@ -70,17 +70,18 @@ pub struct Function<S: Stage> {
     pub body: Expr<S>,
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub enum Primitive {
     Add,
     Sub,
+    Mul,
 }
 
 impl Primitive {
     pub fn arity(&self) -> Option<usize> {
         use Primitive::*;
         match self {
-            Add | Sub => Some(2),
+            Add | Sub | Mul => Some(2),
         }
     }
 }
@@ -112,6 +113,10 @@ pub enum Expr<S: Stage> {
         function: String,
         arguments: Vec<Expr<S>>,
         tag: S::Call,
+    },
+    Primitive {
+        primitive: Primitive,
+        arguments: Vec<Expr<S>>,
     },
     Block(Block<S>),
 }
@@ -224,6 +229,20 @@ impl<S: DisplayStage> fmt::Display for Expr<S> {
                 write!(f, ")")
             }
             Expr::Block(block) => block.fmt(f),
+            Expr::Primitive {
+                primitive,
+                arguments,
+            } => match primitive {
+                Primitive::Add => {
+                    write!(f, "({} + {})", &arguments[0], &arguments[1])
+                }
+                Primitive::Sub => {
+                    write!(f, "({} - {})", &arguments[0], &arguments[1])
+                }
+                Primitive::Mul => {
+                    write!(f, "({} * {})", &arguments[0], &arguments[1])
+                }
+            },
         }
     }
 }
@@ -262,6 +281,7 @@ impl fmt::Display for Primitive {
         match self {
             Primitive::Add => "+",
             Primitive::Sub => "-",
+            Primitive::Mul => "*",
         }
         .fmt(f)
     }

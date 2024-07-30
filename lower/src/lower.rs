@@ -145,6 +145,22 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Var
             result
         }
         sized::Expr::Block(to_lower) => block(env, to_lower, instrs),
+        sized::Expr::Primitive {
+            primitive,
+            arguments,
+        } => {
+            let name = env.fresh_name();
+            let result = env.define_variable(name, arguments[0].get_type(), Witness::trivial(8));
+            let lowered_args = arguments
+                .iter()
+                .map(|to_lower| expr(env, to_lower, instrs))
+                .collect();
+            instrs.push(Instr::new(
+                result.clone(),
+                Expr::Primitive(*primitive, lowered_args),
+            ));
+            result
+        }
     }
 }
 

@@ -113,7 +113,7 @@ void F64(void *_result) {
 }
 
 void _move_type(void *dest, void *src) {
-    memmove(dest, src, 32);
+    memmove(dest, src, sizeof(_witness));
 }
 
 void _copy_type(void *dest, void *src) {
@@ -126,7 +126,7 @@ void _copy_type(void *dest, void *src) {
             *counter += 1;
         }
     }
-    memmove(dest, src, 32);
+    memmove(dest, src, sizeof(_witness));
 }
 
 void _destroy_type(void *src) {
@@ -200,17 +200,42 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, env: &mut Env) {
             source.pushln(";");
         }
         Expr::Primitive(primitive, args) => {
-            source.push(&format!("*{} = ", var));
+            let type_name = {
+                match &args[0].typ {
+                    tree::typed::Type::Named { name, arguments } => {
+                        assert!(arguments.is_empty());
+                        match name.as_str() {
+                            "F64" => "double",
+                            "I64" => "signed long long",
+                            _ => unimplemented!(),
+                        }
+                    }
+                    tree::typed::Type::Generic { .. } => panic!(),
+                    tree::typed::Type::Function { .. } => panic!(),
+                }
+            };
+            source.push(&format!("*({type_name} *) {var} = "));
             match primitive {
                 Primitive::Add => {
-                    variable(&args[0].clone(), source);
-                    source.push(" + ");
-                    variable(&args[1].clone(), source);
+                    source.push(&format!(
+                        "*(({type_name} *) {a}) + *(({type_name} *) {b})",
+                        a = args[0].name,
+                        b = args[1].name,
+                    ));
                 }
                 Primitive::Sub => {
-                    variable(&args[0].clone(), source);
-                    source.push(" - ");
-                    variable(&args[1].clone(), source);
+                    source.push(&format!(
+                        "*(({type_name} *) {a}) - *(({type_name} *) {b})",
+                        a = args[0].name,
+                        b = args[1].name,
+                    ));
+                }
+                Primitive::Mul => {
+                    source.push(&format!(
+                        "*(({type_name} *) {a}) * *(({type_name} *) {b})",
+                        a = args[0].name,
+                        b = args[1].name,
+                    ));
                 }
             };
             source.pushln(";");
@@ -277,8 +302,4 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, env: &mut Env) {
             Witness::Type => source.pushln(&format!("_destroy_type({});", var)),
         },
     }
-}
-
-fn variable(to_emit: &Variable, source: &mut Source) {
-    source.push(&format!("*{}", to_emit.name))
 }

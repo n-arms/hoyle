@@ -70,6 +70,16 @@ fn expr(env: &Env, to_pass: &typed::Expr) -> Expr {
             }
         }
         typed::Expr::Block(to_pass) => Expr::Block(block(env, to_pass)),
+        typed::Expr::Primitive {
+            primitive,
+            arguments,
+        } => {
+            let lowered_args = arguments.iter().map(|arg| expr(env, arg)).collect();
+            Expr::Primitive {
+                primitive: *primitive,
+                arguments: lowered_args,
+            }
+        }
     }
 }
 

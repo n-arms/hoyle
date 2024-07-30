@@ -1,7 +1,8 @@
 use chumsky::recursive::recursive;
 use chumsky::{error::Simple, primitive::filter_map, Parser};
 use tree::parsed::*;
-use tree::token::{Kind, Token};
+use tree::sized::Primitive;
+use tree::token::{BinaryOperator, Kind, Token};
 use tree::String;
 
 pub fn token<'src>(kind: Kind) -> parser!('src, Token<'src>) {
@@ -123,8 +124,32 @@ fn function_definition<'src>() -> parser!('src, Program) {
         .map(Program::from_function)
 }
 
+trait WithOperation<'src>: Parser<Token<'src>, Expr, Error = Simple<Token<'src>>> + Clone {
+    fn with_operation<T>(
+        self,
+        symbol: parser!('src, T),
+        operation: impl Fn(Expr, Expr) -> Expr + Clone,
+    ) -> parser!('src, Expr) {
+        self.clone()
+            .then(symbol.ignore_then(self).repeated())
+            .foldl(operation)
+    }
+}
+
+impl<'src, T> WithOperation<'src> for T where
+    T: Parser<Token<'src>, Expr, Error = Simple<Token<'src>>> + Clone
+{
+}
+
 pub fn expr<'src>() -> parser!('src, Expr) {
-    recursive(terminal)
+    recursive(|e| {
+        terminal(e).with_operation(token(Kind::BinaryOperator(BinaryOperator::Star)), |a, b| {
+            Expr::Primitive {
+                primitive: Primitive::Mul,
+                arguments: vec![a, b],
+            }
+        })
+    })
 }
 
 fn comma_list<'src, T>(element: parser!('src, T)) -> parser!('src, Vec<T>) {

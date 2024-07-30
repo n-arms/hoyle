@@ -69,9 +69,12 @@ int main() {{
         .stdout(process::Stdio::piped())
         .spawn()
         .unwrap();
-    let output = child.wait_with_output();
-    let string = String::from_utf8(output.unwrap().stdout).unwrap();
-    string.parse().unwrap()
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success());
+    let string = String::from_utf8(output.stdout).unwrap();
+    string
+        .parse()
+        .expect(&format!("couldn't parse string {:?}", string))
 }
 
 fn run(text: &str, main: &str, expected: f64) {
@@ -179,5 +182,17 @@ fn poly_let() {
         "#,
         "poly_let",
         3.,
+    )
+}
+
+#[test]
+fn multiplication() {
+    run(
+        r#"
+        func times_and_2(x: F64, y: F64): F64 = x * y * 2
+        func multiplication(): F64 = times_and_2(2 * 3, 4) * 5
+        "#,
+        "multiplication",
+        240.,
     )
 }

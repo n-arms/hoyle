@@ -72,6 +72,16 @@ fn expr(env: &Env, to_size: &type_passing::Expr) -> Expr {
             }
         }
         type_passing::Expr::Block(to_size) => Expr::Block(block(env, to_size)),
+        type_passing::Expr::Primitive {
+            primitive,
+            arguments,
+        } => {
+            let sized_args = arguments.iter().map(|arg| expr(env, arg)).collect();
+            Expr::Primitive {
+                primitive: *primitive,
+                arguments: sized_args,
+            }
+        }
     }
 }
 

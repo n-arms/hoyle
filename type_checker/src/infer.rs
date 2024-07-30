@@ -93,6 +93,19 @@ pub fn expr(env: &Env, to_infer: &parsed::Expr) -> Result<Expr> {
             let typed_block = block(env, b)?;
             Ok(Expr::Block(typed_block))
         }
+        parsed::Expr::Primitive {
+            primitive,
+            arguments,
+        } => {
+            let typed_arguments = arguments
+                .into_iter()
+                .map(|arg| expr(env, arg))
+                .collect::<Result<Vec<_>>>()?;
+            Ok(Expr::Primitive {
+                primitive: *primitive,
+                arguments: typed_arguments,
+            })
+        }
     }
 }
 

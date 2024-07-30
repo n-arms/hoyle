@@ -48,13 +48,13 @@ pub enum Kind {
     BinaryOperator(BinaryOperator),
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct List<'a> {
     kinds: Vec<Kind>,
     spans: Vec<Span<'a>>,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Token<'a> {
     pub kind: Kind,
     pub span: Span<'a>,
@@ -103,6 +103,26 @@ impl<'a> IntoIterator for &'a List<'a> {
 
 impl fmt::Display for Token<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        <Self as fmt::Debug>::fmt(self, f)
+        write!(f, "[{:?} {}]", self.kind, self.span)
+    }
+}
+
+impl fmt::Debug for Token<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        <Self as fmt::Display>::fmt(self, f)
+    }
+}
+
+impl fmt::Display for Span<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.data)
+    }
+}
+
+impl fmt::Debug for List<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list()
+            .entries(self.clone().into_iter().map(|x| x))
+            .finish()
     }
 }

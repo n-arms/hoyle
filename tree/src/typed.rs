@@ -1,6 +1,9 @@
-use crate::generic::{self, Stage};
 pub use crate::parsed::Argument;
 use crate::String;
+use crate::{
+    generic::{self, Stage},
+    sized::Primitive,
+};
 
 pub use generic::{Field, Generic, Literal, Struct, Type};
 
@@ -32,6 +35,19 @@ impl Expr {
             generic::Expr::Literal { literal } => literal.get_type(),
             generic::Expr::CallDirect { tag, .. } => tag.result.clone(),
             generic::Expr::Block(block) => block.result.get_type(),
+
+            generic::Expr::Primitive {
+                primitive,
+                arguments,
+            } =>
+            {
+                #[allow(irrefutable_let_patterns)]
+                if let Primitive::Add | Primitive::Sub | Primitive::Mul = primitive {
+                    arguments[0].get_type()
+                } else {
+                    unimplemented!()
+                }
+            }
         }
     }
 }
