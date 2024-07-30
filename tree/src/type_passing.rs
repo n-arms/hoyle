@@ -7,6 +7,7 @@ use crate::{
 
 pub use generic::{Field, Generic, Literal, Struct, Type};
 
+#[derive(Copy, Clone)]
 pub struct TypePassing;
 
 #[derive(Clone)]
@@ -26,6 +27,8 @@ pub type Function = generic::Function<TypePassing>;
 pub type Expr = generic::Expr<TypePassing>;
 pub type Block = generic::Block<TypePassing>;
 pub type Statement = generic::Statement<TypePassing>;
+pub type StructBuilder = generic::StructBuilder<TypePassing>;
+pub type StructBuilders = generic::StructBuilders<TypePassing>;
 
 impl Expr {
     pub fn get_type(&self) -> Type {

@@ -1,12 +1,31 @@
 use core::fmt;
 
-use tree::sized::{Literal, Primitive, Struct, Type};
+use tree::sized::{self, Literal, Primitive, Type};
 use tree::String;
 
 #[derive(Clone)]
 pub struct Program {
     pub structs: Vec<Struct>,
     pub functions: Vec<Function>,
+}
+
+#[derive(Clone)]
+pub struct Struct {
+    pub definition: sized::Struct,
+    pub builder: StructBuilder,
+}
+
+#[derive(Clone)]
+pub struct StructBuilder {
+    pub arguments: Vec<BuilderArgument>,
+    pub block: Block,
+    pub fields: Vec<Variable>,
+}
+
+#[derive(Clone)]
+pub struct BuilderArgument {
+    pub name: Variable,
+    pub convention: Convention,
 }
 
 #[derive(Clone)]
@@ -211,5 +230,41 @@ impl fmt::Display for Convention {
 impl fmt::Debug for CallArgument {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
+    }
+}
+
+impl fmt::Display for Struct {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}: {}", self.definition, self.builder)
+    }
+}
+
+impl fmt::Display for StructBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut args = f.debug_tuple("");
+        for arg in &self.arguments {
+            args.field(arg);
+        }
+        args.finish()?;
+        write!(f, "{{\n{}", self.block)?;
+        write!(f, "\tyield ")?;
+        let mut result = f.debug_list();
+        for field in &self.fields {
+            result.entry(field);
+        }
+        result.finish()?;
+        write!(f, "\n}}")
+    }
+}
+
+impl fmt::Debug for Variable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl fmt::Debug for BuilderArgument {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.convention, self.name)
     }
 }

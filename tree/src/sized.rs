@@ -54,6 +54,8 @@ pub type Function = generic::Function<Sized>;
 pub type Expr = generic::Expr<Sized>;
 pub type Block = generic::Block<Sized>;
 pub type Statement = generic::Statement<Sized>;
+pub type StructBuilder = generic::StructBuilder<Sized>;
+pub type StructBuilders = generic::StructBuilders<Sized>;
 
 impl Expr {
     pub fn get_type(&self) -> Type {

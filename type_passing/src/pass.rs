@@ -4,17 +4,37 @@ use tree::String;
 
 use crate::env::Env;
 
-pub fn program(to_pass: &typed::Program) -> Program {
-    let env = Env {};
+pub fn program(to_pass: &typed::Program) -> (Program, StructBuilders) {
+    let env = Env::default();
+    let mut struct_builders = StructBuilders::default();
+    for to_pass in &to_pass.structs {
+        strukt(&env, &mut struct_builders, to_pass);
+    }
     let functions = to_pass
         .functions
         .iter()
         .map(|func| function(&env, func))
         .collect();
-    Program {
+    let program = Program {
         structs: to_pass.structs.clone(),
         functions,
-    }
+    };
+    (program, struct_builders)
+}
+
+fn strukt(env: &Env, struct_builders: &mut StructBuilders, to_pass: &typed::Struct) {
+    let fields = to_pass
+        .fields
+        .iter()
+        .map(|field| typ(env, &field.typ))
+        .collect();
+    struct_builders.define_struct(
+        to_pass.name.clone(),
+        StructBuilder {
+            arguments: Vec::new(),
+            fields,
+        },
+    );
 }
 
 fn function(env: &Env, to_pass: &typed::Function) -> Function {

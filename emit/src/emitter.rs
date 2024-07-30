@@ -1,13 +1,9 @@
 use core::fmt;
 
 use im::HashSet;
-use ir::bridge::{Block, Convention, Expr, Function, Instr, Program, Variable, Witness};
+use ir::bridge::{Block, Convention, Expr, Function, Instr, Program, Struct, Variable, Witness};
 use lower::env::Env;
-use tree::{
-    sized::{Primitive, Struct},
-    typed::Literal,
-    String,
-};
+use tree::{sized::Primitive, typed::Literal, String};
 
 type StdString = std::string::String;
 
@@ -87,7 +83,7 @@ impl Bank {
     }
 }
 
-pub fn program(program: Program, envs: &mut [Env]) -> Source {
+pub fn program(program: Program, envs: &mut [Env], struct_envs: &mut [Env]) -> Source {
     let mut source = Source::default();
     source.pushln(
         r#"#include <string.h>
@@ -146,16 +142,110 @@ void _destroy_type(void *src) {
 }
 "#,
     );
+
+    for (to_emit, env) in program.structs.into_iter().zip(struct_envs) {
+        strukt(to_emit, &mut source, env);
+    }
     for (to_emit, env) in program.functions.into_iter().zip(envs) {
         function(to_emit, &mut source, env);
     }
     source
 }
 
+fn copy_struct(to_emit: &Struct, source: &mut Source, env: &mut Env) {
+    let struct_name = &to_emit.definition.name;
+    source.pushln(&format!(
+        "void _copy_{}(void *dest, void *src, void *extra) {{",
+        struct_name
+    ));
+    source.with_inc(2, |source| {
+        let mut bank = Bank::default();
+        block(to_emit.builder.block.clone(), source, &mut bank, env);
+        for field in &to_emit.builder.fields {
+            source.pushln(&format!(
+                "(((_witness *) {}) -> copy)(dest, src, ((_witness *) {}) -> extra);",
+                field.name, field.name
+            ))
+        }
+    });
+    source.pushln("}");
+}
+fn move_struct(to_emit: &Struct, source: &mut Source, env: &mut Env) {
+    let struct_name = &to_emit.definition.name;
+    source.pushln(&format!(
+        "void _move_{}(void *dest, void *src, void *extra) {{",
+        struct_name
+    ));
+    source.with_inc(2, |source| {
+        let mut bank = Bank::default();
+        block(to_emit.builder.block.clone(), source, &mut bank, env);
+        for field in &to_emit.builder.fields {
+            source.pushln(&format!(
+                "(((_witness *) {}) -> move)(dest, src, ((_witness *) {}) -> extra);",
+                field.name, field.name
+            ))
+        }
+    });
+    source.pushln("}");
+}
+fn destroy_struct(to_emit: &Struct, source: &mut Source, env: &mut Env) {
+    let struct_name = &to_emit.definition.name;
+    source.pushln(&format!(
+        "void _destroy_{}(void *dest, void *extra) {{",
+        struct_name
+    ));
+    source.with_inc(2, |source| {
+        let mut bank = Bank::default();
+        block(to_emit.builder.block.clone(), source, &mut bank, env);
+        for field in &to_emit.builder.fields {
+            source.pushln(&format!(
+                "(((_witness *) {}) -> destroy)(dest, ((_witness *) {}) -> extra);",
+                field.name, field.name
+            ))
+        }
+    });
+    source.pushln("}");
+}
+
 fn strukt(to_emit: Struct, source: &mut Source, env: &mut Env) {
-    source.pushln(&format!("struct {} {{", to_emit.name));
-    source.with_inc(2, |source| {});
-    source.pushln("}};");
+    copy_struct(&to_emit, source, env);
+    move_struct(&to_emit, source, env);
+    destroy_struct(&to_emit, source, env);
+    let struct_name = to_emit.definition.name;
+    source.push(&format!("void {}(", struct_name));
+    let mut first = true;
+    for arg in &to_emit.builder.arguments {
+        if first {
+            first = false;
+        } else {
+            source.push(", ");
+        }
+        source.push(&format!("void *{}", arg.name.name));
+    }
+    source.pushln(") {");
+    source.with_inc(2, |source| {
+        let mut bank = Bank::default();
+        block(to_emit.builder.block, source, &mut bank, env);
+
+        source.pushln(&format!("_witness *typ = _result;"));
+        source.push("typ -> size = ");
+
+        let mut first = true;
+        for field in to_emit.builder.fields {
+            if first {
+                first = false
+            } else {
+                source.push(" + ");
+            }
+            source.push(&format!("((_witness *) {}) -> size", field.name));
+        }
+        source.pushln(";");
+        source.pushln(&format!("typ -> move = _move_{};", struct_name));
+        source.pushln(&format!("typ -> copy = _copy_{};", struct_name));
+        source.pushln(&format!("typ -> destroy = _destroy_{};", struct_name));
+        source.pushln("typ -> extra = NULL;");
+    });
+    source.pushln("}");
 }
 
 fn function(to_emit: Function, source: &mut Source, env: &mut Env) {

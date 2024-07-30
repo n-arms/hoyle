@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 arena_alloc = { path = "../arena_alloc" }
+im = "15.1.0"
 macros = { path = "../macros" }
 pom = "3.4.0"
 smartstring = "1.0.1"

@@ -1,5 +1,7 @@
 use core::fmt;
 
+use im::HashMap;
+
 use crate::String;
 
 pub trait Stage {
@@ -54,6 +56,39 @@ pub enum Type {
         arguments: Vec<Type>,
         result: Box<Type>,
     },
+}
+
+#[derive(Clone)]
+pub struct StructBuilder<S: Stage> {
+    pub arguments: Vec<S::Argument>,
+    pub fields: Vec<Expr<S>>,
+}
+
+#[derive(Clone)]
+pub struct StructBuilders<S: Stage> {
+    pub builders: HashMap<String, StructBuilder<S>>,
+}
+
+impl<S: Stage + Clone> StructBuilders<S> {
+    pub fn define_struct(&mut self, name: String, builder: StructBuilder<S>) {
+        self.builders.insert(name, builder);
+    }
+
+    pub fn lookup_struct(&self, name: &String) -> &StructBuilder<S> {
+        self.builders.get(name).unwrap()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &StructBuilder<S>)> {
+        self.builders.iter()
+    }
+}
+
+impl<S: Stage> Default for StructBuilders<S> {
+    fn default() -> Self {
+        Self {
+            builders: HashMap::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

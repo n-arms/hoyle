@@ -17,14 +17,14 @@ fn to_c(text: &str) -> String {
     println!("parsed");
     let typed = type_checker::infer::program(&parsed).unwrap();
     println!("okay");
-    let passed = type_passing::pass::program(&typed);
-    let sized = sizer::program(&passed);
+    let (passed, builders) = type_passing::pass::program(&typed);
+    let (sized, builders) = sizer::program(&passed, &builders);
     println!("sized");
     println!("{}", sized);
     println!("printed size");
-    let (bridged, mut envs) = lower::program(&sized);
+    let (bridged, mut envs, mut struct_envs) = lower::program(&sized, &builders);
     println!("{}", bridged);
-    let c_source = emit::program(bridged, &mut envs);
+    let c_source = emit::program(bridged, &mut envs, &mut struct_envs);
     c_source.to_string()
 }
 

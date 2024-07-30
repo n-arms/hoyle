@@ -51,14 +51,14 @@ fn run(tokens: token::List) -> read::ExitStatus {
         }
     };
     println!("okay");
-    let passed = type_passing::pass::program(&typed);
-    let sized = sizer::program(&passed);
+    let (passed, builders) = type_passing::pass::program(&typed);
+    let (sized, builders) = sizer::program(&passed, &builders);
     println!("sized");
     println!("{}", sized);
     println!("printed size");
-    let (bridged, mut envs) = lower::program(&sized);
+    let (bridged, mut envs, mut struct_envs) = lower::program(&sized, &builders);
     println!("{}", bridged);
-    let c_source = emit::program(bridged, &mut envs);
+    let c_source = emit::program(bridged, &mut envs, &mut struct_envs);
     fs::write("gen/out.c", c_source.to_string()).unwrap();
     read::ExitStatus::Okay
 }

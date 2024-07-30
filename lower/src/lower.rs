@@ -4,13 +4,17 @@ use std::cell::RefCell;
 use crate::env::{Env, GlobalEnv};
 use crate::refcount::count_function;
 use ir::bridge::{
-    Block, CallArgument, Convention, Expr, Function, Instr, Program, Variable, Witness,
+    Block, BuilderArgument, CallArgument, Convention, Expr, Function, Instr, Program, Struct,
+    StructBuilder, Variable, Witness,
 };
 use tree::sized::{self};
 use tree::typed::Type;
 use tree::String;
 
-pub fn program(to_lower: &sized::Program) -> (Program, Vec<Env>) {
+pub fn program(
+    to_lower: &sized::Program,
+    builders: &sized::StructBuilders,
+) -> (Program, Vec<Env>, Vec<Env>) {
     let mut global = GlobalEnv::default();
     for func in &to_lower.functions {
         let num_args = func.arguments.len() - 1;
@@ -19,19 +23,21 @@ pub fn program(to_lower: &sized::Program) -> (Program, Vec<Env>) {
         global.define_function(func.name.clone(), convention);
     }
     global.define_function(String::from("F64"), vec![Convention::Out]);
-    for to_lower in &to_lower.structs {
-        strukt(&mut global, to_lower);
-    }
+    let (structs, struct_envs) = to_lower
+        .structs
+        .iter()
+        .map(|to_lower| {
+            let builder = builders.lookup_struct(&to_lower.name);
+            strukt(&mut global, to_lower, builder)
+        })
+        .unzip();
     let (functions, envs) = to_lower
         .functions
         .iter()
         .map(|func| function(global.clone(), func))
         .unzip();
-    let program = Program {
-        structs: to_lower.structs.clone(),
-        functions,
-    };
-    (program, envs)
+    let program = Program { structs, functions };
+    (program, envs, struct_envs)
 }
 
 pub struct BlockBuilder {
@@ -61,8 +67,39 @@ impl BlockBuilder {
     }
 }
 
-fn strukt(global: &mut GlobalEnv, to_lower: &sized::Struct) {
+fn strukt(
+    global: &mut GlobalEnv,
+    to_lower: &sized::Struct,
+    builder: &sized::StructBuilder,
+) -> (Struct, Env) {
     global.define_function(to_lower.name.clone(), vec![Convention::Out]);
+
+    let instrs = BlockBuilder::new("struct");
+    let mut env = Env::new(global.clone());
+    let fields = builder
+        .fields
+        .iter()
+        .map(|field| expr(&mut env, field, &instrs))
+        .collect();
+
+    let block = instrs.build();
+    let lowered_builder = StructBuilder {
+        arguments: vec![BuilderArgument {
+            name: Variable {
+                name: String::from("_result"),
+                typ: Type::typ(),
+            },
+            convention: Convention::Out,
+        }],
+        block,
+        fields,
+    };
+
+    let result = Struct {
+        definition: to_lower.clone(),
+        builder: lowered_builder,
+    };
+    (result, env)
 }
 
 fn variable(

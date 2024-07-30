@@ -5,9 +5,17 @@ use tree::type_passing;
 use tree::String;
 
 use crate::env::Env;
+use crate::env::StructInstance;
 
-pub fn program(to_size: &type_passing::Program) -> Program {
+pub fn program(
+    to_size: &type_passing::Program,
+    structs: &type_passing::StructBuilders,
+) -> (Program, StructBuilders) {
     let mut env = Env::default();
+    let mut builders = StructBuilders::default();
+    for (name, to_size) in structs.iter() {
+        strukt(&env, &mut builders, name.clone(), to_size);
+    }
     for strukt in &to_size.structs {
         env.define_struct(strukt.name.clone(), strukt.clone());
     }
@@ -16,10 +24,38 @@ pub fn program(to_size: &type_passing::Program) -> Program {
         .iter()
         .map(|func| function(&env, func))
         .collect();
-    Program {
+    let program = Program {
         structs: to_size.structs.clone(),
         functions,
-    }
+    };
+    (program, builders)
+}
+
+fn strukt(
+    env: &Env,
+    builders: &mut StructBuilders,
+    name: String,
+    to_size: &type_passing::StructBuilder,
+) {
+    let sized_args = to_size
+        .arguments
+        .iter()
+        .map(|arg| Argument {
+            name: arg.name.clone(),
+            typ: arg.typ.clone(),
+            witness: Witness::Type,
+        })
+        .collect();
+    let sized_fields = to_size
+        .fields
+        .iter()
+        .map(|field| expr(env, field))
+        .collect();
+    let builder = StructBuilder {
+        arguments: sized_args,
+        fields: sized_fields,
+    };
+    builders.define_struct(name, builder);
 }
 
 fn function(env: &Env, to_size: &type_passing::Function) -> Function {
@@ -146,6 +182,12 @@ fn type_witness(env: &Env, to_witness: &Type) -> Witness {
 }
 
 fn struct_witness(env: &Env, to_witness: &Struct) -> Witness {
+    env.witness_struct_instance(
+        StructInstance {
+            name: to_witness.name.clone(),
+        },
+        (),
+    );
     Witness::Dynamic {
         value: Box::new(Expr::CallDirect {
             function: to_witness.name.clone(),
