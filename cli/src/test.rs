@@ -196,3 +196,14 @@ fn multiplication() {
         240.,
     )
 }
+
+#[test]
+fn bedmas() {
+    run(
+        r#"
+        func bedmas(): F64 = 3 * 4 + 5 * 6
+        "#,
+        "bedmas",
+        42.,
+    )
+}

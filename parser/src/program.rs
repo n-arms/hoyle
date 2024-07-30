@@ -143,12 +143,26 @@ impl<'src, T> WithOperation<'src> for T where
 
 pub fn expr<'src>() -> parser!('src, Expr) {
     recursive(|e| {
-        terminal(e).with_operation(token(Kind::BinaryOperator(BinaryOperator::Star)), |a, b| {
-            Expr::Primitive {
-                primitive: Primitive::Mul,
-                arguments: vec![a, b],
-            }
-        })
+        terminal(e)
+            .with_operation(token(Kind::BinaryOperator(BinaryOperator::Star)), |a, b| {
+                Expr::Primitive {
+                    primitive: Primitive::Mul,
+                    arguments: vec![a, b],
+                }
+            })
+            .with_operation(
+                token(Kind::BinaryOperator(BinaryOperator::Cross)),
+                |a, b| Expr::Primitive {
+                    primitive: Primitive::Add,
+                    arguments: vec![a, b],
+                },
+            )
+            .with_operation(token(Kind::BinaryOperator(BinaryOperator::Dash)), |a, b| {
+                Expr::Primitive {
+                    primitive: Primitive::Sub,
+                    arguments: vec![a, b],
+                }
+            })
     })
 }
 
