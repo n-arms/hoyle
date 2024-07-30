@@ -183,7 +183,7 @@ impl Type {
 impl<S: DisplayStage> fmt::Display for Program<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for s in &self.structs {
-            write!(f, "{}", s)?;
+            writeln!(f, "{}", s)?;
         }
         for func in &self.functions {
             writeln!(f, "{}", func)?;

@@ -19,6 +19,9 @@ pub fn program(to_lower: &sized::Program) -> (Program, Vec<Env>) {
         global.define_function(func.name.clone(), convention);
     }
     global.define_function(String::from("F64"), vec![Convention::Out]);
+    for to_lower in &to_lower.structs {
+        strukt(&mut global, to_lower);
+    }
     let (functions, envs) = to_lower
         .functions
         .iter()
@@ -56,6 +59,10 @@ impl BlockBuilder {
             instrs: self.instrs.into_inner(),
         }
     }
+}
+
+fn strukt(global: &mut GlobalEnv, to_lower: &sized::Struct) {
+    global.define_function(to_lower.name.clone(), vec![Convention::Out]);
 }
 
 fn variable(

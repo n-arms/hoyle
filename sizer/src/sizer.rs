@@ -7,7 +7,10 @@ use tree::String;
 use crate::env::Env;
 
 pub fn program(to_size: &type_passing::Program) -> Program {
-    let env = Env::default();
+    let mut env = Env::default();
+    for strukt in &to_size.structs {
+        env.define_struct(strukt.name.clone(), strukt.clone());
+    }
     let functions = to_size
         .functions
         .iter()
@@ -125,7 +128,7 @@ fn type_witness(env: &Env, to_witness: &Type) -> Witness {
                     "F64" => 8,
                     "Bool" => 1,
                     "Type" => return Witness::Type,
-                    _ => unimplemented!("other structs :p"),
+                    _ => return struct_witness(env, &env.lookup_struct(&name)),
                 },
             }
         }
@@ -139,5 +142,21 @@ fn type_witness(env: &Env, to_witness: &Type) -> Witness {
             }),
         },
         Type::Function { arguments, result } => todo!(),
+    }
+}
+
+fn struct_witness(env: &Env, to_witness: &Struct) -> Witness {
+    Witness::Dynamic {
+        value: Box::new(Expr::CallDirect {
+            function: to_witness.name.clone(),
+            arguments: Vec::new(),
+            tag: Call {
+                result: Type::Named {
+                    name: String::from("Type"),
+                    arguments: Vec::new(),
+                },
+                witness: Witness::Type,
+            },
+        }),
     }
 }

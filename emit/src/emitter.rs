@@ -3,7 +3,11 @@ use core::fmt;
 use im::HashSet;
 use ir::bridge::{Block, Convention, Expr, Function, Instr, Program, Variable, Witness};
 use lower::env::Env;
-use tree::{sized::Primitive, typed::Literal, String};
+use tree::{
+    sized::{Primitive, Struct},
+    typed::Literal,
+    String,
+};
 
 type StdString = std::string::String;
 
@@ -146,6 +150,12 @@ void _destroy_type(void *src) {
         function(to_emit, &mut source, env);
     }
     source
+}
+
+fn strukt(to_emit: Struct, source: &mut Source, env: &mut Env) {
+    source.pushln(&format!("struct {} {{", to_emit.name));
+    source.with_inc(2, |source| {});
+    source.pushln("}};");
 }
 
 fn function(to_emit: Function, source: &mut Source, env: &mut Env) {
