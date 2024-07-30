@@ -23,6 +23,12 @@ pub struct Call {
 }
 
 #[derive(Clone)]
+pub struct StructPack {
+    pub result: Type,
+    pub witness: Witness,
+}
+
+#[derive(Clone)]
 pub struct Argument {
     pub name: String,
     pub typ: Type,
@@ -40,6 +46,7 @@ impl Stage for Sized {
     type Argument = Argument;
     type Call = Call;
     type Type = Type;
+    type StructPack = StructPack;
 }
 
 impl DisplayStage for Sized {
@@ -47,6 +54,7 @@ impl DisplayStage for Sized {
     type Call = Call;
     type Type = Type;
     type Variable = Variable;
+    type StructPack = StructPack;
 }
 
 pub type Program = generic::Program<Sized>;
@@ -56,6 +64,7 @@ pub type Block = generic::Block<Sized>;
 pub type Statement = generic::Statement<Sized>;
 pub type StructBuilder = generic::StructBuilder<Sized>;
 pub type StructBuilders = generic::StructBuilders<Sized>;
+pub type PackField = generic::PackField<Sized>;
 
 impl Expr {
     pub fn get_type(&self) -> Type {
@@ -64,7 +73,6 @@ impl Expr {
             generic::Expr::Literal { literal } => literal.get_type(),
             generic::Expr::CallDirect { tag, .. } => tag.result.clone(),
             generic::Expr::Block(block) => block.result.get_type(),
-
             generic::Expr::Primitive {
                 primitive,
                 arguments,
@@ -77,6 +85,7 @@ impl Expr {
                     unimplemented!()
                 }
             }
+            generic::Expr::StructPack { tag, .. } => tag.result.clone(),
         }
     }
 }
@@ -104,6 +113,12 @@ impl fmt::Debug for Argument {
 }
 
 impl fmt::Display for Call {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}@{}", self.result, self.witness)
+    }
+}
+
+impl fmt::Display for StructPack {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}@{}", self.result, self.witness)
     }

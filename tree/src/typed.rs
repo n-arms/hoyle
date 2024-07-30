@@ -7,10 +7,17 @@ use crate::{
 
 pub use generic::{Field, Generic, Literal, Struct, Type};
 
+#[derive(Clone)]
 pub struct Typed;
 
 #[derive(Clone)]
 pub struct Call {
+    pub result: Type,
+    pub generics: Vec<Type>,
+}
+
+#[derive(Clone)]
+pub struct StructPack {
     pub result: Type,
     pub generics: Vec<Type>,
 }
@@ -20,6 +27,7 @@ impl Stage for Typed {
     type Argument = Argument;
     type Call = Call;
     type Type = Type;
+    type StructPack = StructPack;
 }
 
 pub type Program = generic::Program<Typed>;
@@ -27,6 +35,7 @@ pub type Function = generic::Function<Typed>;
 pub type Expr = generic::Expr<Typed>;
 pub type Block = generic::Block<Typed>;
 pub type Statement = generic::Statement<Typed>;
+pub type PackField = generic::PackField<Typed>;
 
 impl Expr {
     pub fn get_type(&self) -> Type {
@@ -35,7 +44,6 @@ impl Expr {
             generic::Expr::Literal { literal } => literal.get_type(),
             generic::Expr::CallDirect { tag, .. } => tag.result.clone(),
             generic::Expr::Block(block) => block.result.get_type(),
-
             generic::Expr::Primitive {
                 primitive,
                 arguments,
@@ -48,6 +56,7 @@ impl Expr {
                     unimplemented!()
                 }
             }
+            generic::Expr::StructPack { tag, .. } => tag.result.clone(),
         }
     }
 }

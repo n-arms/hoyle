@@ -9,3 +9,4 @@ edition = "2021"
 im = "15.1.0"
 tree = { path = "../tree" }
 arena_alloc = { path = "../arena_alloc" }
+unzip3 = "1.0.0"

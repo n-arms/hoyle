@@ -178,8 +178,28 @@ fn comma_list<'src, T>(element: parser!('src, T)) -> parser!('src, Vec<T>) {
         .map(|list| list.unwrap_or_default())
 }
 
+fn pack_field<'src>(expr: parser!('src, Expr)) -> parser!('src, PackField) {
+    ident()
+        .then_ignore(token(Kind::Colon))
+        .then(expr)
+        .map(|(name, value)| PackField { name, value })
+}
+
+fn struct_pack<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
+    named_type()
+        .then_ignore(token(Kind::LeftBrace))
+        .then(comma_list(pack_field(expr.clone())))
+        .then_ignore(token(Kind::RightBrace))
+        .map(|(name, fields)| Expr::StructPack {
+            name,
+            fields,
+            tag: (),
+        })
+}
+
 fn terminal<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
     literal_expr()
+        .or(struct_pack(expr.clone()))
         .or(ident()
             .then_ignore(token(Kind::LeftParen))
             .then(comma_list(expr.clone()))

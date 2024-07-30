@@ -1,4 +1,5 @@
 pub use crate::parsed::Argument;
+use crate::typed::StructPack;
 use crate::String;
 use crate::{
     generic::{self, Stage},
@@ -20,6 +21,7 @@ impl Stage for TypePassing {
     type Argument = Argument;
     type Call = Call;
     type Type = Type;
+    type StructPack = StructPack;
 }
 
 pub type Program = generic::Program<TypePassing>;
@@ -29,6 +31,7 @@ pub type Block = generic::Block<TypePassing>;
 pub type Statement = generic::Statement<TypePassing>;
 pub type StructBuilder = generic::StructBuilder<TypePassing>;
 pub type StructBuilders = generic::StructBuilders<TypePassing>;
+pub type PackField = generic::PackField<TypePassing>;
 
 impl Expr {
     pub fn get_type(&self) -> Type {
@@ -49,6 +52,7 @@ impl Expr {
                     unimplemented!()
                 }
             }
+            generic::Expr::StructPack { tag, .. } => tag.result.clone(),
         }
     }
 }

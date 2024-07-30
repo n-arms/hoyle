@@ -5,8 +5,30 @@ use im::HashMap;
 use im::HashSet;
 use tree::parsed;
 use tree::typed::*;
+use unzip3::Unzip3;
 
 pub fn program(program: &parsed::Program) -> Result<Program> {
+    let struct_signatures = program
+        .structs
+        .iter()
+        .map(|strukt| {
+            let fields = strukt
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.typ.clone()))
+                .collect();
+            (
+                strukt.name.clone(),
+                StructScheme {
+                    fields,
+                    result: Type::Named {
+                        name: strukt.name.clone(),
+                        arguments: Vec::new(),
+                    },
+                },
+            )
+        })
+        .collect();
     let functions_signatures = program
         .functions
         .iter()
@@ -22,7 +44,12 @@ pub fn program(program: &parsed::Program) -> Result<Program> {
         })
         .collect();
 
-    let env = Env::new(HashMap::new(), functions_signatures, HashSet::new());
+    let env = Env::new(
+        HashMap::new(),
+        functions_signatures,
+        HashSet::new(),
+        struct_signatures,
+    );
 
     let functions = program
         .functions
@@ -104,6 +131,33 @@ pub fn expr(env: &Env, to_infer: &parsed::Expr) -> Result<Expr> {
             Ok(Expr::Primitive {
                 primitive: *primitive,
                 arguments: typed_arguments,
+            })
+        }
+        parsed::Expr::StructPack { name, fields, tag } => {
+            let scheme = env.lookup_struct(&name)?;
+            let res = fields
+                .iter()
+                .map(|field| {
+                    let want = scheme.fields.get(&field.name).unwrap().clone();
+                    let typed = expr(env, &field.value)?;
+                    let field = PackField {
+                        name: field.name.clone(),
+                        value: typed.clone(),
+                    };
+                    Ok((want, typed, field))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let (want, got, fields): (Vec<_>, Vec<_>, Vec<_>) = res.into_iter().unzip3();
+            let spec = specialize_arguments(env, &want, &got)?;
+            assert!(spec.is_empty());
+            let result = apply(&scheme.result, &spec)?;
+            Ok(Expr::StructPack {
+                name: name.clone(),
+                fields,
+                tag: StructPack {
+                    result,
+                    generics: Vec::new(),
+                },
             })
         }
     }

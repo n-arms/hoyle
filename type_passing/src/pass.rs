@@ -1,5 +1,6 @@
 use tree::type_passing::*;
 use tree::typed;
+use tree::typed::StructPack;
 use tree::String;
 
 use crate::env::Env;
@@ -98,6 +99,20 @@ fn expr(env: &Env, to_pass: &typed::Expr) -> Expr {
             Expr::Primitive {
                 primitive: *primitive,
                 arguments: lowered_args,
+            }
+        }
+        typed::Expr::StructPack { name, fields, tag } => {
+            let passed_fields = fields
+                .iter()
+                .map(|field| PackField {
+                    name: field.name.clone(),
+                    value: expr(env, &field.value),
+                })
+                .collect();
+            Expr::StructPack {
+                name: name.clone(),
+                fields: passed_fields,
+                tag: tag.clone(),
             }
         }
     }

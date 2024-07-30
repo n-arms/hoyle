@@ -17,6 +17,7 @@ impl Stage for Parsed {
     type Argument = Argument;
     type Call = ();
     type Type = ();
+    type StructPack = ();
 }
 
 pub type Program = generic::Program<Parsed>;
@@ -24,3 +25,4 @@ pub type Function = generic::Function<Parsed>;
 pub type Expr = generic::Expr<Parsed>;
 pub type Statement = generic::Statement<Parsed>;
 pub type Block = generic::Block<Parsed>;
+pub type PackField = generic::PackField<Parsed>;

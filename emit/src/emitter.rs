@@ -3,7 +3,11 @@ use core::fmt;
 use im::HashSet;
 use ir::bridge::{Block, Convention, Expr, Function, Instr, Program, Struct, Variable, Witness};
 use lower::env::Env;
-use tree::{sized::Primitive, typed::Literal, String};
+use tree::{
+    sized::Primitive,
+    typed::{Literal, Type},
+    String,
+};
 
 type StdString = std::string::String;
 
@@ -55,6 +59,7 @@ impl fmt::Display for Source {
 #[derive(Default)]
 pub struct Bank {
     seen: HashSet<String>,
+    to_free: Vec<String>,
 }
 
 impl Bank {
@@ -71,15 +76,26 @@ impl Bank {
     fn define_unchecked(&mut self, name: String, witness: &Witness, source: &mut Source) {
         match witness {
             Witness::Trivial { size } => source.pushln(&format!("char {}[{}];", name, size)),
-            Witness::Dynamic { location } => source.pushln(&format!(
-                "void *{} = malloc(((_witness *) {}) -> size);",
-                name, location.name
-            )),
+            Witness::Dynamic { location } => {
+                self.defer_free(name.clone());
+                source.pushln(&format!(
+                    "void *{} = malloc(((_witness *) {}) -> size);",
+                    name, location.name
+                ))
+            }
             Witness::Type => {
                 source.pushln(&format!("char {}[sizeof(_witness)];", name));
             }
         }
         self.seen.insert(name);
+    }
+
+    fn defer_free(&mut self, name: String) {
+        self.to_free.push(name);
+    }
+
+    fn free_list(&self) -> impl Iterator<Item = &str> {
+        self.to_free.iter().rev().map(AsRef::as_ref)
     }
 }
 
@@ -263,7 +279,12 @@ fn function(to_emit: Function, source: &mut Source, env: &mut Env) {
         bank.already_defined(arg.name);
     }
     source.pushln(") {");
-    source.with_inc(2, |source| block(to_emit.body, source, &mut bank, env));
+    source.with_inc(2, |source| {
+        block(to_emit.body, source, &mut bank, env);
+        for to_free in bank.free_list() {
+            source.pushln(&format!("free({});", to_free));
+        }
+    });
     source.pushln("}");
     source.pushln("");
 }
@@ -401,5 +422,33 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, env: &mut Env) {
             )),
             Witness::Type => source.pushln(&format!("_destroy_type({});", var)),
         },
+        Expr::StructPack { name, arguments } => {
+            let offset_name = env.fresh_name();
+            let offset_var = env.define_variable(
+                offset_name.clone(),
+                Type::integer(),
+                Witness::Trivial { size: 8 },
+            );
+            source.pushln(&format!("signed long long {} = 0;", offset_name));
+            for arg in arguments {
+                match arg.witness {
+                    Witness::Trivial { size } => {
+                        source.pushln(&format!(
+                            "memmove((void *) (((char *) {}) + {}), {}, {});",
+                            var, offset_name, arg.value.name, size
+                        ));
+                        source.pushln(&format!("{} += {};", offset_name, size));
+                    }
+                    Witness::Dynamic { location } => {
+                        source.pushln(&format!("(((_witness *) {}) -> copy)((void *) (((char *) {}) + {}), {}, ((_witness *) {}) -> extra);", location.name, var, offset_name, arg.value.name, location.name));
+                        source.pushln(&format!(
+                            "{} += ((_witness *) {}) -> size;",
+                            offset_name, location.name
+                        ));
+                    }
+                    Witness::Type => unreachable!(),
+                }
+            }
+        }
     }
 }

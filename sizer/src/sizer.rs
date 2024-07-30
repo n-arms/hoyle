@@ -121,6 +121,24 @@ fn expr(env: &Env, to_size: &type_passing::Expr) -> Expr {
                 arguments: sized_args,
             }
         }
+        type_passing::Expr::StructPack { name, fields, tag } => {
+            let witness = type_witness(env, &tag.result);
+            let sized_fields = fields
+                .iter()
+                .map(|to_size| PackField {
+                    name: to_size.name.clone(),
+                    value: expr(env, &to_size.value),
+                })
+                .collect();
+            Expr::StructPack {
+                name: name.clone(),
+                fields: sized_fields,
+                tag: StructPack {
+                    result: tag.result.clone(),
+                    witness,
+                },
+            }
+        }
     }
 }
 

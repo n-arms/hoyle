@@ -25,6 +25,7 @@ pub enum Error {
     UnspecifiedGeneric {
         generic: Generic,
     },
+    UnknownStruct(String),
 }
 
 #[derive(Clone)]
@@ -35,10 +36,17 @@ pub struct FunctionScheme {
 }
 
 #[derive(Clone)]
+pub struct StructScheme {
+    pub fields: HashMap<String, Type>,
+    pub result: Type,
+}
+
+#[derive(Clone)]
 pub struct Env {
     variables: HashMap<String, Type>,
     functions: HashMap<String, FunctionScheme>,
     generics: HashSet<String>,
+    structs: HashMap<String, StructScheme>,
 }
 
 impl Env {
@@ -46,11 +54,13 @@ impl Env {
         variables: HashMap<String, Type>,
         functions: HashMap<String, FunctionScheme>,
         generics: HashSet<String>,
+        structs: HashMap<String, StructScheme>,
     ) -> Self {
         Self {
             variables,
             functions,
             generics,
+            structs,
         }
     }
     pub fn define_generics<'a>(&mut self, generics: impl Iterator<Item = &'a Generic>) {
@@ -79,5 +89,12 @@ impl Env {
 
     pub fn define_variable(&mut self, name: String, typ: Type) {
         self.variables.insert(name, typ);
+    }
+
+    pub fn lookup_struct(&self, name: &String) -> Result<StructScheme> {
+        self.structs
+            .get(name)
+            .ok_or(Error::UnknownStruct(name.clone()))
+            .cloned()
     }
 }

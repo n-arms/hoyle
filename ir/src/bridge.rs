@@ -94,6 +94,17 @@ pub enum Expr {
     Destroy {
         witness: Witness,
     },
+    StructPack {
+        name: String,
+        arguments: Vec<PackField>,
+    },
+}
+
+#[derive(Clone)]
+pub struct PackField {
+    pub name: String,
+    pub value: Variable,
+    pub witness: Witness,
 }
 
 #[derive(Clone)]
@@ -201,6 +212,13 @@ impl fmt::Display for Expr {
             Expr::Copy { source, witness } => write!(f, "copy {source} using {witness}"),
             Expr::Destroy { witness } => write!(f, "destroy using {witness}"),
             Expr::Literal(literal) => write!(f, "{}", literal),
+            Expr::StructPack { name, arguments } => {
+                let mut strukt = f.debug_struct(&name);
+                for arg in arguments {
+                    strukt.field(&arg.name, &arg.value);
+                }
+                strukt.finish()
+            }
         }
     }
 }

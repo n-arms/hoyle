@@ -4,8 +4,8 @@ use std::cell::RefCell;
 use crate::env::{Env, GlobalEnv};
 use crate::refcount::count_function;
 use ir::bridge::{
-    Block, BuilderArgument, CallArgument, Convention, Expr, Function, Instr, Program, Struct,
-    StructBuilder, Variable, Witness,
+    Block, BuilderArgument, CallArgument, Convention, Expr, Function, Instr, PackField, Program,
+    Struct, StructBuilder, Variable, Witness,
 };
 use tree::sized::{self};
 use tree::typed::Type;
@@ -202,6 +202,34 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Var
             instrs.push(Instr::new(
                 result.clone(),
                 Expr::Primitive(*primitive, lowered_args),
+            ));
+            result
+        }
+        sized::Expr::StructPack {
+            name: struct_name,
+            fields,
+            tag,
+        } => {
+            let name = env.fresh_name();
+            let result_witness = witness(env, &tag.witness, instrs);
+            let result = env.define_variable(name, tag.result.clone(), result_witness);
+            let lowered_fields = fields
+                .iter()
+                .map(|field| {
+                    let field_witness = env.lookup_witness(&field.name);
+                    PackField {
+                        name: field.name.clone(),
+                        value: expr(env, &field.value, instrs),
+                        witness: field_witness,
+                    }
+                })
+                .collect();
+            instrs.push(Instr::new(
+                result.clone(),
+                Expr::StructPack {
+                    name: struct_name.clone(),
+                    arguments: lowered_fields,
+                },
             ));
             result
         }

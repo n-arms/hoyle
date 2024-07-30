@@ -9,6 +9,7 @@ pub trait Stage {
     type Call: Clone;
     type Type: Clone;
     type Variable: Clone;
+    type StructPack: Clone;
 }
 
 pub trait DisplayStage:
@@ -17,12 +18,14 @@ pub trait DisplayStage:
     Call = <Self as DisplayStage>::Call,
     Type = <Self as DisplayStage>::Type,
     Variable = <Self as DisplayStage>::Variable,
+    StructPack = <Self as DisplayStage>::StructPack,
 >
 {
     type Argument: Clone + fmt::Debug;
     type Call: Clone + fmt::Display;
     type Type: Clone + fmt::Display;
     type Variable: Clone + fmt::Display;
+    type StructPack: Clone + fmt::Display;
 }
 
 #[derive(Clone)]
@@ -154,6 +157,17 @@ pub enum Expr<S: Stage> {
         arguments: Vec<Expr<S>>,
     },
     Block(Block<S>),
+    StructPack {
+        name: String,
+        fields: Vec<PackField<S>>,
+        tag: S::StructPack,
+    },
+}
+
+#[derive(Clone)]
+pub struct PackField<S: Stage> {
+    pub name: String,
+    pub value: Expr<S>,
 }
 
 #[derive(Clone)]
@@ -278,6 +292,14 @@ impl<S: DisplayStage> fmt::Display for Expr<S> {
                     write!(f, "({} * {})", &arguments[0], &arguments[1])
                 }
             },
+            Expr::StructPack { name, fields, tag } => {
+                write!(f, "{}[{}]", name, tag)?;
+                let mut strukt = f.debug_struct("");
+                for field in fields {
+                    strukt.field(&field.name, &field.value);
+                }
+                strukt.finish()
+            }
         }
     }
 }

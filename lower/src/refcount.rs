@@ -66,6 +66,11 @@ fn count_block(env: &mut Env, block: Block, seen: &mut HashSet<String>) -> Block
             Expr::Destroy { witness } => {
                 count_witness(env, &witness, &mut instrs, seen);
             }
+            Expr::StructPack { arguments, .. } => {
+                for arg in arguments {
+                    count_variable(env, &arg.value, &mut instrs, seen);
+                }
+            }
         };
         count_variable(env, &instr.target, &mut instrs, seen);
         instrs.push(instr);
