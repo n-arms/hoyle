@@ -1,3 +1,4 @@
+use core::fmt;
 use std::{
     fs,
     io::Read,
@@ -28,7 +29,7 @@ fn to_c(text: &str) -> String {
     c_source.to_string()
 }
 
-fn run_double_func(c_program: &str, double_func: &str) -> f64 {
+fn run_double_func(c_program: &str, double_func: &str, formatter: &str, cast_to: &str) -> String {
     let seed = fastrand::u64(u64::MIN..=u64::MAX);
     let path = format!("./target/gen/{double_func}{seed}/");
     fs::DirBuilder::new().recursive(true).create(&path).unwrap();
@@ -47,9 +48,9 @@ fn run_double_func(c_program: &str, double_func: &str) -> f64 {
 #include <stdio.h>
 
 int main() {{
-  double x;
+  {cast_to} x;
   {double_func}(&x);
-  printf("%lf", x);
+  printf("{formatter}", ({cast_to}) x);
 }}"#
         ),
     )
@@ -71,17 +72,59 @@ int main() {{
         .unwrap();
     let output = child.wait_with_output().unwrap();
     assert!(output.status.success());
-    let string = String::from_utf8(output.stdout).unwrap();
-    string
-        .parse()
-        .expect(&format!("couldn't parse string {:?}", string))
+    String::from_utf8(output.stdout).unwrap()
 }
 
-fn run(text: &str, main: &str, expected: f64) {
+fn run<O: OutputType + fmt::Display>(text: &str, main: &str, expected: O) {
+    let value = run_double_func(&to_c(text), main, O::formatter(), O::cast_to());
     assert!(
-        (run_double_func(&to_c(text), main) - expected).abs() < 0.0001,
-        "{main}() != {expected}",
+        expected.equals(value.clone()),
+        "{main}() = {value} is not {expected}",
     )
+}
+
+trait OutputType {
+    fn equals(&self, other: String) -> bool;
+    fn formatter() -> &'static str;
+    fn cast_to() -> &'static str;
+}
+
+impl OutputType for f64 {
+    fn equals(&self, other: String) -> bool {
+        let other: f64 = other
+            .parse()
+            .expect(&format!("could not parse {} as float", other));
+        (other - self).abs() < 0.0001
+    }
+
+    fn formatter() -> &'static str {
+        "%lf"
+    }
+
+    fn cast_to() -> &'static str {
+        "double"
+    }
+}
+
+impl OutputType for bool {
+    fn equals(&self, other: String) -> bool {
+        let other: i64 = other
+            .parse()
+            .expect(&format!("could not parse {} as bool", other));
+        if *self {
+            other == 1
+        } else {
+            other == 0
+        }
+    }
+
+    fn formatter() -> &'static str {
+        "%ld"
+    }
+
+    fn cast_to() -> &'static str {
+        "signed long long"
+    }
 }
 
 #[test]
@@ -205,5 +248,31 @@ fn bedmas() {
         "#,
         "bedmas",
         42.,
+    )
+}
+
+// TODO: implement a better test for struct packing
+#[test]
+fn struct_pack() {
+    run(
+        r#"
+        struct Box {
+            x: F64
+        }
+        func struct_pack(): Box = Box { x: 3 }
+        "#,
+        "struct_pack",
+        3.,
+    )
+}
+
+#[test]
+fn bool_literal() {
+    run(
+        r#"
+        func bool_literal(): Bool = True
+        "#,
+        "bool_literal",
+        true,
     )
 }

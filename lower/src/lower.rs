@@ -217,10 +217,11 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Var
             let lowered_fields = fields
                 .iter()
                 .map(|field| {
-                    let field_witness = env.lookup_witness(&field.name);
+                    let value = expr(env, &field.value, instrs);
+                    let field_witness = env.lookup_witness(&value.name);
                     PackField {
                         name: field.name.clone(),
-                        value: expr(env, &field.value, instrs),
+                        value,
                         witness: field_witness,
                     }
                 })
