@@ -140,6 +140,7 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Var
                 .map(|to_lower| expr(env, to_lower, instrs))
                 .collect();
             lowered_arguments.insert(0, result.clone());
+            dbg!(&lowered_arguments, &tag.signature.len());
             let tagged_arguments: Vec<_> = lowered_arguments
                 .into_iter()
                 .zip(tag.signature.clone())

@@ -37,11 +37,13 @@ fn strukt(env: &mut Env, to_size: &type_passing::Struct) -> Struct {
         .map(|field| expr(env, field))
         .collect();
     let tag = StructMeta { arguments, fields };
-    Struct {
+    let sized = Struct {
         name: to_size.name.clone(),
         fields: to_size.fields.clone(),
         tag,
-    }
+    };
+    env.define_struct(to_size.name.clone(), sized.clone());
+    sized
 }
 
 fn function(env: &Env, to_size: &type_passing::Function) -> Function {

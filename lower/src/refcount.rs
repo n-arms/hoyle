@@ -5,7 +5,7 @@ use tree::{typed::Type, String};
 use crate::env::Env;
 
 pub fn count_function(env: &mut Env, function: Function) -> Function {
-    todo!()
+    function
 }
 /*
     let mut seen = function

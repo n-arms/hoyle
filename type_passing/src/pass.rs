@@ -82,11 +82,11 @@ fn expr(env: &Env, to_pass: &typed::Expr) -> Expr {
             }
             Expr::CallDirect {
                 function: function.clone(),
-                arguments: passed_args,
                 tag: Call {
                     result: tag.result.clone(),
-                    signature: make_signature(arguments.len()),
+                    signature: make_signature(passed_args.len()),
                 },
+                arguments: passed_args,
             }
         }
         typed::Expr::Block(to_pass) => Expr::Block(block(env, to_pass)),
