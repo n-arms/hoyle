@@ -1,6 +1,6 @@
 use im::HashSet;
 use ir::bridge::{Block, Convention, Expr, Function, Instr, Variable, Witness};
-use tree::String;
+use tree::{typed::Type, String};
 
 use crate::env::Env;
 
@@ -76,7 +76,65 @@ fn count_block(env: &mut Env, block: Block, seen: &mut HashSet<String>) -> Block
                 true_branch,
                 false_branch,
             } => {
-                todo!()
+                let (mut true_branch, true_destroyed) = {
+                    let mut inner_seen = seen.clone();
+                    let block = count_block(env, true_branch.clone(), &mut inner_seen);
+                    (block, inner_seen.relative_complement(seen.clone()))
+                };
+                let (mut false_branch, false_destroyed) = {
+                    let mut inner_seen = seen.clone();
+                    let block = count_block(env, false_branch.clone(), &mut inner_seen);
+                    (block, inner_seen.relative_complement(seen.clone()))
+                };
+                count_variable(env, predicate, &mut instrs, seen);
+                let to_destroy_in_true = false_destroyed
+                    .clone()
+                    .relative_complement(true_destroyed.clone());
+                true_branch
+                    .instrs
+                    .extend(to_destroy_in_true.into_iter().map(|var| {
+                        Instr::new(
+                            Variable {
+                                name: var.clone(),
+                                // TODO: do this correctly
+                                typ: Type::integer(),
+                            },
+                            Expr::Destroy {
+                                witness: env.lookup_witness(&var),
+                            },
+                        )
+                    }));
+                let to_destroy_in_false = true_destroyed
+                    .clone()
+                    .relative_complement(false_destroyed.clone());
+                false_branch
+                    .instrs
+                    .extend(to_destroy_in_false.into_iter().map(|var| {
+                        Instr::new(
+                            Variable {
+                                name: var.clone(),
+                                // TODO: do this correctly
+                                typ: Type::integer(),
+                            },
+                            Expr::Destroy {
+                                witness: env.lookup_witness(&var),
+                            },
+                        )
+                    }));
+                true_branch.instrs.reverse();
+                false_branch.instrs.reverse();
+                seen.extend(true_destroyed);
+                seen.extend(false_destroyed);
+                count_variable(env, &instr.target, &mut instrs, seen);
+                instrs.push(Instr::new(
+                    instr.target.clone(),
+                    Expr::If {
+                        predicate: predicate.clone(),
+                        true_branch,
+                        false_branch,
+                    },
+                ));
+                continue;
             }
         };
         count_variable(env, &instr.target, &mut instrs, seen);
