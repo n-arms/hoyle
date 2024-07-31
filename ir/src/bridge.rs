@@ -123,6 +123,16 @@ pub struct CallArgument {
     pub convention: Convention,
 }
 
+impl Expr {
+    pub fn mov(value: Variable, witness: Witness) -> Self {
+        Self::Value(Value::Move { value, witness })
+    }
+
+    pub fn copy(value: Variable, witness: Witness) -> Self {
+        Self::Value(Value::Copy { value, witness })
+    }
+}
+
 impl fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for s in &self.structs {

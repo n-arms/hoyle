@@ -5,7 +5,7 @@ use crate::env::Env;
 use crate::refcount::count_function;
 use ir::bridge::{
     Block, BuilderArgument, CallArgument, Convention, Expr, Function, Instr, PackField, Program,
-    Struct, StructBuilder, Variable, Witness,
+    Struct, StructBuilder, Value, Variable, Witness,
 };
 use tree::sized::{self};
 use tree::typed::Type;
@@ -81,21 +81,6 @@ fn strukt(to_lower: &sized::Struct) -> Struct {
     }
 }
 
-fn variable(
-    env: &mut Env,
-    to_lower: &sized::Witness,
-    name: String,
-    typ: Type,
-    instrs: &BlockBuilder,
-) -> Variable {
-    if let Some(var) = env.try_define_variable(name.clone(), typ.clone()) {
-        var
-    } else {
-        let witness = witness(env, to_lower, instrs);
-        env.define_variable(name, typ, witness)
-    }
-}
-
 fn function(to_lower: &sized::Function) -> Function {
     let mut env = Env::new();
     let body_builder = BlockBuilder::new("body");
@@ -103,18 +88,16 @@ fn function(to_lower: &sized::Function) -> Function {
         .arguments
         .iter()
         .cloned()
-        .map(|arg| variable(&mut env, &arg.witness, arg.name, arg.typ, &body_builder))
+        .map(|arg| env.define_variable(arg.name, arg.typ))
         .collect();
     let result = expr(&mut env, &to_lower.body, &body_builder);
+    let result_witness = witness(&mut env, &to_lower.body.get_witness(), &body_builder);
     body_builder.push(Instr::new(
         Variable {
             name: lowered_arguments[0].name.clone(),
             typ: lowered_arguments[0].typ.clone(),
         },
-        Expr::Move {
-            source: result.clone(),
-            witness: env.lookup_witness(&result.name),
-        },
+        Expr::mov(result.clone(), result_witness),
     ));
     let names = env.name_source.clone();
     count_function(
@@ -136,7 +119,7 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Var
         },
         sized::Expr::Literal { literal } => {
             let name = env.fresh_name();
-            let var = env.define_variable(name, literal.get_type(), Witness::Trivial { size: 8 });
+            let var = env.define_variable(name, literal.get_type());
             instrs.push(Instr::new(var.clone(), Expr::Literal(literal.clone())));
             var
         }
@@ -146,16 +129,19 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Var
             tag,
         } => {
             let name = env.fresh_name();
-            let result = variable(env, &tag.witness, name, tag.result.clone(), instrs);
+            let result = env.define_variable(name, tag.result.clone());
             let mut lowered_arguments: Vec<_> = arguments
                 .iter()
-                .map(|to_lower| expr(env, to_lower, instrs))
+                .map(|to_lower| (expr(env, to_lower, instrs), to_lower.get_witness()))
                 .collect();
-            lowered_arguments.insert(0, result.clone());
+            lowered_arguments.insert(0, (result.clone(), tag.witness.clone()));
             let tagged_arguments: Vec<_> = lowered_arguments
                 .into_iter()
                 .zip(tag.signature.clone())
-                .map(|(value, convention)| CallArgument { value, convention })
+                .map(|((value, witness), convention)| CallArgument {
+                    value: copy_variable(env, value, &witness, instrs),
+                    convention,
+                })
                 .collect();
             instrs.push(Instr::new(
                 result.clone(),
@@ -173,7 +159,7 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Var
             arguments,
         } => {
             let name = env.fresh_name();
-            let result = env.define_variable(name, arguments[0].get_type(), Witness::trivial(8));
+            let result = env.define_variable(name, arguments[0].get_type());
             let lowered_args = arguments
                 .iter()
                 .map(|to_lower| expr(env, to_lower, instrs))
@@ -190,17 +176,14 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Var
             tag,
         } => {
             let name = env.fresh_name();
-            let result_witness = witness(env, &tag.witness, instrs);
-            let result = env.define_variable(name, tag.result.clone(), result_witness);
+            let result = env.define_variable(name, tag.result.clone());
             let lowered_fields = fields
                 .iter()
                 .map(|field| {
                     let value = expr(env, &field.value, instrs);
-                    let field_witness = env.lookup_witness(&value.name);
                     PackField {
                         name: field.name.clone(),
-                        value,
-                        witness: field_witness,
+                        value: copy_variable(env, value, &field.value.get_witness(), instrs),
                     }
                 })
                 .collect();
@@ -221,25 +204,19 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Var
         } => {
             let witness = witness(env, &tag.witness, instrs);
             let name = env.fresh_name();
-            let result = env.define_variable(name, true_branch.get_type(), witness.clone());
+            let result = env.define_variable(name, true_branch.get_type());
             let lowered_predicate = expr(env, &predicate, instrs);
             let true_instrs = BlockBuilder::new("true branch");
             let lowered_true = expr(env, &true_branch, &true_instrs);
             true_instrs.push(Instr::new(
                 result.clone(),
-                Expr::Copy {
-                    source: lowered_true,
-                    witness: witness.clone(),
-                },
+                Expr::copy(lowered_true, witness.clone()),
             ));
             let false_instrs = BlockBuilder::new("false branch");
             let lowered_false = expr(env, &false_branch, &false_instrs);
             false_instrs.push(Instr::new(
                 result.clone(),
-                Expr::Copy {
-                    source: lowered_false,
-                    witness: witness.clone(),
-                },
+                Expr::copy(lowered_false, witness.clone()),
             ));
             instrs.push(Instr::new(
                 result.clone(),
@@ -254,15 +231,24 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Var
     }
 }
 
+fn copy_variable(
+    env: &mut Env,
+    value: Variable,
+    wit: &sized::Witness,
+    instrs: &BlockBuilder,
+) -> Value {
+    let witness = witness(env, wit, instrs);
+    Value::Copy { value, witness }
+}
+
 fn block(env: &mut Env, to_lower: &sized::Block, instrs: &BlockBuilder) -> Variable {
     for stmt in &to_lower.stmts {
         match stmt {
             sized::Statement::Let { name, typ, value } => {
-                let witness = witness(env, &name.witness, instrs);
+                let target = env.define_variable(name.name.clone(), typ.clone());
                 let source = expr(env, value, instrs);
-                let variable = env.define_variable(name.name.clone(), typ.clone(), witness.clone());
-                let value = Expr::Copy { source, witness };
-                instrs.push(Instr::new(variable, value));
+                let value = copy_variable(env, source, &name.witness, instrs);
+                instrs.push(Instr::new(target, Expr::Value(value)));
             }
         }
     }

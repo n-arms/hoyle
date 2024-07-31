@@ -104,6 +104,30 @@ impl Expr {
             generic::Expr::If { true_branch, .. } => true_branch.get_type(),
         }
     }
+
+    pub fn get_witness(&self) -> Witness {
+        match self {
+            generic::Expr::Variable { name, .. } => name.witness.clone(),
+            generic::Expr::Literal { literal } => literal_witness(literal),
+            generic::Expr::CallDirect { tag, .. } => tag.witness.clone(),
+            generic::Expr::Primitive {
+                primitive,
+                arguments,
+            } => arguments[0].get_witness(),
+            generic::Expr::Block(block) => block.result.get_witness(),
+            generic::Expr::StructPack { tag, .. } => tag.witness.clone(),
+            generic::Expr::If { tag, .. } => tag.witness.clone(),
+        }
+    }
+}
+
+fn literal_witness(literal: &Literal) -> Witness {
+    let size = match literal {
+        Literal::Float(_) => 8,
+        Literal::Integer(_) => 8,
+        Literal::Boolean(_) => 8,
+    };
+    Witness::Trivial { size }
 }
 
 impl fmt::Display for Variable {
