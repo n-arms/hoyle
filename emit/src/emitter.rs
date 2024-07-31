@@ -1,8 +1,10 @@
 use core::fmt;
 
 use im::HashSet;
-use ir::bridge::{Block, Convention, Expr, Function, Instr, Program, Struct, Variable, Witness};
-use lower::env::Env;
+use ir::{
+    bridge::{Block, Convention, Expr, Function, Instr, Program, Struct, Value, Variable, Witness},
+    name_source::NameSource,
+};
 use tree::{
     sized::Primitive,
     typed::{Literal, Type},
@@ -99,7 +101,7 @@ impl Bank {
     }
 }
 
-pub fn program(program: Program, envs: &mut [Env], struct_envs: &mut [Env]) -> Source {
+pub fn program(program: Program) -> Source {
     let mut source = Source::default();
     source.pushln(
         r#"#include <string.h>
@@ -174,16 +176,16 @@ void _destroy_type(void *src) {
 "#,
     );
 
-    for (to_emit, env) in program.structs.into_iter().zip(struct_envs) {
-        strukt(to_emit, &mut source, env);
+    for to_emit in program.structs.into_iter() {
+        strukt(to_emit, &mut source);
     }
-    for (to_emit, env) in program.functions.into_iter().zip(envs) {
-        function(to_emit, &mut source, env);
+    for to_emit in program.functions.into_iter() {
+        function(to_emit, &mut source);
     }
     source
 }
 
-fn copy_struct(to_emit: &Struct, source: &mut Source, env: &mut Env) {
+fn copy_struct(to_emit: &Struct, source: &mut Source, names: &NameSource) {
     let struct_name = &to_emit.definition.name;
     source.pushln(&format!(
         "void _copy_{}(void *dest, void *src, void *extra) {{",
@@ -191,7 +193,7 @@ fn copy_struct(to_emit: &Struct, source: &mut Source, env: &mut Env) {
     ));
     source.with_inc(2, |source| {
         let mut bank = Bank::default();
-        block(to_emit.builder.block.clone(), source, &mut bank, env);
+        block(to_emit.builder.block.clone(), source, &mut bank, names);
         for field in &to_emit.builder.fields {
             source.pushln(&format!(
                 "(((_witness *) {}) -> copy)(dest, src, ((_witness *) {}) -> extra);",
@@ -201,7 +203,7 @@ fn copy_struct(to_emit: &Struct, source: &mut Source, env: &mut Env) {
     });
     source.pushln("}");
 }
-fn move_struct(to_emit: &Struct, source: &mut Source, env: &mut Env) {
+fn move_struct(to_emit: &Struct, source: &mut Source, names: &NameSource) {
     let struct_name = &to_emit.definition.name;
     source.pushln(&format!(
         "void _move_{}(void *dest, void *src, void *extra) {{",
@@ -209,7 +211,7 @@ fn move_struct(to_emit: &Struct, source: &mut Source, env: &mut Env) {
     ));
     source.with_inc(2, |source| {
         let mut bank = Bank::default();
-        block(to_emit.builder.block.clone(), source, &mut bank, env);
+        block(to_emit.builder.block.clone(), source, &mut bank, names);
         for field in &to_emit.builder.fields {
             source.pushln(&format!(
                 "(((_witness *) {}) -> move)(dest, src, ((_witness *) {}) -> extra);",
@@ -219,7 +221,7 @@ fn move_struct(to_emit: &Struct, source: &mut Source, env: &mut Env) {
     });
     source.pushln("}");
 }
-fn destroy_struct(to_emit: &Struct, source: &mut Source, env: &mut Env) {
+fn destroy_struct(to_emit: &Struct, source: &mut Source, names: &NameSource) {
     let struct_name = &to_emit.definition.name;
     source.pushln(&format!(
         "void _destroy_{}(void *dest, void *extra) {{",
@@ -227,7 +229,7 @@ fn destroy_struct(to_emit: &Struct, source: &mut Source, env: &mut Env) {
     ));
     source.with_inc(2, |source| {
         let mut bank = Bank::default();
-        block(to_emit.builder.block.clone(), source, &mut bank, env);
+        block(to_emit.builder.block.clone(), source, &mut bank, names);
         for field in &to_emit.builder.fields {
             source.pushln(&format!(
                 "(((_witness *) {}) -> destroy)(dest, ((_witness *) {}) -> extra);",
@@ -238,10 +240,11 @@ fn destroy_struct(to_emit: &Struct, source: &mut Source, env: &mut Env) {
     source.pushln("}");
 }
 
-fn strukt(to_emit: Struct, source: &mut Source, env: &mut Env) {
-    copy_struct(&to_emit, source, env);
-    move_struct(&to_emit, source, env);
-    destroy_struct(&to_emit, source, env);
+fn strukt(to_emit: Struct, source: &mut Source) {
+    let names = to_emit.builder.names.clone();
+    copy_struct(&to_emit, source, &names);
+    move_struct(&to_emit, source, &names);
+    destroy_struct(&to_emit, source, &names);
     let struct_name = to_emit.definition.name;
     source.push(&format!("void {}(", struct_name));
     let mut first = true;
@@ -256,7 +259,7 @@ fn strukt(to_emit: Struct, source: &mut Source, env: &mut Env) {
     source.pushln(") {");
     source.with_inc(2, |source| {
         let mut bank = Bank::default();
-        block(to_emit.builder.block, source, &mut bank, env);
+        block(to_emit.builder.block, source, &mut bank, &names);
 
         source.pushln(&format!("_witness *typ = _result;"));
         source.push("typ -> size = ");
@@ -279,7 +282,8 @@ fn strukt(to_emit: Struct, source: &mut Source, env: &mut Env) {
     source.pushln("}");
 }
 
-fn function(to_emit: Function, source: &mut Source, env: &mut Env) {
+fn function(to_emit: Function, source: &mut Source) {
+    let names = &to_emit.names;
     source.push(&format!("void {}(", to_emit.name));
     let mut bank = Bank::default();
 
@@ -295,7 +299,7 @@ fn function(to_emit: Function, source: &mut Source, env: &mut Env) {
     }
     source.pushln(") {");
     source.with_inc(2, |source| {
-        block(to_emit.body, source, &mut bank, env);
+        block(to_emit.body, source, &mut bank, names);
         for to_free in bank.free_list() {
             source.pushln(&format!("free({});", to_free));
         }
@@ -304,29 +308,44 @@ fn function(to_emit: Function, source: &mut Source, env: &mut Env) {
     source.pushln("");
 }
 
-fn block(to_emit: Block, source: &mut Source, bank: &mut Bank, env: &mut Env) {
+fn block(to_emit: Block, source: &mut Source, bank: &mut Bank, names: &NameSource) {
     for to_emit in to_emit.instrs {
-        instr(to_emit, source, bank, env);
+        instr(to_emit, source, bank, names);
     }
 }
 
-fn copy(dest: &Variable, src: &Variable, witness: &Witness, source: &mut Source) {
-    match witness {
+fn shift(dest: &Variable, src: &Value, source: &mut Source) {
+    shift_to(&dest.name, src, source)
+}
+
+fn shift_to(dest: &str, src: &Value, source: &mut Source) {
+    let src_name = &src.variable().name;
+    match src.variable().witness.as_ref() {
         Witness::Trivial { size } => {
-            source.pushln(&format!("memmove({}, {}, {});", dest.name, src.name, size));
+            source.pushln(&format!(
+                "memmove({}, {}, {});",
+                dest,
+                src.variable().name,
+                size
+            ));
         }
-        Witness::Dynamic { location } => source.pushln(&format!(
-            "(((_witness *) {}) -> copy)({}, {}, ((_witness *) {}) -> extra);",
-            location.name, dest.name, src.name, location.name
-        )),
-        Witness::Type => source.pushln(&format!("_copy_type({}, {});", dest.name, src.name)),
+        Witness::Dynamic { location } => {
+            let function = match src {
+                Value::Move(_) => "move",
+                Value::Copy(_) => "copy",
+            };
+            source.pushln(&format!(
+                "(((_witness *) {}) -> {})({}, {}, ((_witness *) {}) -> extra);",
+                location.name, function, dest, src_name, location.name
+            ))
+        }
+        Witness::Type => source.pushln(&format!("_copy_type({}, {});", dest, src_name)),
     }
 }
 
-fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, env: &mut Env) {
+fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, names: &NameSource) {
     let var = &to_emit.target.name;
-    let witness = env.lookup_witness(var);
-    bank.define(var, &witness, source);
+    bank.define(var, &to_emit.target.witness, source);
     match to_emit.value {
         Expr::Literal(to_emit) => {
             source.push(&match to_emit {
@@ -387,18 +406,15 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, env: &mut Env) {
             let emitted_args: Vec<_> = arguments
                 .iter()
                 .map(|arg| {
-                    let witness = env.lookup_witness(&arg.value.name);
+                    let var = arg.value.variable();
+                    let witness = &var.witness;
                     let name = if arg.convention == Convention::Out {
-                        arg.value.name.clone()
+                        var.name.clone()
                     } else {
-                        let name = env.fresh_name();
-                        let dest = env.define_variable(
-                            name.clone(),
-                            arg.value.typ.clone(),
-                            witness.clone(),
-                        );
+                        let name = names.fresh_name();
+                        let dest = Variable::new(name.clone(), var.typ.clone(), *witness.clone());
                         bank.define(&name, &witness, source);
-                        copy(&dest, &arg.value, &witness, source);
+                        shift(&dest, &arg.value, source);
                         name
                     };
                     name
@@ -416,24 +432,10 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, env: &mut Env) {
             }
             source.pushln(");");
         }
-        Expr::Move {
-            source: src,
-            witness,
-        } => match witness {
-            Witness::Trivial { size } => {
-                source.pushln(&format!("memmove({}, {}, {});", var, src.name, size));
-            }
-            Witness::Dynamic { location } => source.pushln(&format!(
-                "(((_witness *) {}) -> move)({}, {}, ((_witness *) {}) -> extra);",
-                location.name, var, src.name, location.name
-            )),
-            Witness::Type => source.pushln(&format!("_move_type({}, {});", var, src.name)),
-        },
-        Expr::Copy {
-            source: src,
-            witness,
-        } => copy(&to_emit.target, &src, &witness, source),
-        Expr::Destroy { witness } => match witness {
+        Expr::Value(value) => {
+            shift(&to_emit.target, &value, source);
+        }
+        Expr::Destroy => match to_emit.target.witness.as_ref() {
             Witness::Trivial { .. } => {}
             Witness::Dynamic { location } => source.pushln(&format!(
                 "(((_witness *) {}) -> destroy)({}, ((_witness *) {}) -> extra);",
@@ -441,25 +443,20 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, env: &mut Env) {
             )),
             Witness::Type => source.pushln(&format!("_destroy_type({});", var)),
         },
-        Expr::StructPack { name, arguments } => {
-            let offset_name = env.fresh_name();
-            let offset_var = env.define_variable(
-                offset_name.clone(),
-                Type::integer(),
-                Witness::Trivial { size: 8 },
-            );
+        Expr::StructPack { arguments, .. } => {
+            let offset_name = names.fresh_name();
             source.pushln(&format!("signed long long {} = 0;", offset_name));
             for arg in arguments {
-                match arg.witness {
+                shift_to(
+                    &format!("(((char *) {var}) + {offset_name})"),
+                    &arg.value,
+                    source,
+                );
+                match arg.value.variable().witness.as_ref() {
                     Witness::Trivial { size } => {
-                        source.pushln(&format!(
-                            "memmove((void *) (((char *) {}) + {}), {}, {});",
-                            var, offset_name, arg.value.name, size
-                        ));
                         source.pushln(&format!("{} += {};", offset_name, size));
                     }
                     Witness::Dynamic { location } => {
-                        source.pushln(&format!("(((_witness *) {}) -> copy)((void *) (((char *) {}) + {}), {}, ((_witness *) {}) -> extra);", location.name, var, offset_name, arg.value.name, location.name));
                         source.pushln(&format!(
                             "{} += ((_witness *) {}) -> size;",
                             offset_name, location.name
@@ -476,11 +473,11 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, env: &mut Env) {
         } => {
             source.pushln(&format!("if ({}) {{", predicate.name));
             source.with_inc(2, |source| {
-                block(true_branch, source, bank, env);
+                block(true_branch, source, bank, names);
             });
             source.pushln("} else {");
             source.with_inc(2, |source| {
-                block(false_branch, source, bank, env);
+                block(false_branch, source, bank, names);
             });
             source.pushln("}");
         }

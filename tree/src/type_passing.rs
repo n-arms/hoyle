@@ -66,3 +66,9 @@ impl Expr {
         }
     }
 }
+
+pub fn make_signature(arity: usize) -> Vec<Convention> {
+    let mut signature = vec![Convention::Out];
+    signature.extend(vec![Convention::In; arity]);
+    signature
+}

@@ -5,7 +5,9 @@ use tree::{typed::Type, String};
 use crate::env::Env;
 
 pub fn count_function(env: &mut Env, function: Function) -> Function {
-    let signature = env.lookup_convention(&function.name);
+    todo!()
+}
+/*
     let mut seen = function
         .arguments
         .iter()
@@ -267,4 +269,5 @@ fn count_block_with(
     instrs.reverse();
     (Block { instrs }, seen)
 }
+*/
 */

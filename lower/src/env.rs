@@ -1,4 +1,4 @@
-use ir::bridge::Variable;
+use ir::bridge::{Variable, Witness};
 use ir::name_source::NameSource;
 use tree::typed::Type;
 use tree::String;
@@ -15,16 +15,17 @@ impl Env {
         }
     }
 
-    pub fn define_variable(&mut self, name: String, typ: Type) -> Variable {
+    pub fn define_variable(&mut self, name: String, typ: Type, witness: Witness) -> Variable {
         let variable = Variable {
-            name: name.clone(),
+            name,
             typ,
+            witness: Box::new(witness),
         };
         variable
     }
 
-    pub fn fresh_variable(&mut self, typ: Type) -> Variable {
-        self.define_variable(self.fresh_name(), typ)
+    pub fn fresh_variable(&mut self, typ: Type, witness: Witness) -> Variable {
+        self.define_variable(self.fresh_name(), typ, witness)
     }
 
     pub fn fresh_name(&self) -> String {

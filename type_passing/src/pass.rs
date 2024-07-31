@@ -187,9 +187,3 @@ fn typ(env: &Env, to_pass: &Type) -> Expr {
 fn n_function(arity: usize) -> String {
     String::from(format!("{}function", arity))
 }
-
-fn make_signature(arity: usize) -> Vec<Convention> {
-    let mut signature = vec![Convention::Out];
-    signature.extend(vec![Convention::In; arity]);
-    signature
-}

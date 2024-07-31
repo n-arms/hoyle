@@ -33,9 +33,16 @@ pub struct BuilderArgument {
 }
 
 #[derive(Clone)]
+pub struct Argument {
+    pub name: String,
+    pub typ: Type,
+    pub convention: Convention,
+}
+
+#[derive(Clone)]
 pub struct Function {
     pub name: String,
-    pub arguments: Vec<Variable>,
+    pub arguments: Vec<Argument>,
     pub body: Block,
     pub names: NameSource,
 }
@@ -44,12 +51,23 @@ pub struct Function {
 pub struct Variable {
     pub name: String,
     pub typ: Type,
+    pub witness: Box<Witness>,
+}
+
+impl Variable {
+    pub fn new(name: String, typ: Type, witness: Witness) -> Self {
+        Self {
+            name,
+            typ,
+            witness: Box::new(witness),
+        }
+    }
 }
 
 #[derive(Clone)]
 pub enum Value {
-    Move { value: Variable, witness: Witness },
-    Copy { value: Variable, witness: Witness },
+    Move(Variable),
+    Copy(Variable),
 }
 
 #[derive(Clone)]
@@ -86,6 +104,14 @@ impl Witness {
     }
 }
 
+impl Value {
+    pub fn variable(&self) -> &Variable {
+        match self {
+            Value::Move(variable) | Value::Copy(variable) => variable,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum Expr {
     Literal(Literal),
@@ -96,9 +122,7 @@ pub enum Expr {
         arguments: Vec<CallArgument>,
     },
     Value(Value),
-    Destroy {
-        witness: Witness,
-    },
+    Destroy,
     StructPack {
         name: String,
         arguments: Vec<PackField>,
@@ -124,12 +148,12 @@ pub struct CallArgument {
 }
 
 impl Expr {
-    pub fn mov(value: Variable, witness: Witness) -> Self {
-        Self::Value(Value::Move { value, witness })
+    pub fn mov(value: Variable) -> Self {
+        Self::Value(Value::Move(value))
     }
 
-    pub fn copy(value: Variable, witness: Witness) -> Self {
-        Self::Value(Value::Copy { value, witness })
+    pub fn copy(value: Variable) -> Self {
+        Self::Value(Value::Copy(value))
     }
 }
 
@@ -163,9 +187,9 @@ impl fmt::Display for Function {
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.typ == Type::typ() {
-            write!(f, "{}: {:?}", self.name, self.typ)
+            write!(f, "{}: {:?} using {}", self.name, self.typ, self.witness)
         } else {
-            write!(f, "{}: {:?}", self.name, self.typ)
+            write!(f, "{}: {:?} using {}", self.name, self.typ, self.witness)
         }
     }
 }
@@ -222,7 +246,7 @@ impl fmt::Display for Expr {
                 tuple.finish()
             }
             Expr::Value(value) => write!(f, "{value}"),
-            Expr::Destroy { witness } => write!(f, "destroy using {witness}"),
+            Expr::Destroy => write!(f, "destroy"),
             Expr::Literal(literal) => write!(f, "{}", literal),
             Expr::StructPack { name, arguments } => {
                 let mut strukt = f.debug_struct(&name);
@@ -299,8 +323,8 @@ impl fmt::Debug for BuilderArgument {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::Move { value, witness } => write!(f, "move {value} using {witness}"),
-            Value::Copy { value, witness } => write!(f, "copy {value} using {witness}"),
+            Value::Move(value) => write!(f, "move {value}"),
+            Value::Copy(value) => write!(f, "copy {value}"),
         }
     }
 }
@@ -308,5 +332,11 @@ impl fmt::Display for Value {
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self}")
+    }
+}
+
+impl fmt::Display for Argument {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.convention, self.name)
     }
 }
