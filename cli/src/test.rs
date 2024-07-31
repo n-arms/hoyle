@@ -267,10 +267,37 @@ fn struct_pack() {
 }
 
 #[test]
+fn chained_poly_struct_pack() {
+    run(
+        r#"
+        struct Box {
+            x: F64
+        }
+        func id[t](x: t): t = x
+        func struct_pack(): Box = id(id(Box { x: 3 }))
+        "#,
+        "struct_pack",
+        3.,
+    )
+}
+
+#[test]
 fn bool_literal() {
     run(
         r#"
         func bool_literal(): Bool = True
+        "#,
+        "bool_literal",
+        true,
+    )
+}
+
+#[test]
+fn chained_poly_bool_literal() {
+    run(
+        r#"
+        func id[t](x: t): t = x
+        func bool_literal(): Bool = id(id(True))
         "#,
         "bool_literal",
         true,
