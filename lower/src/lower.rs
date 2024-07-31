@@ -234,6 +234,44 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Var
             ));
             result
         }
+        sized::Expr::If {
+            predicate,
+            true_branch,
+            false_branch,
+            tag,
+        } => {
+            let witness = witness(env, &tag.witness, instrs);
+            let name = env.fresh_name();
+            let result = env.define_variable(name, true_branch.get_type(), witness.clone());
+            let lowered_predicate = expr(env, &predicate, instrs);
+            let true_instrs = BlockBuilder::new("true branch");
+            let lowered_true = expr(env, &true_branch, &true_instrs);
+            true_instrs.push(Instr::new(
+                result.clone(),
+                Expr::Copy {
+                    source: lowered_true,
+                    witness: witness.clone(),
+                },
+            ));
+            let false_instrs = BlockBuilder::new("false branch");
+            let lowered_false = expr(env, &false_branch, &false_instrs);
+            false_instrs.push(Instr::new(
+                result.clone(),
+                Expr::Copy {
+                    source: lowered_false,
+                    witness: witness.clone(),
+                },
+            ));
+            instrs.push(Instr::new(
+                result.clone(),
+                Expr::If {
+                    predicate: lowered_predicate,
+                    true_branch: true_instrs.build(),
+                    false_branch: false_instrs.build(),
+                },
+            ));
+            result
+        }
     }
 }
 

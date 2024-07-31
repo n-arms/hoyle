@@ -469,5 +469,20 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, env: &mut Env) {
                 }
             }
         }
+        Expr::If {
+            predicate,
+            true_branch,
+            false_branch,
+        } => {
+            source.pushln(&format!("if ({}) {{", predicate.name));
+            source.with_inc(2, |source| {
+                block(true_branch, source, bank, env);
+            });
+            source.pushln("} else {");
+            source.with_inc(2, |source| {
+                block(false_branch, source, bank, env);
+            });
+            source.pushln("}");
+        }
     }
 }

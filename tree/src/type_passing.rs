@@ -1,4 +1,5 @@
 pub use crate::parsed::Argument;
+use crate::parsed::If;
 use crate::typed::StructPack;
 use crate::String;
 use crate::{
@@ -22,6 +23,7 @@ impl Stage for TypePassing {
     type Call = Call;
     type Type = Type;
     type StructPack = StructPack;
+    type If = If;
 }
 
 pub type Program = generic::Program<TypePassing>;
@@ -53,6 +55,7 @@ impl Expr {
                 }
             }
             generic::Expr::StructPack { tag, .. } => tag.result.clone(),
+            generic::Expr::If { true_branch, .. } => true_branch.get_type(),
         }
     }
 }

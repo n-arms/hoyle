@@ -139,6 +139,24 @@ fn expr(env: &Env, to_size: &type_passing::Expr) -> Expr {
                 },
             }
         }
+        type_passing::Expr::If {
+            predicate,
+            true_branch,
+            false_branch,
+            tag,
+        } => {
+            let sized_predicate = expr(env, &predicate);
+            let sized_true = expr(env, &true_branch);
+            let sized_false = expr(env, &false_branch);
+            Expr::If {
+                tag: If {
+                    witness: type_witness(env, &sized_true.get_type()),
+                },
+                predicate: Box::new(sized_predicate),
+                true_branch: Box::new(sized_true),
+                false_branch: Box::new(sized_false),
+            }
+        }
     }
 }
 

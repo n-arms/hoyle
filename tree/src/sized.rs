@@ -41,12 +41,18 @@ pub struct Variable {
     pub witness: Witness,
 }
 
+#[derive(Clone)]
+pub struct If {
+    pub witness: Witness,
+}
+
 impl Stage for Sized {
     type Variable = Variable;
     type Argument = Argument;
     type Call = Call;
     type Type = Type;
     type StructPack = StructPack;
+    type If = If;
 }
 
 impl DisplayStage for Sized {
@@ -55,6 +61,7 @@ impl DisplayStage for Sized {
     type Type = Type;
     type Variable = Variable;
     type StructPack = StructPack;
+    type If = If;
 }
 
 pub type Program = generic::Program<Sized>;
@@ -86,6 +93,7 @@ impl Expr {
                 }
             }
             generic::Expr::StructPack { tag, .. } => tag.result.clone(),
+            generic::Expr::If { true_branch, .. } => true_branch.get_type(),
         }
     }
 }
@@ -121,5 +129,11 @@ impl fmt::Display for Call {
 impl fmt::Display for StructPack {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}@{}", self.result, self.witness)
+    }
+}
+
+impl fmt::Display for If {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.witness)
     }
 }

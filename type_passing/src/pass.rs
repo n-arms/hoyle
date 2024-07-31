@@ -115,6 +115,22 @@ fn expr(env: &Env, to_pass: &typed::Expr) -> Expr {
                 tag: tag.clone(),
             }
         }
+        typed::Expr::If {
+            predicate,
+            true_branch,
+            false_branch,
+            tag,
+        } => {
+            let passed_predicate = expr(env, &predicate);
+            let passed_true = expr(env, &true_branch);
+            let passed_false = expr(env, &false_branch);
+            Expr::If {
+                predicate: Box::new(passed_predicate),
+                true_branch: Box::new(passed_true),
+                false_branch: Box::new(passed_false),
+                tag: *tag,
+            }
+        }
     }
 }
 

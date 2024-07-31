@@ -98,6 +98,11 @@ pub enum Expr {
         name: String,
         arguments: Vec<PackField>,
     },
+    If {
+        predicate: Variable,
+        true_branch: Block,
+        false_branch: Block,
+    },
 }
 
 #[derive(Clone)]
@@ -218,6 +223,13 @@ impl fmt::Display for Expr {
                     strukt.field(&arg.name, &arg.value);
                 }
                 strukt.finish()
+            }
+            Expr::If {
+                predicate,
+                true_branch,
+                false_branch,
+            } => {
+                write!(f, "if {predicate} then {true_branch} else {false_branch}")
             }
         }
     }

@@ -160,6 +160,34 @@ pub fn expr(env: &Env, to_infer: &parsed::Expr) -> Result<Expr> {
                 },
             })
         }
+        parsed::Expr::If {
+            predicate,
+            true_branch,
+            false_branch,
+            tag,
+        } => {
+            let typed_predicate = expr(env, &predicate)?;
+            let typed_true = expr(env, &true_branch)?;
+            let typed_false = expr(env, &false_branch)?;
+            if typed_predicate.get_type() != Type::bool() {
+                return Err(Error::TypeMismatch {
+                    expected: Type::bool(),
+                    got: typed_predicate.get_type(),
+                });
+            }
+            if typed_true.get_type() != typed_false.get_type() {
+                return Err(Error::TypeMismatch {
+                    expected: typed_true.get_type(),
+                    got: typed_false.get_type(),
+                });
+            }
+            Ok(Expr::If {
+                predicate: Box::new(typed_predicate),
+                true_branch: Box::new(typed_true),
+                false_branch: Box::new(typed_false),
+                tag: *tag,
+            })
+        }
     }
 }
 

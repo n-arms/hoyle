@@ -71,6 +71,13 @@ fn count_block(env: &mut Env, block: Block, seen: &mut HashSet<String>) -> Block
                     count_variable(env, &arg.value, &mut instrs, seen);
                 }
             }
+            Expr::If {
+                predicate,
+                true_branch,
+                false_branch,
+            } => {
+                todo!()
+            }
         };
         count_variable(env, &instr.target, &mut instrs, seen);
         instrs.push(instr);

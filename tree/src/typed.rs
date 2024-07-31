@@ -1,4 +1,5 @@
 pub use crate::parsed::Argument;
+use crate::parsed::If;
 use crate::String;
 use crate::{
     generic::{self, Stage},
@@ -28,6 +29,7 @@ impl Stage for Typed {
     type Call = Call;
     type Type = Type;
     type StructPack = StructPack;
+    type If = If;
 }
 
 pub type Program = generic::Program<Typed>;
@@ -57,6 +59,7 @@ impl Expr {
                 }
             }
             generic::Expr::StructPack { tag, .. } => tag.result.clone(),
+            generic::Expr::If { true_branch, .. } => true_branch.get_type(),
         }
     }
 }

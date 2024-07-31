@@ -197,8 +197,24 @@ fn struct_pack<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
         })
 }
 
+fn if_expr<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
+    token(Kind::If)
+        .ignore_then(expr.clone())
+        .then_ignore(token(Kind::Then))
+        .then(expr.clone())
+        .then_ignore(token(Kind::Else))
+        .then(expr.clone())
+        .map(|((predicate, true_branch), false_branch)| Expr::If {
+            predicate: Box::new(predicate),
+            true_branch: Box::new(true_branch),
+            false_branch: Box::new(false_branch),
+            tag: If,
+        })
+}
+
 fn terminal<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
     literal_expr()
+        .or(if_expr(expr.clone()))
         .or(boolean_literal())
         .or(struct_pack(expr.clone()))
         .or(ident()

@@ -83,6 +83,9 @@ pub fn scan_tokens(text: &str) -> (token::List, Errors) {
                     "let" => Kind::Let,
                     "case" => Kind::Case,
                     "of" => Kind::Of,
+                    "if" => Kind::If,
+                    "then" => Kind::Then,
+                    "else" => Kind::Else,
                     "True" => Kind::True,
                     "False" => Kind::False,
                     _ => {

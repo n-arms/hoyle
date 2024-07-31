@@ -10,6 +10,7 @@ pub trait Stage {
     type Type: Clone;
     type Variable: Clone;
     type StructPack: Clone;
+    type If: Clone;
 }
 
 pub trait DisplayStage:
@@ -19,6 +20,7 @@ pub trait DisplayStage:
     Type = <Self as DisplayStage>::Type,
     Variable = <Self as DisplayStage>::Variable,
     StructPack = <Self as DisplayStage>::StructPack,
+    If = <Self as DisplayStage>::If,
 >
 {
     type Argument: Clone + fmt::Debug;
@@ -26,6 +28,7 @@ pub trait DisplayStage:
     type Type: Clone + fmt::Display;
     type Variable: Clone + fmt::Display;
     type StructPack: Clone + fmt::Display;
+    type If: Clone + fmt::Display;
 }
 
 #[derive(Clone)]
@@ -163,6 +166,12 @@ pub enum Expr<S: Stage> {
         name: String,
         fields: Vec<PackField<S>>,
         tag: S::StructPack,
+    },
+    If {
+        predicate: Box<Expr<S>>,
+        true_branch: Box<Expr<S>>,
+        false_branch: Box<Expr<S>>,
+        tag: S::If,
     },
 }
 
@@ -302,6 +311,16 @@ impl<S: DisplayStage> fmt::Display for Expr<S> {
                 }
                 strukt.finish()
             }
+            Expr::If {
+                predicate,
+                true_branch,
+                false_branch,
+                ..
+            } => write!(
+                f,
+                "if {} then {} else {}",
+                predicate, true_branch, false_branch
+            ),
         }
     }
 }
