@@ -1,7 +1,5 @@
 use crate::env::*;
 use im::HashMap;
-use im::HashSet;
-use tree::parsed;
 use tree::typed::*;
 use tree::String;
 

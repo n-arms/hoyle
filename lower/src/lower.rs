@@ -1,7 +1,7 @@
 use core::fmt;
 use std::cell::RefCell;
 
-use crate::env::{Env, GlobalEnv};
+use crate::env::Env;
 use crate::refcount::count_function;
 use ir::bridge::{
     Block, BuilderArgument, CallArgument, Convention, Expr, Function, Instr, PackField, Program,
@@ -11,34 +11,18 @@ use tree::sized::{self};
 use tree::typed::Type;
 use tree::String;
 
-pub fn program(
-    to_lower: &sized::Program,
-    builders: &sized::StructBuilders,
-) -> (Program, Vec<Env>, Vec<Env>) {
-    let mut global = GlobalEnv::default();
-    for func in &to_lower.functions {
-        let num_args = func.arguments.len() - 1;
-        let mut convention = vec![Convention::Out];
-        convention.extend(vec![Convention::In; num_args]);
-        global.define_function(func.name.clone(), convention);
-    }
-    global.define_function(String::from("F64"), vec![Convention::Out]);
-    global.define_function(String::from("Bool"), vec![Convention::Out]);
-    let (structs, struct_envs) = to_lower
+pub fn program(to_lower: &sized::Program) -> Program {
+    let structs = to_lower
         .structs
         .iter()
-        .map(|to_lower| {
-            let builder = builders.lookup_struct(&to_lower.name);
-            strukt(&mut global, to_lower, builder)
-        })
-        .unzip();
-    let (functions, envs) = to_lower
+        .map(|to_lower| strukt(to_lower))
+        .collect();
+    let functions = to_lower
         .functions
         .iter()
-        .map(|func| function(global.clone(), func))
-        .unzip();
-    let program = Program { structs, functions };
-    (program, envs, struct_envs)
+        .map(|func| function(func))
+        .collect();
+    Program { structs, functions }
 }
 
 pub struct BlockBuilder {
@@ -57,7 +41,6 @@ impl BlockBuilder {
 
 impl BlockBuilder {
     fn push(&self, instr: Instr) {
-        println!("adding instr {} to {}", instr, self.name);
         self.instrs.borrow_mut().push(instr);
     }
 
@@ -68,16 +51,11 @@ impl BlockBuilder {
     }
 }
 
-fn strukt(
-    global: &mut GlobalEnv,
-    to_lower: &sized::Struct,
-    builder: &sized::StructBuilder,
-) -> (Struct, Env) {
-    global.define_function(to_lower.name.clone(), vec![Convention::Out]);
-
+fn strukt(to_lower: &sized::Struct) -> Struct {
+    let mut env = Env::new();
     let instrs = BlockBuilder::new("struct");
-    let mut env = Env::new(global.clone());
-    let fields = builder
+    let fields = to_lower
+        .tag
         .fields
         .iter()
         .map(|field| expr(&mut env, field, &instrs))
@@ -94,13 +72,13 @@ fn strukt(
         }],
         block,
         fields,
+        names: env.name_source,
     };
 
-    let result = Struct {
+    Struct {
         definition: to_lower.clone(),
         builder: lowered_builder,
-    };
-    (result, env)
+    }
 }
 
 fn variable(
@@ -118,8 +96,8 @@ fn variable(
     }
 }
 
-fn function(global: GlobalEnv, to_lower: &sized::Function) -> (Function, Env) {
-    let mut env = Env::new(global);
+fn function(to_lower: &sized::Function) -> Function {
+    let mut env = Env::new();
     let body_builder = BlockBuilder::new("body");
     let lowered_arguments: Vec<_> = to_lower
         .arguments
@@ -138,15 +116,16 @@ fn function(global: GlobalEnv, to_lower: &sized::Function) -> (Function, Env) {
             witness: env.lookup_witness(&result.name),
         },
     ));
-    let func = count_function(
+    let names = env.name_source.clone();
+    count_function(
         &mut env,
         Function {
             name: to_lower.name.clone(),
             arguments: lowered_arguments,
             body: body_builder.build(),
+            names,
         },
-    );
-    (func, env)
+    )
 }
 
 pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Variable {
@@ -173,10 +152,9 @@ pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Var
                 .map(|to_lower| expr(env, to_lower, instrs))
                 .collect();
             lowered_arguments.insert(0, result.clone());
-            let signature: Vec<_> = env.lookup_convention(function).iter().copied().collect();
             let tagged_arguments: Vec<_> = lowered_arguments
                 .into_iter()
-                .zip(signature)
+                .zip(tag.signature.clone())
                 .map(|(value, convention)| CallArgument { value, convention })
                 .collect();
             instrs.push(Instr::new(

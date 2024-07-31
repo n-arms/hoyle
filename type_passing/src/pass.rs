@@ -1,41 +1,39 @@
 use tree::type_passing::*;
 use tree::typed;
-use tree::typed::StructPack;
 use tree::String;
 
 use crate::env::Env;
 
-pub fn program(to_pass: &typed::Program) -> (Program, StructBuilders) {
+pub fn program(to_pass: &typed::Program) -> Program {
     let env = Env::default();
-    let mut struct_builders = StructBuilders::default();
-    for to_pass in &to_pass.structs {
-        strukt(&env, &mut struct_builders, to_pass);
-    }
+    let structs = to_pass
+        .structs
+        .iter()
+        .map(|to_pass| strukt(&env, to_pass))
+        .collect();
     let functions = to_pass
         .functions
         .iter()
         .map(|func| function(&env, func))
         .collect();
-    let program = Program {
-        structs: to_pass.structs.clone(),
-        functions,
-    };
-    (program, struct_builders)
+    Program { structs, functions }
 }
 
-fn strukt(env: &Env, struct_builders: &mut StructBuilders, to_pass: &typed::Struct) {
+fn strukt(env: &Env, to_pass: &typed::Struct) -> Struct {
     let fields = to_pass
         .fields
         .iter()
         .map(|field| typ(env, &field.typ))
         .collect();
-    struct_builders.define_struct(
-        to_pass.name.clone(),
-        StructBuilder {
-            arguments: Vec::new(),
-            fields,
-        },
-    );
+    let tag = StructMeta {
+        arguments: Vec::new(),
+        fields,
+    };
+    Struct {
+        name: to_pass.name.clone(),
+        fields: to_pass.fields.clone(),
+        tag,
+    }
 }
 
 fn function(env: &Env, to_pass: &typed::Function) -> Function {
@@ -87,6 +85,7 @@ fn expr(env: &Env, to_pass: &typed::Expr) -> Expr {
                 arguments: passed_args,
                 tag: Call {
                     result: tag.result.clone(),
+                    signature: make_signature(arguments.len()),
                 },
             }
         }
@@ -161,6 +160,7 @@ fn typ(env: &Env, to_pass: &Type) -> Expr {
                 arguments: passed_args,
                 tag: Call {
                     result: Type::typ(),
+                    signature: make_signature(arguments.len()),
                 },
             }
         }
@@ -177,6 +177,7 @@ fn typ(env: &Env, to_pass: &Type) -> Expr {
                 arguments: passed_args,
                 tag: Call {
                     result: Type::typ(),
+                    signature: make_signature(arguments.len() + 1),
                 },
             }
         }
@@ -185,4 +186,10 @@ fn typ(env: &Env, to_pass: &Type) -> Expr {
 
 fn n_function(arity: usize) -> String {
     String::from(format!("{}function", arity))
+}
+
+fn make_signature(arity: usize) -> Vec<Convention> {
+    let mut signature = vec![Convention::Out];
+    signature.extend(vec![Convention::In; arity]);
+    signature
 }

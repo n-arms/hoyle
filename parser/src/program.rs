@@ -47,7 +47,11 @@ fn struct_definition<'src>() -> parser!('src, Program) {
         .then_ignore(token(Kind::LeftBrace))
         .then(field_definition().repeated())
         .then_ignore(token(Kind::RightBrace))
-        .map(|(name, fields)| Struct { name, fields })
+        .map(|(name, fields)| Struct {
+            name,
+            fields,
+            tag: (),
+        })
         .map(Program::from_struct)
 }
 

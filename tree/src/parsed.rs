@@ -3,7 +3,7 @@ use core::fmt;
 use crate::generic::{self, Stage};
 use crate::String;
 
-pub use generic::{Field, Generic, Literal, Struct, Type};
+pub use generic::{Field, Generic, Literal, Type};
 
 #[derive(Clone)]
 pub struct Parsed;
@@ -24,6 +24,7 @@ impl Stage for Parsed {
     type Type = ();
     type StructPack = ();
     type If = If;
+    type StructMeta = ();
 }
 
 pub type Program = generic::Program<Parsed>;
@@ -32,9 +33,10 @@ pub type Expr = generic::Expr<Parsed>;
 pub type Statement = generic::Statement<Parsed>;
 pub type Block = generic::Block<Parsed>;
 pub type PackField = generic::PackField<Parsed>;
+pub type Struct = generic::Struct<Parsed>;
 
 impl fmt::Display for If {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Ok(())
     }
 }

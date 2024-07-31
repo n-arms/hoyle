@@ -3,7 +3,6 @@ use std::rc::Rc;
 
 use im::HashMap;
 
-use im::HashSet;
 use tree::sized::*;
 use tree::String;
 
@@ -17,7 +16,6 @@ pub struct Env {
     variables: HashMap<String, Variable>,
     structs: HashMap<String, Struct>,
     instances: Rc<RefCell<HashMap<StructInstance, ()>>>,
-    trivial_types: HashSet<String>,
 }
 
 impl Env {

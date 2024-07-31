@@ -1,61 +1,47 @@
-use im::hashmap;
-use im::HashMap;
 use tree::sized::*;
 use tree::type_passing;
-use tree::String;
 
 use crate::env::Env;
 use crate::env::StructInstance;
 
-pub fn program(
-    to_size: &type_passing::Program,
-    structs: &type_passing::StructBuilders,
-) -> (Program, StructBuilders) {
+pub fn program(to_size: &type_passing::Program) -> Program {
     let mut env = Env::default();
-    let mut builders = StructBuilders::default();
-    for (name, to_size) in structs.iter() {
-        strukt(&env, &mut builders, name.clone(), to_size);
-    }
-    for strukt in &to_size.structs {
-        env.define_struct(strukt.name.clone(), strukt.clone());
-    }
+
+    let structs = to_size
+        .structs
+        .iter()
+        .map(|to_size| strukt(&mut env, to_size))
+        .collect();
     let functions = to_size
         .functions
         .iter()
         .map(|func| function(&env, func))
         .collect();
-    let program = Program {
-        structs: to_size.structs.clone(),
-        functions,
-    };
-    (program, builders)
+    Program { structs, functions }
 }
 
-fn strukt(
-    env: &Env,
-    builders: &mut StructBuilders,
-    name: String,
-    to_size: &type_passing::StructBuilder,
-) {
-    let sized_args = to_size
+fn strukt(env: &mut Env, to_size: &type_passing::Struct) -> Struct {
+    let arguments = to_size
+        .tag
         .arguments
         .iter()
-        .map(|arg| Argument {
-            name: arg.name.clone(),
-            typ: arg.typ.clone(),
+        .map(|arg| Variable {
+            name: arg.clone(),
             witness: Witness::Type,
         })
         .collect();
-    let sized_fields = to_size
+    let fields = to_size
+        .tag
         .fields
         .iter()
         .map(|field| expr(env, field))
         .collect();
-    let builder = StructBuilder {
-        arguments: sized_args,
-        fields: sized_fields,
-    };
-    builders.define_struct(name, builder);
+    let tag = StructMeta { arguments, fields };
+    Struct {
+        name: to_size.name.clone(),
+        fields: to_size.fields.clone(),
+        tag,
+    }
 }
 
 fn function(env: &Env, to_size: &type_passing::Function) -> Function {
@@ -107,6 +93,7 @@ fn expr(env: &Env, to_size: &type_passing::Expr) -> Expr {
                 tag: Call {
                     result: tag.result.clone(),
                     witness: type_witness(env, &tag.result),
+                    signature: tag.signature.clone(),
                 },
             }
         }
@@ -143,7 +130,7 @@ fn expr(env: &Env, to_size: &type_passing::Expr) -> Expr {
             predicate,
             true_branch,
             false_branch,
-            tag,
+            ..
         } => {
             let sized_predicate = expr(env, &predicate);
             let sized_true = expr(env, &true_branch);
@@ -213,7 +200,7 @@ fn type_witness(env: &Env, to_witness: &Type) -> Witness {
                 typ: Type::typ(),
             }),
         },
-        Type::Function { arguments, result } => todo!(),
+        Type::Function { .. } => todo!(),
     }
 }
 
@@ -229,11 +216,9 @@ fn struct_witness(env: &Env, to_witness: &Struct) -> Witness {
             function: to_witness.name.clone(),
             arguments: Vec::new(),
             tag: Call {
-                result: Type::Named {
-                    name: String::from("Type"),
-                    arguments: Vec::new(),
-                },
+                result: Type::typ(),
                 witness: Witness::Type,
+                signature: vec![Convention::Out],
             },
         }),
     }

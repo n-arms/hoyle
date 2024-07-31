@@ -1,7 +1,10 @@
 use core::fmt;
 
+pub use tree::sized::Convention;
 use tree::sized::{self, Literal, Primitive, Type};
 use tree::String;
+
+use crate::name_source::NameSource;
 
 #[derive(Clone)]
 pub struct Program {
@@ -20,6 +23,7 @@ pub struct StructBuilder {
     pub arguments: Vec<BuilderArgument>,
     pub block: Block,
     pub fields: Vec<Variable>,
+    pub names: NameSource,
 }
 
 #[derive(Clone)]
@@ -33,12 +37,19 @@ pub struct Function {
     pub name: String,
     pub arguments: Vec<Variable>,
     pub body: Block,
+    pub names: NameSource,
 }
 
 #[derive(Clone)]
 pub struct Variable {
     pub name: String,
     pub typ: Type,
+}
+
+#[derive(Clone)]
+pub enum Value {
+    Move { value: Variable, witness: Witness },
+    Copy { value: Variable, witness: Witness },
 }
 
 #[derive(Clone)]
@@ -78,19 +89,13 @@ impl Witness {
 #[derive(Clone)]
 pub enum Expr {
     Literal(Literal),
+    /// all arguments are trivially copyable, so a `Use` isn't necessary
     Primitive(Primitive, Vec<Variable>),
     CallDirect {
         function: String,
         arguments: Vec<CallArgument>,
     },
-    Move {
-        source: Variable,
-        witness: Witness,
-    },
-    Copy {
-        source: Variable,
-        witness: Witness,
-    },
+    Value(Value),
     Destroy {
         witness: Witness,
     },
@@ -99,6 +104,7 @@ pub enum Expr {
         arguments: Vec<PackField>,
     },
     If {
+        /// `predicate` is always trivially copyable, so a `Use` isn't necessary
         predicate: Variable,
         true_branch: Block,
         false_branch: Block,
@@ -108,21 +114,13 @@ pub enum Expr {
 #[derive(Clone)]
 pub struct PackField {
     pub name: String,
-    pub value: Variable,
-    pub witness: Witness,
+    pub value: Value,
 }
 
 #[derive(Clone)]
 pub struct CallArgument {
-    pub value: Variable,
+    pub value: Value,
     pub convention: Convention,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub enum Convention {
-    In,
-    Inout,
-    Out,
 }
 
 impl fmt::Display for Program {
@@ -213,8 +211,7 @@ impl fmt::Display for Expr {
                 }
                 tuple.finish()
             }
-            Expr::Move { source, witness } => write!(f, "move {source} using {witness}"),
-            Expr::Copy { source, witness } => write!(f, "copy {source} using {witness}"),
+            Expr::Value(value) => write!(f, "{value}"),
             Expr::Destroy { witness } => write!(f, "destroy using {witness}"),
             Expr::Literal(literal) => write!(f, "{}", literal),
             Expr::StructPack { name, arguments } => {
@@ -244,16 +241,6 @@ impl fmt::Debug for Instr {
 impl fmt::Display for CallArgument {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {}", self.convention, self.value)
-    }
-}
-
-impl fmt::Display for Convention {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Convention::In => write!(f, "in"),
-            Convention::Inout => write!(f, "inout"),
-            Convention::Out => write!(f, "out"),
-        }
     }
 }
 
@@ -296,5 +283,20 @@ impl fmt::Debug for Variable {
 impl fmt::Debug for BuilderArgument {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {}", self.convention, self.name)
+    }
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Move { value, witness } => write!(f, "move {value} using {witness}"),
+            Value::Copy { value, witness } => write!(f, "copy {value} using {witness}"),
+        }
+    }
+}
+
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self}")
     }
 }

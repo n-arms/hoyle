@@ -7,7 +7,7 @@ use crate::{
     sized::Primitive,
 };
 
-pub use generic::{Field, Generic, Literal, Struct, Type};
+pub use generic::{Convention, Field, Generic, Literal, Type};
 
 #[derive(Copy, Clone)]
 pub struct TypePassing;
@@ -15,6 +15,13 @@ pub struct TypePassing;
 #[derive(Clone)]
 pub struct Call {
     pub result: Type,
+    pub signature: Vec<Convention>,
+}
+
+#[derive(Clone)]
+pub struct StructMeta {
+    pub arguments: Vec<String>,
+    pub fields: Vec<Expr>,
 }
 
 impl Stage for TypePassing {
@@ -24,6 +31,7 @@ impl Stage for TypePassing {
     type Type = Type;
     type StructPack = StructPack;
     type If = If;
+    type StructMeta = StructMeta;
 }
 
 pub type Program = generic::Program<TypePassing>;
@@ -31,9 +39,8 @@ pub type Function = generic::Function<TypePassing>;
 pub type Expr = generic::Expr<TypePassing>;
 pub type Block = generic::Block<TypePassing>;
 pub type Statement = generic::Statement<TypePassing>;
-pub type StructBuilder = generic::StructBuilder<TypePassing>;
-pub type StructBuilders = generic::StructBuilders<TypePassing>;
 pub type PackField = generic::PackField<TypePassing>;
+pub type Struct = generic::Struct<TypePassing>;
 
 impl Expr {
     pub fn get_type(&self) -> Type {

@@ -1,10 +1,9 @@
 use core::fmt;
-use std::ops::{Add, AddAssign};
 
 use crate::generic::{self, DisplayStage, Stage};
 use crate::String;
 
-pub use generic::{Field, Generic, Literal, Primitive, Struct, Type};
+pub use generic::{Convention, Field, Generic, Literal, Primitive, Type};
 
 #[derive(Clone)]
 pub struct Sized;
@@ -20,6 +19,7 @@ pub enum Witness {
 pub struct Call {
     pub result: Type,
     pub witness: Witness,
+    pub signature: Vec<Convention>,
 }
 
 #[derive(Clone)]
@@ -46,6 +46,13 @@ pub struct If {
     pub witness: Witness,
 }
 
+#[derive(Clone)]
+pub struct StructMeta {
+    /// contains the witness tables of the generics of the struct, and *not* a pointer to the struct itself (because its witness table would be unknown)
+    pub arguments: Vec<Variable>,
+    pub fields: Vec<Expr>,
+}
+
 impl Stage for Sized {
     type Variable = Variable;
     type Argument = Argument;
@@ -53,6 +60,7 @@ impl Stage for Sized {
     type Type = Type;
     type StructPack = StructPack;
     type If = If;
+    type StructMeta = StructMeta;
 }
 
 impl DisplayStage for Sized {
@@ -62,6 +70,7 @@ impl DisplayStage for Sized {
     type Variable = Variable;
     type StructPack = StructPack;
     type If = If;
+    type StructMeta = StructMeta;
 }
 
 pub type Program = generic::Program<Sized>;
@@ -69,9 +78,8 @@ pub type Function = generic::Function<Sized>;
 pub type Expr = generic::Expr<Sized>;
 pub type Block = generic::Block<Sized>;
 pub type Statement = generic::Statement<Sized>;
-pub type StructBuilder = generic::StructBuilder<Sized>;
-pub type StructBuilders = generic::StructBuilders<Sized>;
 pub type PackField = generic::PackField<Sized>;
+pub type Struct = generic::Struct<Sized>;
 
 impl Expr {
     pub fn get_type(&self) -> Type {
@@ -101,6 +109,12 @@ impl Expr {
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}@{}", self.name, self.witness)
+    }
+}
+
+impl fmt::Debug for Variable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
@@ -135,5 +149,16 @@ impl fmt::Display for StructPack {
 impl fmt::Display for If {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.witness)
+    }
+}
+
+impl fmt::Display for StructMeta {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut tuple = f.debug_tuple("");
+        for arg in &self.arguments {
+            tuple.field(arg);
+        }
+        tuple.finish()?;
+        f.debug_list().entries(&self.fields).finish()
     }
 }

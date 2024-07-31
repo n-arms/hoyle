@@ -56,10 +56,22 @@ pub fn program(program: &parsed::Program) -> Result<Program> {
         .iter()
         .map(|func| function(env.clone(), func))
         .collect::<Result<_>>()?;
-    Ok(Program {
-        structs: program.structs.clone(),
-        functions,
-    })
+
+    let structs = program
+        .structs
+        .iter()
+        .map(|to_infer| strukt(to_infer))
+        .collect();
+
+    Ok(Program { structs, functions })
+}
+
+fn strukt(to_infer: &parsed::Struct) -> Struct {
+    Struct {
+        name: to_infer.name.clone(),
+        fields: to_infer.fields.clone(),
+        tag: (),
+    }
 }
 
 pub fn function(mut env: Env, function: &parsed::Function) -> Result<Function> {
@@ -90,7 +102,7 @@ pub fn expr(env: &Env, to_infer: &parsed::Expr) -> Result<Expr> {
         parsed::Expr::CallDirect {
             function,
             arguments,
-            tag,
+            ..
         } => {
             let scheme = env.lookup_function(function)?;
             let typed_arguments = arguments
@@ -133,7 +145,7 @@ pub fn expr(env: &Env, to_infer: &parsed::Expr) -> Result<Expr> {
                 arguments: typed_arguments,
             })
         }
-        parsed::Expr::StructPack { name, fields, tag } => {
+        parsed::Expr::StructPack { name, fields, .. } => {
             let scheme = env.lookup_struct(&name)?;
             let res = fields
                 .iter()

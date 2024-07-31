@@ -6,7 +6,7 @@ use crate::{
     sized::Primitive,
 };
 
-pub use generic::{Field, Generic, Literal, Struct, Type};
+pub use generic::{Field, Generic, Literal, Type};
 
 #[derive(Clone)]
 pub struct Typed;
@@ -30,6 +30,7 @@ impl Stage for Typed {
     type Type = Type;
     type StructPack = StructPack;
     type If = If;
+    type StructMeta = ();
 }
 
 pub type Program = generic::Program<Typed>;
@@ -38,6 +39,7 @@ pub type Expr = generic::Expr<Typed>;
 pub type Block = generic::Block<Typed>;
 pub type Statement = generic::Statement<Typed>;
 pub type PackField = generic::PackField<Typed>;
+pub type Struct = generic::Struct<Typed>;
 
 impl Expr {
     pub fn get_type(&self) -> Type {

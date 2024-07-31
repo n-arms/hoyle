@@ -11,6 +11,7 @@ pub trait Stage {
     type Variable: Clone;
     type StructPack: Clone;
     type If: Clone;
+    type StructMeta: Clone;
 }
 
 pub trait DisplayStage:
@@ -21,6 +22,7 @@ pub trait DisplayStage:
     Variable = <Self as DisplayStage>::Variable,
     StructPack = <Self as DisplayStage>::StructPack,
     If = <Self as DisplayStage>::If,
+    StructMeta = <Self as DisplayStage>::StructMeta,
 >
 {
     type Argument: Clone + fmt::Debug;
@@ -29,18 +31,27 @@ pub trait DisplayStage:
     type Variable: Clone + fmt::Display;
     type StructPack: Clone + fmt::Display;
     type If: Clone + fmt::Display;
+    type StructMeta: Clone + fmt::Display;
 }
 
 #[derive(Clone)]
 pub struct Program<S: Stage> {
-    pub structs: Vec<Struct>,
+    pub structs: Vec<Struct<S>>,
     pub functions: Vec<Function<S>>,
 }
 
 #[derive(Clone)]
-pub struct Struct {
+pub struct Struct<S: Stage> {
     pub name: String,
     pub fields: Vec<Field>,
+    pub tag: S::StructMeta,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum Convention {
+    In,
+    Inout,
+    Out,
 }
 
 #[derive(Clone)]
@@ -63,40 +74,6 @@ pub enum Type {
         result: Box<Type>,
     },
 }
-
-#[derive(Clone)]
-pub struct StructBuilder<S: Stage> {
-    pub arguments: Vec<S::Argument>,
-    pub fields: Vec<Expr<S>>,
-}
-
-#[derive(Clone)]
-pub struct StructBuilders<S: Stage> {
-    pub builders: HashMap<String, StructBuilder<S>>,
-}
-
-impl<S: Stage + Clone> StructBuilders<S> {
-    pub fn define_struct(&mut self, name: String, builder: StructBuilder<S>) {
-        self.builders.insert(name, builder);
-    }
-
-    pub fn lookup_struct(&self, name: &String) -> &StructBuilder<S> {
-        self.builders.get(name).unwrap()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (&String, &StructBuilder<S>)> {
-        self.builders.iter()
-    }
-}
-
-impl<S: Stage> Default for StructBuilders<S> {
-    fn default() -> Self {
-        Self {
-            builders: HashMap::new(),
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct Generic {
     pub name: String,
@@ -196,8 +173,41 @@ pub struct Block<S: Stage> {
     pub result: Box<Expr<S>>,
 }
 
+#[derive(Clone)]
+pub struct StructBuilder<S: Stage> {
+    pub arguments: Vec<S::Argument>,
+    pub fields: Vec<Expr<S>>,
+}
+
+#[derive(Clone)]
+pub struct StructBuilders<S: Stage> {
+    pub builders: HashMap<String, StructBuilder<S>>,
+}
+
+impl<S: Stage + Clone> StructBuilders<S> {
+    pub fn define_struct(&mut self, name: String, builder: StructBuilder<S>) {
+        self.builders.insert(name, builder);
+    }
+
+    pub fn lookup_struct(&self, name: &String) -> &StructBuilder<S> {
+        self.builders.get(name).unwrap()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &StructBuilder<S>)> {
+        self.builders.iter()
+    }
+}
+
+impl<S: Stage> Default for StructBuilders<S> {
+    fn default() -> Self {
+        Self {
+            builders: HashMap::new(),
+        }
+    }
+}
+
 impl<S: Stage> Program<S> {
-    pub fn from_struct(struct_def: Struct) -> Self {
+    pub fn from_struct(struct_def: Struct<S>) -> Self {
         Self {
             structs: vec![struct_def],
             functions: Vec::new(),
@@ -375,13 +385,14 @@ where
     }
 }
 
-impl fmt::Display for Struct {
+impl<S: DisplayStage> fmt::Display for Struct<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = f.debug_struct(&format!("struct {}", self.name));
         for field in &self.fields {
             s.field(&field.name, &field.typ);
         }
-        s.finish()
+        s.finish()?;
+        write!(f, " {}", self.tag)
     }
 }
 
@@ -416,5 +427,15 @@ impl fmt::Debug for Type {
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+
+impl fmt::Display for Convention {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Convention::In => write!(f, "in"),
+            Convention::Inout => write!(f, "inout"),
+            Convention::Out => write!(f, "out"),
+        }
     }
 }
