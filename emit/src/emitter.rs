@@ -471,7 +471,10 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, names: &NameSourc
             true_branch,
             false_branch,
         } => {
-            source.pushln(&format!("if ({}) {{", predicate.name));
+            source.pushln(&format!(
+                "if (*((signed long long *) {})) {{",
+                predicate.name
+            ));
             source.with_inc(2, |source| {
                 block(true_branch, source, bank, names);
             });

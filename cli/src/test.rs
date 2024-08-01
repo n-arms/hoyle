@@ -303,3 +303,65 @@ fn chained_poly_bool_literal() {
         true,
     )
 }
+
+#[test]
+fn if_false() {
+    run(
+        r#"
+        func if_false(): F64 = if False then 4 else 3
+        "#,
+        "if_false",
+        3.,
+    )
+}
+
+#[test]
+fn if_let() {
+    run(
+        r#"
+        func nested_if_let(): F64 = {
+            let q = True;
+            let p = q;
+            let r = if p then {
+                let a = 3;
+                let b = a;
+                b
+            } else {
+                let c = 4;
+                let d = c;
+                let e = c;
+                e
+            };
+            r
+        }
+        "#,
+        "nested_if_let",
+        3.,
+    )
+}
+
+#[test]
+fn nested_if() {
+    run(
+        r#"
+        func nested_if(): F64 = if if True then False else True 
+            then if False then 3 else 4 
+            else if True then 6 else 5
+        "#,
+        "nested_if",
+        6.,
+    )
+}
+
+#[test]
+fn nested_if_result() {
+    run(
+        r#"
+        func nested_if_result(): F64 = if True 
+            then if False then 3 else 4 
+            else if True then 6 else 5
+        "#,
+        "nested_if_result",
+        4.,
+    )
+}
