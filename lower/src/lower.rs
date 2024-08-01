@@ -87,32 +87,26 @@ fn function(to_lower: &sized::Function) -> Function {
         .iter()
         .cloned()
         .zip(make_signature(to_lower.arguments.len() - 1))
-        .map(|(arg, convention)| Argument {
-            name: arg.name,
-            typ: arg.typ,
-            convention,
+        .map(|(arg, convention)| {
+            let arg_witness = witness(&mut env, &arg.witness, &body_builder);
+            Argument {
+                name: env.define_variable(arg.name, arg.typ, arg_witness),
+                convention,
+            }
         })
         .collect();
     let result = expr(&mut env, &to_lower.body, &body_builder);
-    let result_witness = witness(&mut env, &to_lower.body.get_witness(), &body_builder);
     body_builder.push(Instr::new(
-        env.define_variable(
-            lowered_arguments[0].name.clone(),
-            lowered_arguments[0].typ.clone(),
-            result_witness,
-        ),
+        lowered_arguments[0].name.clone(),
         Expr::mov(result.clone()),
     ));
     let names = env.name_source.clone();
-    count_function(
-        &mut env,
-        Function {
-            name: to_lower.name.clone(),
-            arguments: lowered_arguments,
-            body: body_builder.build(),
-            names,
-        },
-    )
+    count_function(Function {
+        name: to_lower.name.clone(),
+        arguments: lowered_arguments,
+        body: body_builder.build(),
+        names,
+    })
 }
 
 pub fn expr(env: &mut Env, to_lower: &sized::Expr, instrs: &BlockBuilder) -> Variable {

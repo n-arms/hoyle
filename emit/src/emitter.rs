@@ -294,8 +294,8 @@ fn function(to_emit: Function, source: &mut Source) {
         } else {
             first = false;
         }
-        source.push(&format!("void *{}", arg.name));
-        bank.already_defined(arg.name);
+        source.push(&format!("void *{}", arg.name.name));
+        bank.already_defined(arg.name.name);
     }
     source.pushln(") {");
     source.with_inc(2, |source| {

@@ -1,10 +1,10 @@
 use core::fmt;
 
+use crate::name_source::NameSource;
+use std::hash::Hash;
 pub use tree::sized::Convention;
 use tree::sized::{self, Literal, Primitive, Type};
 use tree::String;
-
-use crate::name_source::NameSource;
 
 #[derive(Clone)]
 pub struct Program {
@@ -34,8 +34,7 @@ pub struct BuilderArgument {
 
 #[derive(Clone)]
 pub struct Argument {
-    pub name: String,
-    pub typ: Type,
+    pub name: Variable,
     pub convention: Convention,
 }
 
@@ -52,6 +51,20 @@ pub struct Variable {
     pub name: String,
     pub typ: Type,
     pub witness: Box<Witness>,
+}
+
+impl PartialEq for Variable {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Eq for Variable {}
+
+impl Hash for Variable {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state)
+    }
 }
 
 impl Variable {
