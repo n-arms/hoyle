@@ -13,6 +13,7 @@ pub enum Witness {
     Trivial { size: usize },
     Dynamic { value: Box<Expr> },
     Type,
+    Existential,
 }
 
 #[derive(Clone)]
@@ -53,6 +54,15 @@ pub struct StructMeta {
     pub fields: Vec<Expr>,
 }
 
+#[derive(Clone)]
+pub struct Closure {
+    pub value_captures: Vec<Argument>,
+    pub type_captures: Vec<Argument>,
+    pub env: Struct,
+    pub result: Type,
+    pub witness: Witness,
+}
+
 impl Stage for Sized {
     type Variable = Variable;
     type Argument = Argument;
@@ -61,6 +71,7 @@ impl Stage for Sized {
     type StructPack = StructPack;
     type If = If;
     type StructMeta = StructMeta;
+    type Closure = Closure;
 }
 
 impl DisplayStage for Sized {
@@ -71,6 +82,7 @@ impl DisplayStage for Sized {
     type StructPack = StructPack;
     type If = If;
     type StructMeta = StructMeta;
+    type Closure = Closure;
 }
 
 pub type Program = generic::Program<Sized>;
@@ -102,6 +114,7 @@ impl Expr {
             }
             generic::Expr::StructPack { tag, .. } => tag.result.clone(),
             generic::Expr::If { true_branch, .. } => true_branch.get_type(),
+            generic::Expr::Closure { tag, .. } => tag.result.clone(),
         }
     }
 
@@ -117,6 +130,7 @@ impl Expr {
             generic::Expr::Block(block) => block.result.get_witness(),
             generic::Expr::StructPack { tag, .. } => tag.witness.clone(),
             generic::Expr::If { tag, .. } => tag.witness.clone(),
+            generic::Expr::Closure { tag, .. } => tag.witness.clone(),
         }
     }
 }
@@ -128,6 +142,22 @@ fn literal_witness(literal: &Literal) -> Witness {
         Literal::Boolean(_) => 8,
     };
     Witness::Trivial { size }
+}
+
+impl Witness {
+    pub fn closure() -> Self {
+        Self::Dynamic {
+            value: Box::new(Expr::CallDirect {
+                function: String::from("Closure"),
+                arguments: Vec::new(),
+                tag: Call {
+                    result: Type::typ(),
+                    witness: Witness::Type,
+                    signature: vec![Convention::Out],
+                },
+            }),
+        }
+    }
 }
 
 impl fmt::Display for Variable {
@@ -148,6 +178,7 @@ impl fmt::Display for Witness {
             Witness::Trivial { size } => write!(f, "{}", size),
             Witness::Dynamic { value } => write!(f, "[{}]", value.as_ref()),
             Witness::Type => write!(f, "Type"),
+            Witness::Existential => write!(f, "Existential"),
         }
     }
 }
@@ -184,5 +215,19 @@ impl fmt::Display for StructMeta {
         }
         tuple.finish()?;
         f.debug_list().entries(&self.fields).finish()
+    }
+}
+
+impl fmt::Display for Closure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut tuple = f.debug_tuple("");
+        for capture in &self.type_captures {
+            tuple.field(capture);
+        }
+        for capture in &self.value_captures {
+            tuple.field(capture);
+        }
+        tuple.finish()?;
+        write!(f, "@{}: {}", self.witness, self.result)
     }
 }

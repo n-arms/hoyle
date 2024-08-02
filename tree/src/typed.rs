@@ -23,6 +23,12 @@ pub struct StructPack {
     pub generics: Vec<Type>,
 }
 
+#[derive(Clone)]
+pub struct Closure {
+    pub captures: Vec<Argument>,
+    pub result: Type,
+}
+
 impl Stage for Typed {
     type Variable = String;
     type Argument = Argument;
@@ -31,6 +37,7 @@ impl Stage for Typed {
     type StructPack = StructPack;
     type If = If;
     type StructMeta = ();
+    type Closure = Closure;
 }
 
 pub type Program = generic::Program<Typed>;
@@ -62,6 +69,7 @@ impl Expr {
             }
             generic::Expr::StructPack { tag, .. } => tag.result.clone(),
             generic::Expr::If { true_branch, .. } => true_branch.get_type(),
+            generic::Expr::Closure { tag, .. } => tag.result.clone(),
         }
     }
 }

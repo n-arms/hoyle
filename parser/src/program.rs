@@ -189,6 +189,21 @@ fn pack_field<'src>(expr: parser!('src, Expr)) -> parser!('src, PackField) {
         .map(|(name, value)| PackField { name, value })
 }
 
+fn closure<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
+    let arg_list = argument().map(|arg| vec![arg]).or(token(Kind::LeftParen)
+        .ignore_then(comma_list(argument()))
+        .then_ignore(token(Kind::RightParen)));
+
+    arg_list
+        .then_ignore(token(Kind::ThickArrow))
+        .then(expr)
+        .map(|(arguments, body)| Expr::Closure {
+            arguments,
+            body: Box::new(body),
+            tag: (),
+        })
+}
+
 fn struct_pack<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
     named_type()
         .then_ignore(token(Kind::LeftBrace))
@@ -219,6 +234,7 @@ fn if_expr<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
 fn terminal<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
     literal_expr()
         .or(if_expr(expr.clone()))
+        .or(closure(expr.clone()))
         .or(boolean_literal())
         .or(struct_pack(expr.clone()))
         .or(ident()

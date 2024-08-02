@@ -146,6 +146,87 @@ fn expr(env: &Env, to_size: &type_passing::Expr) -> Expr {
                 false_branch: Box::new(sized_false),
             }
         }
+        type_passing::Expr::Closure {
+            arguments,
+            body,
+            tag,
+        } => {
+            let sized_args = arguments
+                .iter()
+                .map(|arg| {
+                    let witness = type_witness(env, &arg.typ);
+                    Argument {
+                        name: arg.name.clone(),
+                        typ: arg.typ.clone(),
+                        witness,
+                    }
+                })
+                .collect();
+            let sized_body = expr(env, &body);
+            let value_captures = tag
+                .value_captures
+                .iter()
+                .map(|arg| {
+                    let witness = type_witness(env, &arg.typ);
+                    Argument {
+                        name: arg.name.clone(),
+                        typ: arg.typ.clone(),
+                        witness,
+                    }
+                })
+                .collect();
+            let type_captures = tag
+                .type_captures
+                .iter()
+                .map(|arg| {
+                    let witness = type_witness(env, &arg.typ);
+                    Argument {
+                        name: arg.name.clone(),
+                        typ: arg.typ.clone(),
+                        witness,
+                    }
+                })
+                .collect();
+            let env_struct = {
+                let builder_args = tag
+                    .env
+                    .tag
+                    .arguments
+                    .iter()
+                    .map(|arg| Variable {
+                        name: arg.clone(),
+                        witness: Witness::Type,
+                    })
+                    .collect();
+                let builder_fields = tag
+                    .env
+                    .tag
+                    .fields
+                    .iter()
+                    .map(|field| expr(env, &field))
+                    .collect();
+                Struct {
+                    name: tag.env.name.clone(),
+                    fields: tag.env.fields.clone(),
+                    tag: StructMeta {
+                        arguments: builder_args,
+                        fields: builder_fields,
+                    },
+                }
+            };
+            let tag = Closure {
+                value_captures,
+                type_captures,
+                result: tag.result.clone(),
+                witness: Witness::closure(),
+                env: env_struct,
+            };
+            Expr::Closure {
+                arguments: sized_args,
+                body: Box::new(sized_body),
+                tag,
+            }
+        }
     }
 }
 

@@ -25,6 +25,7 @@ impl Stage for Parsed {
     type StructPack = ();
     type If = If;
     type StructMeta = ();
+    type Closure = ();
 }
 
 pub type Program = generic::Program<Parsed>;

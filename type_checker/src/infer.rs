@@ -5,6 +5,7 @@ use im::HashMap;
 use im::HashSet;
 use tree::parsed;
 use tree::typed::*;
+use tree::String;
 use unzip3::Unzip3;
 
 pub fn program(program: &parsed::Program) -> Result<Program> {
@@ -200,7 +201,86 @@ pub fn expr(env: &Env, to_infer: &parsed::Expr) -> Result<Expr> {
                 tag: *tag,
             })
         }
+        parsed::Expr::Closure {
+            arguments, body, ..
+        } => {
+            let captures = {
+                let vars = free_variables(body.as_ref());
+                vars.into_iter()
+                    .map(|name| {
+                        let typ = env.lookup_variable(&name)?;
+                        Ok(Argument { name, typ })
+                    })
+                    .collect::<Result<Vec<_>>>()?
+            };
+            let typed_body = {
+                let mut inner_env = env.clone();
+                for arg in arguments {
+                    inner_env.define_variable(arg.name.clone(), arg.typ.clone());
+                }
+                expr(&inner_env, body.as_ref())?
+            };
+
+            let tag = Closure {
+                captures,
+                result: Type::Function {
+                    arguments: arguments.iter().map(|arg| arg.typ.clone()).collect(),
+                    result: Box::new(typed_body.get_type()),
+                },
+            };
+            Ok(Expr::Closure {
+                arguments: arguments.clone(),
+                body: Box::new(typed_body),
+                tag,
+            })
+        }
     }
+}
+
+fn free_variables(expr: &parsed::Expr) -> HashSet<String> {
+    match expr {
+        parsed::Expr::Variable { name, .. } => HashSet::unit(name.clone()),
+        parsed::Expr::Literal { .. } => HashSet::new(),
+        parsed::Expr::CallDirect { arguments, .. } => {
+            arguments.iter().flat_map(free_variables).collect()
+        }
+        parsed::Expr::Primitive { arguments, .. } => {
+            arguments.iter().flat_map(free_variables).collect()
+        }
+        parsed::Expr::Block(block) => free_variables_block(block),
+        parsed::Expr::StructPack { fields, .. } => fields
+            .iter()
+            .flat_map(|field| free_variables(&field.value))
+            .collect(),
+        parsed::Expr::If {
+            predicate,
+            true_branch,
+            false_branch,
+            ..
+        } => free_variables(&predicate)
+            .union(free_variables(&true_branch))
+            .union(free_variables(&false_branch)),
+        parsed::Expr::Closure {
+            arguments, body, ..
+        } => {
+            let without = arguments.iter().map(|arg| arg.name.clone()).collect();
+            free_variables(&body).relative_complement(without)
+        }
+    }
+}
+
+fn free_variables_block(block: &parsed::Block) -> HashSet<String> {
+    let mut without = HashSet::new();
+    let mut free = HashSet::new();
+    for stmt in &block.stmts {
+        match stmt {
+            parsed::Statement::Let { name, value, .. } => {
+                free.extend(free_variables(value).relative_complement(without.clone()));
+                without.insert(name.clone());
+            }
+        }
+    }
+    free
 }
 
 fn block(env: &Env, block: &parsed::Block) -> Result<Block> {

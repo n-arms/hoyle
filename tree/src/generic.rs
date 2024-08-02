@@ -10,6 +10,7 @@ pub trait Stage {
     type StructPack: Clone;
     type If: Clone;
     type StructMeta: Clone;
+    type Closure: Clone;
 }
 
 pub trait DisplayStage:
@@ -21,6 +22,7 @@ pub trait DisplayStage:
     StructPack = <Self as DisplayStage>::StructPack,
     If = <Self as DisplayStage>::If,
     StructMeta = <Self as DisplayStage>::StructMeta,
+    Closure = <Self as DisplayStage>::Closure,
 >
 {
     type Argument: Clone + fmt::Debug;
@@ -30,6 +32,7 @@ pub trait DisplayStage:
     type StructPack: Clone + fmt::Display;
     type If: Clone + fmt::Display;
     type StructMeta: Clone + fmt::Display;
+    type Closure: Clone + fmt::Display;
 }
 
 #[derive(Clone)]
@@ -147,6 +150,11 @@ pub enum Expr<S: Stage> {
         true_branch: Box<Expr<S>>,
         false_branch: Box<Expr<S>>,
         tag: S::If,
+    },
+    Closure {
+        arguments: Vec<S::Argument>,
+        body: Box<Expr<S>>,
+        tag: S::Closure,
     },
 }
 
@@ -296,6 +304,22 @@ impl<S: DisplayStage> fmt::Display for Expr<S> {
                 "if {} then {} else {}",
                 predicate, true_branch, false_branch
             ),
+            Expr::Closure {
+                arguments,
+                body,
+                tag,
+            } => {
+                if arguments.len() == 1 {
+                    write!(f, "{:?}", arguments[0])?;
+                } else {
+                    let mut args = f.debug_tuple("");
+                    for arg in arguments {
+                        args.field(arg);
+                    }
+                    args.finish()?;
+                }
+                write!(f, " [{tag}] => {}", body.as_ref())
+            }
         }
     }
 }

@@ -24,6 +24,14 @@ pub struct StructMeta {
     pub fields: Vec<Expr>,
 }
 
+#[derive(Clone)]
+pub struct Closure {
+    pub value_captures: Vec<Argument>,
+    pub type_captures: Vec<Argument>,
+    pub result: Type,
+    pub env: Struct,
+}
+
 impl Stage for TypePassing {
     type Variable = String;
     type Argument = Argument;
@@ -32,6 +40,7 @@ impl Stage for TypePassing {
     type StructPack = StructPack;
     type If = If;
     type StructMeta = StructMeta;
+    type Closure = Closure;
 }
 
 pub type Program = generic::Program<TypePassing>;
@@ -63,6 +72,7 @@ impl Expr {
             }
             generic::Expr::StructPack { tag, .. } => tag.result.clone(),
             generic::Expr::If { true_branch, .. } => true_branch.get_type(),
+            generic::Expr::Closure { tag, .. } => tag.result.clone(),
         }
     }
 }

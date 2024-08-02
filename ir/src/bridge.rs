@@ -140,6 +140,10 @@ pub enum Expr {
         name: String,
         arguments: Vec<PackField>,
     },
+    Unpack {
+        value: Variable,
+        field: String,
+    },
     If {
         /// `predicate` is always trivially copyable, so a `Use` isn't necessary
         predicate: Variable,
@@ -274,6 +278,9 @@ impl fmt::Display for Expr {
                 false_branch,
             } => {
                 write!(f, "if {predicate} then {true_branch} else {false_branch}")
+            }
+            Expr::Unpack { value, field } => {
+                write!(f, "{value}.{field}")
             }
         }
     }

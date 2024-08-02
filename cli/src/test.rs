@@ -1,9 +1,5 @@
 use core::fmt;
-use std::{
-    fs,
-    io::Read,
-    process::{self, Stdio},
-};
+use std::{fs, process};
 
 use lexer::scan_tokens;
 use lower::lower;

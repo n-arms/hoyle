@@ -1,3 +1,4 @@
+use im::HashSet;
 use tree::type_passing::*;
 use tree::typed;
 use tree::String;
@@ -130,6 +131,66 @@ fn expr(env: &Env, to_pass: &typed::Expr) -> Expr {
                 tag: *tag,
             }
         }
+        typed::Expr::Closure {
+            arguments,
+            body,
+            tag,
+        } => {
+            let passed_body = expr(env, &body);
+            let value_captures = tag.captures.clone();
+            let type_captures: Vec<_> = {
+                let generics: HashSet<_> = arguments
+                    .iter()
+                    .flat_map(|arg| generics(&arg.typ))
+                    .collect();
+                generics
+                    .into_iter()
+                    .map(|name| Argument {
+                        name,
+                        typ: Type::typ(),
+                    })
+                    .collect()
+            };
+
+            let env_struct = {
+                let env_fields: Vec<_> = value_captures
+                    .iter()
+                    .map(|capture| Field {
+                        name: capture.name.clone(),
+                        typ: capture.typ.clone(),
+                    })
+                    .collect();
+                let builder_fields = env_fields
+                    .iter()
+                    .map(|field| typ(env, &field.typ))
+                    .collect();
+                let builder_args = type_captures
+                    .iter()
+                    .map(|capture| capture.name.clone())
+                    .collect();
+                let env_tag = StructMeta {
+                    arguments: builder_args,
+                    fields: builder_fields,
+                };
+                Struct {
+                    name: String::new(),
+                    fields: env_fields,
+                    tag: env_tag,
+                }
+            };
+
+            let tag = Closure {
+                value_captures,
+                type_captures,
+                result: tag.result.clone(),
+                env: env_struct,
+            };
+            Expr::Closure {
+                arguments: arguments.clone(),
+                body: Box::new(passed_body),
+                tag,
+            }
+        }
     }
 }
 
@@ -148,6 +209,18 @@ fn block(env: &Env, to_pass: &typed::Block) -> Block {
     Block {
         stmts: passed_stmts,
         result: Box::new(expr(env, &to_pass.result)),
+    }
+}
+
+fn generics(typ: &Type) -> HashSet<String> {
+    match typ {
+        Type::Named { arguments, .. } => arguments.iter().flat_map(generics).collect(),
+        Type::Generic { name } => HashSet::unit(name.clone()),
+        Type::Function { arguments, result } => arguments
+            .iter()
+            .flat_map(generics)
+            .chain(generics(&result))
+            .collect(),
     }
 }
 

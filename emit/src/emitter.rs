@@ -5,11 +5,7 @@ use ir::{
     bridge::{Block, Convention, Expr, Function, Instr, Program, Struct, Value, Variable, Witness},
     name_source::NameSource,
 };
-use tree::{
-    sized::Primitive,
-    typed::{Literal, Type},
-    String,
-};
+use tree::{sized::Primitive, typed::Literal, String};
 
 type StdString = std::string::String;
 
