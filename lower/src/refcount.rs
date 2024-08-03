@@ -1,5 +1,5 @@
 use im::{hashset, HashSet};
-use ir::bridge::{Block, Convention, Expr, Function, Instr, Value, Variable};
+use ir::bridge::{Block, Convention, Expr, Function, Instr, Value, Variable, Witness};
 
 pub fn count_function(function: Function) -> Function {
     let args = function
@@ -89,19 +89,28 @@ impl VariableUses {
     }
 
     pub fn read(&mut self, variable: Variable) {
+        self.read_witness(&variable);
         self.reads.insert(variable);
     }
 
     pub fn destroy(&mut self, variable: Variable) {
+        self.read_witness(&variable);
         self.destroys.insert(variable);
     }
 
     pub fn write(&mut self, variable: Variable) {
+        self.read_witness(&variable);
         self.writes.insert(variable);
     }
 
     pub fn remove_write(&mut self, variable: &Variable) {
         self.writes.remove(variable);
+    }
+
+    fn read_witness(&mut self, variable: &Variable) {
+        if let Witness::Dynamic { location } = variable.witness.as_ref() {
+            self.read(location.clone());
+        }
     }
 }
 
@@ -166,6 +175,13 @@ fn find_instr_uses(instr: &Instr) -> VariableUses {
             let false_uses = find_uses(false_branch, instr.target.clone());
             uses.extend(true_uses);
             uses.extend(false_uses);
+        }
+        Expr::Unpack { value, .. } => {
+            uses.read(value.clone());
+        }
+        Expr::MakeClosure { env, witness, .. } => {
+            find_value_uses(env);
+            find_value_uses(witness);
         }
     }
     uses

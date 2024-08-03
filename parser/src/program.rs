@@ -64,20 +64,20 @@ fn field_definition<'src>() -> parser!('src, Field) {
 
 fn typ<'src>() -> parser!('src, Type) {
     recursive(|typ| {
-        named_type()
-            .map(|name| Type::Named {
+        token(Kind::LeftParen)
+            .ignore_then(typ.clone())
+            .then_ignore(token(Kind::RightParen))
+            .then_ignore(token(Kind::Arrow))
+            .then(typ.clone())
+            .map(|(arg, result)| Type::Function {
+                arguments: vec![arg],
+                result: Box::new(result),
+            })
+            .or(named_type().map(|name| Type::Named {
                 name,
                 arguments: Vec::new(),
-            })
+            }))
             .or(ident().map(|name| Type::Generic { name }))
-            .or(typ
-                .clone()
-                .then_ignore(token(Kind::Arrow))
-                .then(typ.clone())
-                .map(|(arg, result)| Type::Function {
-                    arguments: vec![arg],
-                    result: Box::new(result),
-                }))
             .or(token(Kind::LeftParen)
                 .ignore_then(typ.clone().separated_by(token(Kind::Comma)))
                 .then_ignore(token(Kind::RightParen))
@@ -247,6 +247,9 @@ fn terminal<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
                 tag: (),
             }))
         .or(ident().map(|name| Expr::Variable { name, typ: () }))
+        .or(token(Kind::LeftParen)
+            .ignore_then(expr.clone())
+            .then_ignore(token(Kind::RightParen)))
         .or(block(expr).map(|block| Expr::Block(block)))
 }
 

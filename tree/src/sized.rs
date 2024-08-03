@@ -148,7 +148,7 @@ impl Witness {
     pub fn closure() -> Self {
         Self::Dynamic {
             value: Box::new(Expr::CallDirect {
-                function: String::from("Closure"),
+                function: String::from("_Closure"),
                 arguments: Vec::new(),
                 tag: Call {
                     result: Type::typ(),

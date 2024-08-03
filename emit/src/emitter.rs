@@ -141,6 +141,45 @@ void Bool(void *_result) {
   result -> extra = NULL;
 }
 
+struct _Closure {
+  void *function;
+  void *env;
+};
+
+void _copy_closure(void *dest, void *src, void *extra) {
+  void *env = ((struct _Closure *) src) -> env;
+  unsigned long long *counter = env;
+  if (counter != NULL) {
+    *counter += 1;
+  }
+  memmove(dest, src, sizeof(struct _Closure));
+}
+
+void _move_closure(void *dest, void *src, void *extra) {
+  memmove(dest, src, sizeof(struct _Closure));
+}
+
+void _destroy_closure(void *src, void *extra) {
+  void *env = ((struct _Closure *) src) -> env;
+  unsigned long long *counter = env;
+  if (counter != NULL) {
+    counter -= 1;
+    if (counter == 0) {
+      free(env);
+    }
+  }
+}
+
+void _Closure(void *_result) {
+  _witness *result = _result;
+  result -> size = 8;
+  result -> move = _move_closure;
+  result -> copy = _copy_closure;
+  result -> destroy = _destroy_closure;
+  result -> extra = NULL;
+}
+
+
 void _move_type(void *dest, void *src) {
     memmove(dest, src, sizeof(_witness));
 }
@@ -236,11 +275,35 @@ fn destroy_struct(to_emit: &Struct, source: &mut Source, names: &NameSource) {
     source.pushln("}");
 }
 
+fn get_field(to_emit: &Struct, field_index: usize, source: &mut Source, names: &NameSource) {
+    let struct_name = &to_emit.definition.name;
+    let field = &to_emit.definition.fields[field_index];
+    source.pushln(&format!(
+        "void _{struct_name}_get_{}(void *dest, void *src) {{",
+        field.name
+    ));
+    source.with_inc(2, |source| {
+        let mut bank = Bank::default();
+        block(to_emit.builder.block.clone(), source, &mut bank, names);
+        let offset_var = names.fresh_name();
+        source.pushln(&format!("unsigned long long {offset_var} = 0;"));
+        for field in to_emit.builder.fields.iter().take(field_index) {
+            source.pushln(&format!("{offset_var} += ((_witness *) {});", field.name));
+        }
+        let field_witness = &to_emit.builder.fields[field_index].name;
+        source.pushln(&format!("(((_witness *) {field_witness}) -> copy)(dest, ((char *) src) + {offset_var}, ((_witness *) {field_witness}) -> extra);"));
+    });
+    source.pushln("}");
+}
+
 fn strukt(to_emit: Struct, source: &mut Source) {
     let names = to_emit.builder.names.clone();
     copy_struct(&to_emit, source, &names);
     move_struct(&to_emit, source, &names);
     destroy_struct(&to_emit, source, &names);
+    for field_index in 0..to_emit.definition.fields.len() {
+        get_field(&to_emit, field_index, source, &names);
+    }
     let struct_name = to_emit.definition.name;
     source.push(&format!("void {}(", struct_name));
     let mut first = true;
@@ -479,6 +542,43 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, names: &NameSourc
                 block(false_branch, source, bank, names);
             });
             source.pushln("}");
+        }
+        Expr::Unpack {
+            value,
+            field,
+            struct_name,
+            type_arguments,
+        } => {
+            let struct_var = &value.name;
+            source.push(&format!("_{struct_name}_get_{field}({var}, {struct_var}"));
+            for arg in type_arguments {
+                source.push(&format!(", {}", arg.name));
+            }
+            source.pushln(");");
+        }
+        Expr::MakeClosure {
+            function,
+            env,
+            witness,
+        } => {
+            let alloc = names.fresh_name();
+            source.pushln(&format!(
+                "void *{alloc} = malloc(sizeof(unsigned long long) + sizeof(_witness) + ((_witness *) {}) -> size);",
+                witness.variable().name
+            ));
+            source.pushln(&format!("*(unsigned long long *) {alloc} = 0ull;"));
+            shift_to(
+                &format!("(((char *) {alloc}) + sizeof(unsigned long long))"),
+                &witness,
+                source,
+            );
+            shift_to(
+                &format!("(((char *) {alloc}) + sizeof(_witness) + sizeof(unsigned long long))"),
+                &env,
+                source,
+            );
+            source.pushln(&format!("*(void **){var} = {function};"));
+            source.pushln(&format!("*((void **){var} + 1) = {alloc};"));
         }
     }
 }

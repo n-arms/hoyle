@@ -33,7 +33,8 @@ pub fn program(to_lower: &sized::Program) -> Program {
         strukt(to_lower, &mut builder);
     }
     for to_lower in &to_lower.functions {
-        function(to_lower, &mut builder);
+        let func = function(to_lower, &mut builder);
+        builder.functions.push(count_function(func));
     }
     builder.build()
 }
@@ -91,7 +92,7 @@ fn strukt(to_lower: &sized::Struct, builder: &mut Builder) {
     });
 }
 
-fn function<'a>(to_lower: &sized::Function, builder: &'a mut Builder) -> &'a mut Function {
+fn function<'a>(to_lower: &sized::Function, builder: &mut Builder) -> Function {
     let mut env = Env::new();
     let body_builder = BlockBuilder::new("body");
     let lowered_arguments: Vec<_> = to_lower
@@ -113,13 +114,12 @@ fn function<'a>(to_lower: &sized::Function, builder: &'a mut Builder) -> &'a mut
         Expr::mov(result.clone()),
     ));
     let names = env.name_source.clone();
-    builder.functions.push(count_function(Function {
+    Function {
         name: to_lower.name.clone(),
         arguments: lowered_arguments,
         body: body_builder.build(),
         names,
-    }));
-    builder.functions.last_mut().unwrap()
+    }
 }
 
 pub fn expr(
@@ -255,8 +255,7 @@ pub fn expr(
                 strukt(&env_struct, builder);
                 env_struct.name
             };
-            let get_value = |name| String::from(format!("{env_name}_get_{name}"));
-            let get_generic = |id| String::from(format!("_witness_get_{id}"));
+            let get_value = |name: &String| String::from(format!("{env_name}_get_{name}"));
             let env_type = Type::Named {
                 name: env_name.clone(),
                 arguments: tag
@@ -270,28 +269,42 @@ pub fn expr(
             let mocked_function = {
                 let function_name = closure_name(&builder);
                 let mut arguments = arguments.clone();
-                arguments.extend([
+                arguments.insert(
+                    0,
                     sized::Argument {
-                        name: String::from("_env"),
-                        typ: env_type,
-                        witness: sized::Witness::Dynamic {
-                            value: Box::new(sized::Expr::Variable {
-                                name: sized::Variable {
-                                    name: String::from("_env_witness"),
-                                    witness: sized::Witness::Type,
-                                },
-                                typ: Type::typ(),
-                            }),
+                        name: String::from("_result"),
+                        typ: body.get_type(),
+                        witness: body.get_witness(),
+                    },
+                );
+                let witness_arguments: Vec<_> = tag
+                    .type_captures
+                    .iter()
+                    .map(|arg| sized::Expr::Variable {
+                        name: sized::Variable {
+                            name: arg.name.clone(),
+                            witness: sized::Witness::Type,
                         },
+                        typ: sized::Type::typ(),
+                    })
+                    .collect();
+                arguments.push(sized::Argument {
+                    name: String::from("_env"),
+                    typ: env_type.clone(),
+                    witness: sized::Witness::Dynamic {
+                        value: Box::new(sized::Expr::CallDirect {
+                            tag: sized::Call {
+                                result: Type::typ(),
+                                witness: sized::Witness::Type,
+                                signature: make_signature(witness_arguments.len()),
+                            },
+                            function: env_name.clone(),
+                            arguments: witness_arguments,
+                        }),
                     },
-                    sized::Argument {
-                        name: String::from("_env_witness"),
-                        typ: Type::typ(),
-                        witness: sized::Witness::Type,
-                    },
-                ]);
-                arguments.extend(tag.value_captures.iter().cloned());
+                });
                 arguments.extend(tag.type_captures.iter().cloned());
+                arguments.extend(tag.value_captures.iter().cloned());
                 sized::Function {
                     name: function_name,
                     generics: Vec::new(),
@@ -300,59 +313,137 @@ pub fn expr(
                     body: body.as_ref().clone(),
                 }
             };
-            let lowered_func = function(&mocked_function, builder);
-            let fake_arguments = tag.value_captures.len() + tag.type_captures.len();
-            let real_arguments = lowered_func.arguments.len() - fake_arguments;
-            let env_witness_variable =
-                Variable::new(String::from("_env_witness"), Type::typ(), Witness::Type);
+            let mut lowered_func = function(&mocked_function, builder);
+            let real_arguments = lowered_func.arguments.len() - tag.value_captures.len();
+            let env_argument = real_arguments - tag.type_captures.len() - 1;
+            let env_witness_variable = lowered_func.arguments[env_argument]
+                .name
+                .witness
+                .as_ref()
+                .clone()
+                .unwrap_dynamic();
             let env_variable = Variable::new(
                 String::from("_env"),
-                env_type,
+                env_type.clone(),
                 Witness::Dynamic {
-                    location: env_witness_variable,
+                    location: env_witness_variable.clone(),
                 },
             );
-            let type_preamble = tag.type_captures.iter().enumerate().map(|(i, arg)| {
-                let result = Variable::new(arg.name.clone(), arg.typ.clone(), Witness::Type);
-                let result_arg = CallArgument {
-                    value: Value::Copy(result),
-                    convention: Convention::Out,
-                };
-                let env_arg = CallArgument {
-                    value: Value::Copy(env_witness_variable.clone()),
-                    convention: Convention::In,
-                };
-                let arguments = vec![result_arg, env_arg];
-                Instr::new(
-                    result.clone(),
-                    Expr::CallDirect {
-                        function: get_generic(i),
-                        arguments,
-                    },
-                )
-            });
             let witness_preamble = BlockBuilder::new("witness preamble");
-            let value_preamble = tag.value_captures.iter().map(|arg| {
-                let witness = witness(env, &arg.witness, &witness_preamble, builder);
-                let target = Variable::new(arg.name.clone(), arg.typ.clone(), witness);
-                Instr::new(
-                    target,
-                    Expr::Unpack {
-                        value: env_variable.clone(),
-                        field: arg.name.clone(),
-                    },
-                )
-            });
-            let preamble = type_preamble
-                .chain(witness_preamble.build().instrs)
-                .chain(value_preamble)
+            let unpacking_type_args: Vec<_> = tag
+                .type_captures
+                .iter()
+                .map(|capture| {
+                    Variable::new(capture.name.clone(), capture.typ.clone(), Witness::Type)
+                })
                 .collect();
-            let instrs = lowered_func.body.instrs;
-            lowered_func.body.instrs = preamble;
-            lowered_func.body.instrs.extend(instrs);
-            todo!()
+
+            let value_preamble: Vec<_> = tag
+                .value_captures
+                .iter()
+                .map(|arg| {
+                    let witness = witness(env, &arg.witness, &witness_preamble, builder);
+                    let target = Variable::new(arg.name.clone(), arg.typ.clone(), witness);
+                    Instr::new(
+                        target,
+                        Expr::Unpack {
+                            value: env_variable.clone(),
+                            field: arg.name.clone(),
+                            struct_name: env_name.clone(),
+                            type_arguments: unpacking_type_args.clone(),
+                        },
+                    )
+                })
+                .collect();
+            let preamble = witness_preamble
+                .build()
+                .instrs
+                .into_iter()
+                .chain(value_preamble);
+            let pre_preamble = first_non_type(&lowered_func.body.instrs);
+            for (i, instr) in preamble.enumerate() {
+                lowered_func.body.instrs.insert(i + pre_preamble, instr);
+            }
+            lowered_func.arguments.truncate(real_arguments);
+            lowered_func = count_function(lowered_func);
+
+            let made_env_witness = env.fresh_variable(Type::typ(), Witness::Type);
+            let made_env = env.fresh_variable(
+                env_type,
+                Witness::Dynamic {
+                    location: made_env_witness.clone(),
+                },
+            );
+            let mut witness_making_args = vec![CallArgument {
+                value: Value::Copy(made_env_witness.clone()),
+                convention: Convention::Out,
+            }];
+            witness_making_args.extend(tag.type_captures.iter().map(|capture| {
+                let witness = witness(env, &capture.witness, instrs, builder);
+                CallArgument {
+                    value: Value::Copy(Variable::new(
+                        capture.name.clone(),
+                        capture.typ.clone(),
+                        witness,
+                    )),
+                    convention: Convention::In,
+                }
+            }));
+            instrs.push(Instr::new(
+                made_env_witness.clone(),
+                Expr::CallDirect {
+                    function: env_name.clone(),
+                    arguments: witness_making_args,
+                },
+            ));
+            let env_fields = tag
+                .value_captures
+                .iter()
+                .cloned()
+                .map(|capture| {
+                    let witness = witness(env, &capture.witness, instrs, builder);
+                    PackField {
+                        name: capture.name.clone(),
+                        value: Value::Copy(Variable::new(capture.name, capture.typ, witness)),
+                    }
+                })
+                .collect();
+            instrs.push(Instr::new(
+                made_env.clone(),
+                Expr::StructPack {
+                    name: env_name,
+                    arguments: env_fields,
+                },
+            ));
+            let closure_witness = witness(env, &tag.witness, instrs, builder);
+            let closure_var = env.fresh_variable(tag.result.clone(), closure_witness);
+            instrs.push(Instr::new(
+                closure_var.clone(),
+                Expr::MakeClosure {
+                    function: lowered_func.name.clone(),
+                    env: Value::Copy(made_env.clone()),
+                    witness: Value::Copy(made_env_witness.clone()),
+                },
+            ));
+            builder.functions.push(lowered_func);
+            closure_var
         }
     }
+}
+fn first_non_type<'a, I: ExactSizeIterator<Item = &'a Instr>>(
+    instrs: impl IntoIterator<IntoIter = I>,
+) -> usize {
+    let iter = instrs.into_iter();
+    let length = iter.len();
+    iter.enumerate()
+        .find_map(|(i, instr)| {
+            if let Witness::Type = instr.target.witness.as_ref() {
+                None
+            } else {
+                Some(i)
+            }
+        })
+        .unwrap_or(length)
 }
 
 fn block(
@@ -386,6 +477,7 @@ fn witness(
             location: expr(env, value.as_ref(), instrs, builder),
         },
         sized::Witness::Type => Witness::Type,
+        sized::Witness::Existential => todo!(),
     }
 }
 

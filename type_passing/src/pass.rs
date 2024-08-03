@@ -1,3 +1,5 @@
+use std::iter;
+
 use im::HashSet;
 use tree::type_passing::*;
 use tree::typed;
@@ -141,7 +143,10 @@ fn expr(env: &Env, to_pass: &typed::Expr) -> Expr {
             let type_captures: Vec<_> = {
                 let generics: HashSet<_> = arguments
                     .iter()
-                    .flat_map(|arg| generics(&arg.typ))
+                    .chain(value_captures.iter())
+                    .map(|arg| &arg.typ)
+                    .chain(iter::once(&tag.result))
+                    .flat_map(|typ| generics(typ))
                     .collect();
                 generics
                     .into_iter()

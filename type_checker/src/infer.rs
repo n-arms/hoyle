@@ -205,7 +205,13 @@ pub fn expr(env: &Env, to_infer: &parsed::Expr) -> Result<Expr> {
             arguments, body, ..
         } => {
             let captures = {
-                let vars = free_variables(body.as_ref());
+                let vars = free_variables(body.as_ref()).relative_complement(
+                    arguments
+                        .iter()
+                        .cloned()
+                        .map(|arg| arg.name.clone())
+                        .collect(),
+                );
                 vars.into_iter()
                     .map(|name| {
                         let typ = env.lookup_variable(&name)?;

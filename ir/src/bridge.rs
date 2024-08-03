@@ -115,6 +115,13 @@ impl Witness {
     pub fn is_trivial(&self) -> bool {
         matches!(self, Self::Trivial { .. })
     }
+
+    pub fn unwrap_dynamic(self) -> Variable {
+        match self {
+            Witness::Dynamic { location } => location,
+            _ => unreachable!(),
+        }
+    }
 }
 
 impl Value {
@@ -141,14 +148,22 @@ pub enum Expr {
         arguments: Vec<PackField>,
     },
     Unpack {
+        struct_name: String,
         value: Variable,
         field: String,
+        type_arguments: Vec<Variable>,
     },
     If {
         /// `predicate` is always trivially copyable, so a `Use` isn't necessary
         predicate: Variable,
         true_branch: Block,
         false_branch: Block,
+    },
+    MakeClosure {
+        function: String,
+        env: Value,
+        // the extra witnes field is here in case `env` is a trivial struct: the existential that backs the closure still needs a witness table
+        witness: Value,
     },
 }
 
@@ -279,8 +294,20 @@ impl fmt::Display for Expr {
             } => {
                 write!(f, "if {predicate} then {true_branch} else {false_branch}")
             }
-            Expr::Unpack { value, field } => {
-                write!(f, "{value}.{field}")
+            Expr::Unpack {
+                value,
+                field,
+                struct_name,
+                type_arguments,
+            } => {
+                write!(f, "({value}).{field}")
+            }
+            Expr::MakeClosure {
+                function,
+                env,
+                witness,
+            } => {
+                write!(f, "closure {function} {env} and {witness}")
             }
         }
     }

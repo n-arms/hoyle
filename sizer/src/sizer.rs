@@ -151,7 +151,7 @@ fn expr(env: &Env, to_size: &type_passing::Expr) -> Expr {
             body,
             tag,
         } => {
-            let sized_args = arguments
+            let sized_args: Vec<_> = arguments
                 .iter()
                 .map(|arg| {
                     let witness = type_witness(env, &arg.typ);
@@ -162,7 +162,13 @@ fn expr(env: &Env, to_size: &type_passing::Expr) -> Expr {
                     }
                 })
                 .collect();
-            let sized_body = expr(env, &body);
+            let sized_body = {
+                let mut inner_env = env.clone();
+                for arg in &sized_args {
+                    inner_env.define_variable(arg.name.clone(), arg.witness.clone());
+                }
+                expr(&inner_env, &body)
+            };
             let value_captures = tag
                 .value_captures
                 .iter()
@@ -283,7 +289,7 @@ fn type_witness(env: &Env, to_witness: &Type) -> Witness {
                 typ: Type::typ(),
             }),
         },
-        Type::Function { .. } => todo!(),
+        Type::Function { .. } => Witness::closure(),
     }
 }
 
