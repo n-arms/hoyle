@@ -226,6 +226,7 @@ fn generics(typ: &Type) -> HashSet<String> {
             .flat_map(generics)
             .chain(generics(&result))
             .collect(),
+        Type::Unification { name, value } => generics(Type::unwrap(name, &value)),
     }
 }
 
@@ -259,6 +260,7 @@ fn typ(env: &Env, to_pass: &Type) -> Expr {
                 },
             }
         }
+        Type::Unification { name, value } => typ(env, Type::unwrap(name, &value)),
     }
 }
 

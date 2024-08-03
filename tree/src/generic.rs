@@ -1,4 +1,5 @@
-use core::fmt;
+use core::{fmt, hash};
+use std::{cell::OnceCell, rc::Rc};
 
 use crate::String;
 
@@ -61,7 +62,7 @@ pub struct Field {
     pub typ: Type,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone)]
 pub enum Type {
     Named {
         name: String,
@@ -74,7 +75,12 @@ pub enum Type {
         arguments: Vec<Type>,
         result: Box<Type>,
     },
+    Unification {
+        name: String,
+        value: Rc<OnceCell<Type>>,
+    },
 }
+
 #[derive(Clone, Debug)]
 pub struct Generic {
     pub name: String,
@@ -195,6 +201,60 @@ impl<S: Stage> Program<S> {
     }
 }
 
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Type::Named { name, arguments },
+                Type::Named {
+                    name: name1,
+                    arguments: arguments1,
+                },
+            ) => name == name1 && arguments == arguments1,
+            (Type::Generic { name }, Type::Generic { name: name1 }) => name == name1,
+            (
+                Type::Function { arguments, result },
+                Type::Function {
+                    arguments: arguments1,
+                    result: result1,
+                },
+            ) => arguments == arguments1 && result.as_ref() == result1.as_ref(),
+            (
+                Type::Unification { name, value },
+                Type::Unification {
+                    name: name1,
+                    value: value1,
+                },
+            ) => name == name1 && value.get() == value1.get(),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Type {}
+
+impl hash::Hash for Type {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Type::Named { name, arguments } => {
+                name.hash(state);
+                arguments.hash(state);
+            }
+            Type::Generic { name } => {
+                name.hash(state);
+            }
+            Type::Function { arguments, result } => {
+                arguments.hash(state);
+                result.as_ref().hash(state);
+            }
+            Type::Unification { name, value } => {
+                name.hash(state);
+                value.get().hash(state);
+            }
+        }
+    }
+}
+
 impl Type {
     pub fn typ() -> Self {
         Self::Named {
@@ -220,6 +280,12 @@ impl Type {
             name: String::from("I64"),
             arguments: Vec::new(),
         }
+    }
+
+    pub fn unwrap<'a>(name: &String, value: &'a OnceCell<Type>) -> &'a Type {
+        value
+            .get()
+            .expect(&format!("undefined unification variable {}", name))
     }
 }
 
@@ -408,6 +474,13 @@ impl fmt::Debug for Type {
                     tuple.finish()?;
                 }
                 write!(f, " -> {:?}", result.as_ref())
+            }
+            Type::Unification { name, value } => {
+                if let Some(value) = value.get() {
+                    write!(f, "{value:?}")
+                } else {
+                    write!(f, "{name}?")
+                }
             }
         }
     }

@@ -430,6 +430,7 @@ fn instr(to_emit: Instr, source: &mut Source, bank: &mut Bank, names: &NameSourc
                     }
                     tree::typed::Type::Generic { .. } => panic!(),
                     tree::typed::Type::Function { .. } => panic!(),
+                    tree::typed::Type::Unification { .. } => panic!(),
                 }
             };
             source.push(&format!("*({type_name} *) {var} = "));

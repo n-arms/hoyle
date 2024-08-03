@@ -104,5 +104,6 @@ pub fn apply(typ: &Type, spec: &Spec) -> Result<Type> {
                 .collect::<Result<_>>()?,
             result: Box::new(apply(result, spec)?),
         }),
+        Type::Unification { name, value } => todo!(),
     }
 }

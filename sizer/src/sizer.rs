@@ -290,6 +290,7 @@ fn type_witness(env: &Env, to_witness: &Type) -> Witness {
             }),
         },
         Type::Function { .. } => Witness::closure(),
+        Type::Unification { name, value } => type_witness(env, Type::unwrap(name, value)),
     }
 }
 
