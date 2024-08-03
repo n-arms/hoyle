@@ -1,6 +1,6 @@
 pub use crate::parsed::Argument;
 use crate::parsed::If;
-use crate::typed::StructPack;
+use crate::typed::{self, StructPack};
 use crate::String;
 use crate::{
     generic::{self, Stage},
@@ -26,8 +26,8 @@ pub struct StructMeta {
 
 #[derive(Clone)]
 pub struct Closure {
-    pub value_captures: Vec<Argument>,
-    pub type_captures: Vec<Argument>,
+    pub value_captures: Vec<typed::ClosureArgument>,
+    pub type_captures: Vec<typed::ClosureArgument>,
     pub result: Type,
     pub env: Struct,
 }
@@ -41,6 +41,7 @@ impl Stage for TypePassing {
     type If = If;
     type StructMeta = StructMeta;
     type Closure = Closure;
+    type ClosureArgument = typed::ClosureArgument;
 }
 
 pub type Program = generic::Program<TypePassing>;

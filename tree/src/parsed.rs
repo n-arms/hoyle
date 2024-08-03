@@ -14,6 +14,12 @@ pub struct Argument {
     pub typ: Type,
 }
 
+#[derive(Clone)]
+pub struct ClosureArgument {
+    pub name: String,
+    pub typ: Option<Type>,
+}
+
 #[derive(Copy, Clone)]
 pub struct If;
 
@@ -26,6 +32,7 @@ impl Stage for Parsed {
     type If = If;
     type StructMeta = ();
     type Closure = ();
+    type ClosureArgument = ClosureArgument;
 }
 
 pub type Program = generic::Program<Parsed>;

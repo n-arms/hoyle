@@ -1,3 +1,6 @@
+use std::cell::OnceCell;
+use std::rc::Rc;
+
 use crate::env::*;
 use im::HashMap;
 use tree::typed::*;
@@ -5,80 +8,19 @@ use tree::String;
 
 pub type Spec = HashMap<String, Type>;
 
-pub fn union(first: Spec, second: Spec) -> Result<Spec> {
-    let errors = first
-        .clone()
-        .intersection_with_key(second.clone(), |name, old_typ, typ| {
-            Error::GenericTypeMismatch {
-                name: name.clone(),
-                first: old_typ,
-                second: typ,
-            }
-        });
-    if errors.is_empty() {
-        Ok(first.union(second))
-    } else {
-        Err(errors.values().next().unwrap().clone())
-    }
-}
-
-pub fn specialize_arguments(
-    env: &Env,
-    general: &[Type],
-    specific: &[Expr],
-) -> Result<HashMap<String, Type>> {
-    let arg_specs = general
-        .into_iter()
-        .zip(specific)
-        .map(|(typ, expr)| specialize(env, typ, &expr.get_type()));
-    let mut spec = HashMap::new();
-    for arg_spec in arg_specs {
-        spec = union(spec, arg_spec?)?;
-    }
-    Ok(spec)
-}
-
-fn specialize(env: &Env, general: &Type, specific: &Type) -> Result<HashMap<String, Type>> {
-    match (general, specific) {
-        (
-            Type::Named { name, arguments },
-            Type::Named {
-                name: new_name,
-                arguments: new_arguments,
-            },
-        ) => {
-            if name != new_name {
-                Err(Error::NamedTypeMismatch {
-                    expected: name.clone(),
-                    got: new_name.clone(),
-                })
-            } else {
-                let mut spec = HashMap::new();
-                for (old, new) in arguments.iter().zip(new_arguments) {
-                    spec = union(spec, specialize(env, old, new)?)?;
-                }
-                Ok(spec)
-            }
-        }
-        (Type::Generic { name }, typ) => Ok(HashMap::unit(name.clone(), typ.clone())),
-        (
-            Type::Function { arguments, result },
-            Type::Function {
-                arguments: new_arguments,
-                result: new_result,
-            },
-        ) => {
-            let mut spec = specialize(env, &result, &new_result)?;
-            for (old, new) in arguments.iter().zip(new_arguments) {
-                spec = union(spec, specialize(env, old, new)?)?;
-            }
-            Ok(spec)
-        }
-        (expected, got) => Err(Error::TypeMismatch {
-            expected: expected.clone(),
-            got: got.clone(),
-        }),
-    }
+pub fn make_specialization(generics: &[Generic]) -> Spec {
+    generics
+        .iter()
+        .map(|generic| {
+            (
+                generic.name.clone(),
+                Type::Unification {
+                    name: generic.name.clone(),
+                    value: Rc::new(OnceCell::default()),
+                },
+            )
+        })
+        .collect()
 }
 
 pub fn apply(typ: &Type, spec: &Spec) -> Result<Type> {
@@ -104,6 +46,6 @@ pub fn apply(typ: &Type, spec: &Spec) -> Result<Type> {
                 .collect::<Result<_>>()?,
             result: Box::new(apply(result, spec)?),
         }),
-        Type::Unification { name, value } => todo!(),
+        Type::Unification { name, value } => apply(Type::unwrap(name, value), spec),
     }
 }

@@ -1,3 +1,5 @@
+use core::fmt;
+
 pub use crate::parsed::Argument;
 use crate::parsed::If;
 use crate::String;
@@ -25,8 +27,14 @@ pub struct StructPack {
 
 #[derive(Clone)]
 pub struct Closure {
-    pub captures: Vec<Argument>,
+    pub captures: Vec<ClosureArgument>,
     pub result: Type,
+}
+
+#[derive(Clone)]
+pub struct ClosureArgument {
+    pub name: String,
+    pub typ: Type,
 }
 
 impl Stage for Typed {
@@ -38,6 +46,7 @@ impl Stage for Typed {
     type If = If;
     type StructMeta = ();
     type Closure = Closure;
+    type ClosureArgument = ClosureArgument;
 }
 
 pub type Program = generic::Program<Typed>;
@@ -71,5 +80,11 @@ impl Expr {
             generic::Expr::If { true_branch, .. } => true_branch.get_type(),
             generic::Expr::Closure { tag, .. } => tag.result.clone(),
         }
+    }
+}
+
+impl fmt::Display for ClosureArgument {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.name, self.typ)
     }
 }

@@ -190,9 +190,15 @@ fn pack_field<'src>(expr: parser!('src, Expr)) -> parser!('src, PackField) {
 }
 
 fn closure<'src>(expr: parser!('src, Expr)) -> parser!('src, Expr) {
-    let arg_list = argument().map(|arg| vec![arg]).or(token(Kind::LeftParen)
-        .ignore_then(comma_list(argument()))
-        .then_ignore(token(Kind::RightParen)));
+    let closure_argument = ident()
+        .then(token(Kind::Colon).ignore_then(typ()).or_not())
+        .map(|(name, typ)| ClosureArgument { name, typ });
+    let arg_list = closure_argument
+        .clone()
+        .map(|arg| vec![arg])
+        .or(token(Kind::LeftParen)
+            .ignore_then(comma_list(closure_argument))
+            .then_ignore(token(Kind::RightParen)));
 
     arg_list
         .then_ignore(token(Kind::ThickArrow))

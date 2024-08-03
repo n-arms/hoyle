@@ -268,7 +268,18 @@ pub fn expr(
             };
             let mocked_function = {
                 let function_name = closure_name(&builder);
-                let mut arguments = arguments.clone();
+                let make_args = |closure_args: &[sized::ClosureArgument]| -> Vec<_> {
+                    closure_args
+                        .iter()
+                        .cloned()
+                        .map(|arg| sized::Argument {
+                            name: arg.name,
+                            typ: arg.typ,
+                            witness: arg.witness,
+                        })
+                        .collect()
+                };
+                let mut arguments = make_args(arguments);
                 arguments.insert(
                     0,
                     sized::Argument {
@@ -303,8 +314,8 @@ pub fn expr(
                         }),
                     },
                 });
-                arguments.extend(tag.type_captures.iter().cloned());
-                arguments.extend(tag.value_captures.iter().cloned());
+                arguments.extend(make_args(&tag.type_captures));
+                arguments.extend(make_args(&tag.value_captures));
                 sized::Function {
                     name: function_name,
                     generics: Vec::new(),

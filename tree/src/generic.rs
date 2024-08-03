@@ -12,6 +12,7 @@ pub trait Stage {
     type If: Clone;
     type StructMeta: Clone;
     type Closure: Clone;
+    type ClosureArgument: Clone;
 }
 
 pub trait DisplayStage:
@@ -24,6 +25,7 @@ pub trait DisplayStage:
     If = <Self as DisplayStage>::If,
     StructMeta = <Self as DisplayStage>::StructMeta,
     Closure = <Self as DisplayStage>::Closure,
+    ClosureArgument = <Self as DisplayStage>::ClosureArgument,
 >
 {
     type Argument: Clone + fmt::Debug;
@@ -34,6 +36,7 @@ pub trait DisplayStage:
     type If: Clone + fmt::Display;
     type StructMeta: Clone + fmt::Display;
     type Closure: Clone + fmt::Display;
+    type ClosureArgument: Clone + fmt::Debug;
 }
 
 #[derive(Clone)]
@@ -158,7 +161,7 @@ pub enum Expr<S: Stage> {
         tag: S::If,
     },
     Closure {
-        arguments: Vec<S::Argument>,
+        arguments: Vec<S::ClosureArgument>,
         body: Box<Expr<S>>,
         tag: S::Closure,
     },
@@ -282,10 +285,25 @@ impl Type {
         }
     }
 
+    pub fn unification(name: String) -> Self {
+        Self::Unification {
+            name,
+            value: Rc::new(OnceCell::default()),
+        }
+    }
+
     pub fn unwrap<'a>(name: &String, value: &'a OnceCell<Type>) -> &'a Type {
         value
             .get()
             .expect(&format!("undefined unification variable {}", name))
+    }
+
+    pub fn canonical(&self) -> &Type {
+        if let Self::Unification { value, .. } = self {
+            value.get().unwrap_or(self)
+        } else {
+            self
+        }
     }
 }
 

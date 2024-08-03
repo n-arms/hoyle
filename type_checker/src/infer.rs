@@ -1,6 +1,7 @@
 use crate::check;
 use crate::env::*;
-use crate::specialize::{apply, specialize_arguments};
+use crate::specialize::apply;
+use crate::specialize::make_specialization;
 use im::HashMap;
 use im::HashSet;
 use tree::parsed;
@@ -106,12 +107,21 @@ pub fn expr(env: &Env, to_infer: &parsed::Expr) -> Result<Expr> {
             ..
         } => {
             let scheme = env.lookup_function(function)?;
-            let typed_arguments = arguments
-                .into_iter()
-                .map(|arg| expr(env, arg))
+
+            let spec = make_specialization(&scheme.generics);
+
+            let arg_types = scheme
+                .arguments
+                .iter()
+                .map(|arg| apply(arg, &spec))
                 .collect::<Result<Vec<_>>>()?;
 
-            let spec = specialize_arguments(env, &scheme.arguments, &typed_arguments)?;
+            let typed_arguments = arguments
+                .into_iter()
+                .zip(arg_types)
+                .map(|(arg, typ)| check::expr(env, arg, &typ))
+                .collect::<Result<Vec<_>>>()?;
+
             let result = apply(&scheme.result, &spec)?;
             let generics = scheme
                 .generics
@@ -148,21 +158,18 @@ pub fn expr(env: &Env, to_infer: &parsed::Expr) -> Result<Expr> {
         }
         parsed::Expr::StructPack { name, fields, .. } => {
             let scheme = env.lookup_struct(&name)?;
-            let res = fields
+            let spec = make_specialization(&[]);
+            let fields = fields
                 .iter()
                 .map(|field| {
-                    let want = scheme.fields.get(&field.name).unwrap().clone();
-                    let typed = expr(env, &field.value)?;
-                    let field = PackField {
+                    let want = apply(scheme.fields.get(&field.name).unwrap(), &spec)?;
+                    let typed = check::expr(env, &field.value, &want)?;
+                    Ok(PackField {
                         name: field.name.clone(),
                         value: typed.clone(),
-                    };
-                    Ok((want, typed, field))
+                    })
                 })
                 .collect::<Result<Vec<_>>>()?;
-            let (want, got, fields): (Vec<_>, Vec<_>, Vec<_>) = res.into_iter().unzip3();
-            let spec = specialize_arguments(env, &want, &got)?;
-            assert!(spec.is_empty());
             let result = apply(&scheme.result, &spec)?;
             Ok(Expr::StructPack {
                 name: name.clone(),
@@ -204,43 +211,61 @@ pub fn expr(env: &Env, to_infer: &parsed::Expr) -> Result<Expr> {
         parsed::Expr::Closure {
             arguments, body, ..
         } => {
-            let captures = {
-                let vars = free_variables(body.as_ref()).relative_complement(
-                    arguments
-                        .iter()
-                        .cloned()
-                        .map(|arg| arg.name.clone())
-                        .collect(),
-                );
-                vars.into_iter()
-                    .map(|name| {
-                        let typ = env.lookup_variable(&name)?;
-                        Ok(Argument { name, typ })
-                    })
-                    .collect::<Result<Vec<_>>>()?
+            let mut inner_env = env.clone();
+            let typed_arguments: Vec<_> = arguments
+                .iter()
+                .map(|arg| {
+                    let typ = if let Some(typ) = &arg.typ {
+                        inner_env.define_variable(arg.name.clone(), typ.clone());
+                        typ.clone()
+                    } else {
+                        let unification =
+                            Type::unification(String::from(format!("typeof {}", arg.name)));
+                        inner_env.define_variable(arg.name.clone(), unification.clone());
+                        unification
+                    };
+                    ClosureArgument {
+                        name: arg.name.clone(),
+                        typ,
+                    }
+                })
+                .collect();
+            let typed_body = expr(&inner_env, body.as_ref())?;
+            let result = Type::Function {
+                arguments: typed_arguments.iter().map(|arg| arg.typ.clone()).collect(),
+                result: Box::new(typed_body.get_type()),
             };
-            let typed_body = {
-                let mut inner_env = env.clone();
-                for arg in arguments {
-                    inner_env.define_variable(arg.name.clone(), arg.typ.clone());
-                }
-                expr(&inner_env, body.as_ref())?
-            };
-
             let tag = Closure {
-                captures,
-                result: Type::Function {
-                    arguments: arguments.iter().map(|arg| arg.typ.clone()).collect(),
-                    result: Box::new(typed_body.get_type()),
-                },
+                captures: closure_captures(env, arguments, body)?,
+                result,
             };
             Ok(Expr::Closure {
-                arguments: arguments.clone(),
+                arguments: typed_arguments,
                 body: Box::new(typed_body),
                 tag,
             })
         }
     }
+}
+
+pub fn closure_captures(
+    env: &Env,
+    arguments: &[parsed::ClosureArgument],
+    body: &parsed::Expr,
+) -> Result<Vec<ClosureArgument>> {
+    let vars = free_variables(body).relative_complement(
+        arguments
+            .iter()
+            .cloned()
+            .map(|arg| arg.name.clone())
+            .collect(),
+    );
+    vars.into_iter()
+        .map(|name| {
+            let typ = env.lookup_variable(&name)?;
+            Ok(ClosureArgument { name, typ })
+        })
+        .collect()
 }
 
 fn free_variables(expr: &parsed::Expr) -> HashSet<String> {

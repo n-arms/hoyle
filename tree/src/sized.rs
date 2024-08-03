@@ -56,10 +56,17 @@ pub struct StructMeta {
 
 #[derive(Clone)]
 pub struct Closure {
-    pub value_captures: Vec<Argument>,
-    pub type_captures: Vec<Argument>,
+    pub value_captures: Vec<ClosureArgument>,
+    pub type_captures: Vec<ClosureArgument>,
     pub env: Struct,
     pub result: Type,
+    pub witness: Witness,
+}
+
+#[derive(Clone)]
+pub struct ClosureArgument {
+    pub name: String,
+    pub typ: Type,
     pub witness: Witness,
 }
 
@@ -72,6 +79,7 @@ impl Stage for Sized {
     type If = If;
     type StructMeta = StructMeta;
     type Closure = Closure;
+    type ClosureArgument = ClosureArgument;
 }
 
 impl DisplayStage for Sized {
@@ -83,6 +91,7 @@ impl DisplayStage for Sized {
     type If = If;
     type StructMeta = StructMeta;
     type Closure = Closure;
+    type ClosureArgument = ClosureArgument;
 }
 
 pub type Program = generic::Program<Sized>;
@@ -229,5 +238,11 @@ impl fmt::Display for Closure {
         }
         tuple.finish()?;
         write!(f, "@{}: {}", self.witness, self.result)
+    }
+}
+
+impl fmt::Debug for ClosureArgument {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}@{}: {}", self.name, self.witness, self.typ)
     }
 }

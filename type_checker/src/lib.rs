@@ -5,3 +5,4 @@ pub mod check;
 pub mod env;
 pub mod infer;
 pub mod specialize;
+pub mod unify;

@@ -3,6 +3,7 @@ use std::iter;
 use im::HashSet;
 use tree::type_passing::*;
 use tree::typed;
+use tree::typed::ClosureArgument;
 use tree::String;
 
 use crate::env::Env;
@@ -150,7 +151,7 @@ fn expr(env: &Env, to_pass: &typed::Expr) -> Expr {
                     .collect();
                 generics
                     .into_iter()
-                    .map(|name| Argument {
+                    .map(|name| ClosureArgument {
                         name,
                         typ: Type::typ(),
                     })

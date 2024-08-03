@@ -155,7 +155,7 @@ fn expr(env: &Env, to_size: &type_passing::Expr) -> Expr {
                 .iter()
                 .map(|arg| {
                     let witness = type_witness(env, &arg.typ);
-                    Argument {
+                    ClosureArgument {
                         name: arg.name.clone(),
                         typ: arg.typ.clone(),
                         witness,
@@ -174,7 +174,7 @@ fn expr(env: &Env, to_size: &type_passing::Expr) -> Expr {
                 .iter()
                 .map(|arg| {
                     let witness = type_witness(env, &arg.typ);
-                    Argument {
+                    ClosureArgument {
                         name: arg.name.clone(),
                         typ: arg.typ.clone(),
                         witness,
@@ -186,7 +186,7 @@ fn expr(env: &Env, to_size: &type_passing::Expr) -> Expr {
                 .iter()
                 .map(|arg| {
                     let witness = type_witness(env, &arg.typ);
-                    Argument {
+                    ClosureArgument {
                         name: arg.name.clone(),
                         typ: arg.typ.clone(),
                         witness,
